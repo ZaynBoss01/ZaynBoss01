@@ -1,0 +1,619 @@
+-- ZAYN PRIVATE CHAT - BROOKHAVEN EDITION (NO HTTPS)
+-- Works even with blocked HTTPS in Brookhaven
+
+local Player = game:GetService("Players").LocalPlayer
+local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local CoreGui = game:GetService("CoreGui")
+
+-- ============================================
+-- CREATE REMOTE EVENT FOR COMMUNICATION
+-- ============================================
+local RemoteEvent
+local function setupRemote()
+    -- Check if remote already exists
+    RemoteEvent = ReplicatedStorage:FindFirstChild("ZaynPrivateChatEvent")
+    if not RemoteEvent then
+        RemoteEvent = Instance.new("RemoteEvent")
+        RemoteEvent.Name = "ZaynPrivateChatEvent"
+        RemoteEvent.Parent = ReplicatedStorage
+    end
+end
+
+-- ============================================
+-- VARIABLES
+-- ============================================
+local SCRIPT_ID = "ZAYN_BH_PRIVATE"
+local SUPER_ADMINS = {
+    ["erennn0779"] = true,
+    ["MickeyGotBan"] = true
+}
+local activeUsers = {}
+local messageHistory = {}
+local windowVisible = true
+local lastMessageTime = 0
+local myUserId = game:GetService("UserIdService"):GetUserId()
+
+-- ============================================
+-- UI SETUP
+-- ============================================
+local function setupUI()
+    if CoreGui:FindFirstChild("ZaynPrivateChat") then
+        CoreGui.ZaynPrivateChat:Destroy()
+    end
+    
+    local sg = Instance.new("ScreenGui")
+    sg.Name = "ZaynPrivateChat"
+    sg.Parent = CoreGui
+    sg.ResetOnSpawn = false
+    
+    -- Main Frame
+    local main = Instance.new("Frame")
+    main.Size = UDim2.new(0, 330, 0, 350)
+    main.Position = UDim2.new(0.5, -165, 0.5, -175)
+    main.BackgroundColor3 = Color3.fromRGB(13, 13, 17)
+    main.BackgroundTransparency = 0
+    main.Active = true
+    main.Draggable = true
+    main.Parent = sg
+    Instance.new("UICorner", main).CornerRadius = UDim.new(0, 12)
+    
+    -- Glossy Gradient
+    local gradient = Instance.new("UIGradient", main)
+    gradient.Rotation = 135
+    gradient.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(13, 13, 17)),
+        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(33, 33, 40)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(13, 13, 17))
+    })
+    
+    -- Border Stroke
+    local stroke = Instance.new("UIStroke", main)
+    stroke.Thickness = 2
+    stroke.Color = Color3.fromRGB(212, 175, 55)
+    
+    -- Toggle Button
+    local toggleBtn = Instance.new("TextButton")
+    toggleBtn.Size = UDim2.new(0, 46, 0, 46)
+    toggleBtn.Position = UDim2.new(0.02, 0, 0.45, 0)
+    toggleBtn.Text = "Z"
+    toggleBtn.BackgroundColor3 = Color3.fromRGB(10, 10, 12)
+    toggleBtn.Font = Enum.Font.GothamBold
+    toggleBtn.TextColor3 = Color3.new(1, 1, 1)
+    toggleBtn.TextSize = 22
+    toggleBtn.Parent = sg
+    Instance.new("UICorner", toggleBtn).CornerRadius = UDim.new(1, 0)
+    
+    local toggleStroke = Instance.new("UIStroke", toggleBtn)
+    toggleStroke.Thickness = 2
+    
+    -- Title Bar
+    local titleBar = Instance.new("TextLabel")
+    titleBar.Size = UDim2.new(1, 0, 0, 34)
+    titleBar.Position = UDim2.new(0, 0, 0, 0)
+    titleBar.Text = "⚡ ZAYN PRIVATE CHAT ⚡"
+    titleBar.Font = Enum.Font.GothamBold
+    titleBar.TextSize = 14
+    titleBar.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
+    titleBar.TextColor3 = Color3.new(1, 1, 1)
+    titleBar.Parent = main
+    Instance.new("UICorner", titleBar).CornerRadius = UDim.new(0, 12)
+    
+    -- Tab Bar
+    local tabBar = Instance.new("Frame")
+    tabBar.Size = UDim2.new(1, 0, 0, 30)
+    tabBar.Position = UDim2.new(0, 0, 0, 34)
+    tabBar.BackgroundColor3 = Color3.fromRGB(16, 16, 20)
+    tabBar.BorderSizePixel = 0
+    tabBar.Parent = main
+    
+    local tabIndicator = Instance.new("Frame")
+    tabIndicator.Size = UDim2.new(0.5, 0, 0, 2)
+    tabIndicator.Position = UDim2.new(0, 0, 1, -2)
+    tabIndicator.BackgroundColor3 = Color3.fromRGB(212, 175, 55)
+    tabIndicator.Parent = tabBar
+    Instance.new("UICorner", tabIndicator).CornerRadius = UDim.new(1, 0)
+    
+    local chatTab = Instance.new("TextButton")
+    chatTab.Size = UDim2.new(0.5, 0, 1, 0)
+    chatTab.Position = UDim2.new(0, 0, 0, 0)
+    chatTab.Text = "💬 CHAT"
+    chatTab.Font = Enum.Font.GothamBold
+    chatTab.TextColor3 = Color3.new(1, 1, 1)
+    chatTab.TextSize = 11
+    chatTab.BackgroundTransparency = 1
+    chatTab.Parent = tabBar
+    
+    local themeTab = Instance.new("TextButton")
+    themeTab.Size = UDim2.new(0.5, 0, 1, 0)
+    themeTab.Position = UDim2.new(0.5, 0, 0, 0)
+    themeTab.Text = "🎨 THEMES"
+    themeTab.Font = Enum.Font.GothamBold
+    themeTab.TextColor3 = Color3.fromRGB(150, 150, 150)
+    themeTab.TextSize = 11
+    themeTab.BackgroundTransparency = 1
+    themeTab.Parent = tabBar
+    
+    -- Pages
+    local pages = Instance.new("Frame")
+    pages.Size = UDim2.new(1, 0, 1, -64)
+    pages.Position = UDim2.new(0, 0, 0, 64)
+    pages.BackgroundTransparency = 1
+    pages.Parent = main
+    
+    -- Chat Page
+    local chatPage = Instance.new("Frame")
+    chatPage.Size = UDim2.new(1, 0, 1, 0)
+    chatPage.BackgroundTransparency = 1
+    chatPage.Visible = true
+    chatPage.Parent = pages
+    
+    -- Theme Page
+    local themePage = Instance.new("Frame")
+    themePage.Size = UDim2.new(1, 0, 1, 0)
+    themePage.BackgroundTransparency = 1
+    themePage.Visible = false
+    themePage.Parent = pages
+    
+    -- Online Users
+    local onlineFrame = Instance.new("Frame")
+    onlineFrame.Size = UDim2.new(1, -12, 0, 28)
+    onlineFrame.Position = UDim2.new(0, 6, 0, 4)
+    onlineFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 26)
+    onlineFrame.BackgroundTransparency = 0.3
+    onlineFrame.Parent = chatPage
+    Instance.new("UICorner", onlineFrame).CornerRadius = UDim.new(0, 8)
+    
+    local onlineLabel = Instance.new("TextLabel")
+    onlineLabel.Size = UDim2.new(1, 0, 1, 0)
+    onlineLabel.Text = "👥 Active: 1"
+    onlineLabel.TextColor3 = Color3.fromRGB(212, 175, 55)
+    onlineLabel.Font = Enum.Font.GothamBold
+    onlineLabel.TextSize = 11
+    onlineLabel.BackgroundTransparency = 1
+    onlineLabel.Parent = onlineFrame
+    
+    -- Chat Scroll
+    local scroll = Instance.new("ScrollingFrame")
+    scroll.Size = UDim2.new(1, -12, 0, 220)
+    scroll.Position = UDim2.new(0, 6, 0, 36)
+    scroll.BackgroundTransparency = 1
+    scroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+    scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    scroll.ScrollBarThickness = 4
+    scroll.Parent = chatPage
+    
+    local msgLayout = Instance.new("UIListLayout")
+    msgLayout.Padding = UDim.new(0, 4)
+    msgLayout.Parent = scroll
+    
+    -- Input Box
+    local inputBox = Instance.new("TextBox")
+    inputBox.Size = UDim2.new(1, -12, 0, 44)
+    inputBox.Position = UDim2.new(0, 6, 1, -50)
+    inputBox.BackgroundColor3 = Color3.fromRGB(20, 20, 26)
+    inputBox.PlaceholderText = "Type your message..."
+    inputBox.TextColor3 = Color3.new(1, 1, 1)
+    inputBox.Font = Enum.Font.GothamMedium
+    inputBox.TextSize = 13
+    inputBox.ClearTextOnFocus = false
+    inputBox.Parent = chatPage
+    Instance.new("UICorner", inputBox).CornerRadius = UDim.new(0, 8)
+    
+    -- Theme Container
+    local themeScroll = Instance.new("ScrollingFrame")
+    themeScroll.Size = UDim2.new(1, 0, 1, 0)
+    themeScroll.BackgroundTransparency = 1
+    themeScroll.ScrollBarThickness = 3
+    themeScroll.Parent = themePage
+    
+    local themeLayout = Instance.new("UIListLayout")
+    themeLayout.Padding = UDim.new(0, 8)
+    themeLayout.Parent = themeScroll
+    
+    -- Theme List
+    local themes = {
+        {name = "🌑 Dark", color = Color3.fromRGB(13, 13, 17)},
+        {name = "💙 Navy Blue", color = Color3.fromRGB(10, 20, 45)},
+        {name = "❤️ Crimson Red", color = Color3.fromRGB(50, 12, 18)},
+        {name = "💚 Forest Green", color = Color3.fromRGB(15, 42, 22)},
+        {name = "💜 Royal Purple", color = Color3.fromRGB(42, 12, 52)},
+        {name = "⭐ Golden", color = Color3.fromRGB(52, 42, 12)},
+        {name = "🌊 Deep Ocean", color = Color3.fromRGB(10, 32, 58)},
+        {name = "🌸 Rose Gold", color = Color3.fromRGB(68, 42, 52)},
+        {name = "❄️ Arctic Frost", color = Color3.fromRGB(35, 35, 45)},
+        {name = "🍊 Sunset", color = Color3.fromRGB(65, 38, 18)},
+    }
+    
+    -- Create Theme Buttons
+    for _, theme in ipairs(themes) do
+        local btn = Instance.new("TextButton")
+        btn.Size = UDim2.new(0.9, 0, 0, 36)
+        btn.Position = UDim2.new(0.05, 0, 0, 0)
+        btn.Text = theme.name
+        btn.BackgroundColor3 = theme.color
+        btn.TextColor3 = Color3.new(1, 1, 1)
+        btn.Font = Enum.Font.GothamBold
+        btn.TextSize = 12
+        btn.Parent = themeScroll
+        Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
+        
+        local btnGradient = Instance.new("UIGradient", btn)
+        btnGradient.Rotation = 45
+        btnGradient.Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, Color3.new(1, 1, 1)),
+            ColorSequenceKeypoint.new(0.5, Color3.new(0.95, 0.95, 1)),
+            ColorSequenceKeypoint.new(1, Color3.new(0.85, 0.85, 0.9))
+        })
+        btnGradient.Transparency = NumberSequence.new(0.6, 0.35, 0.6)
+        
+        btn.MouseButton1Click:Connect(function()
+            if main:FindFirstChild("UIGradient") then
+                main.UIGradient:Destroy()
+            end
+            main.BackgroundColor3 = theme.color
+            local newGradient = Instance.new("UIGradient", main)
+            newGradient.Rotation = 135
+            newGradient.Color = ColorSequence.new({
+                ColorSequenceKeypoint.new(0, theme.color),
+                ColorSequenceKeypoint.new(0.5, theme.color:Lerp(Color3.new(1, 1, 1), 0.2)),
+                ColorSequenceKeypoint.new(1, theme.color)
+            })
+            newGradient.Transparency = NumberSequence.new(0, 0.08, 0)
+        end)
+        
+        btn.MouseEnter:Connect(function()
+            TweenService:Create(btn, TweenInfo.new(0.12), {Size = UDim2.new(0.92, 0, 0, 39)}):Play()
+        end)
+        
+        btn.MouseLeave:Connect(function()
+            TweenService:Create(btn, TweenInfo.new(0.12), {Size = UDim2.new(0.9, 0, 0, 36)}):Play()
+        end)
+    end
+    
+    -- Drag Functionality
+    local dragData = {active = false, startPos = nil, startMouse = nil}
+    
+    titleBar.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragData.active = true
+            dragData.startPos = main.Position
+            dragData.startMouse = input.Position
+        end
+    end)
+    
+    UserInputService.InputChanged:Connect(function(input)
+        if dragData.active and input.UserInputType == Enum.UserInputType.MouseMovement then
+            local delta = input.Position - dragData.startMouse
+            main.Position = UDim2.new(dragData.startPos.X.Scale, 
+                                       dragData.startPos.X.Offset + delta.X,
+                                       dragData.startPos.Y.Scale,
+                                       dragData.startPos.Y.Offset + delta.Y)
+        end
+    end)
+    
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragData.active = false
+        end
+    end)
+    
+    -- Tab Switching
+    chatTab.MouseButton1Click:Connect(function()
+        chatTab.TextColor3 = Color3.new(1, 1, 1)
+        themeTab.TextColor3 = Color3.fromRGB(150, 150, 150)
+        TweenService:Create(tabIndicator, TweenInfo.new(0.25), {Position = UDim2.new(0, 0, 1, -2)}):Play()
+        chatPage.Visible = true
+        themePage.Visible = false
+    end)
+    
+    themeTab.MouseButton1Click:Connect(function()
+        chatTab.TextColor3 = Color3.fromRGB(150, 150, 150)
+        themeTab.TextColor3 = Color3.new(1, 1, 1)
+        TweenService:Create(tabIndicator, TweenInfo.new(0.25), {Position = UDim2.new(0.5, 0, 1, -2)}):Play()
+        chatPage.Visible = false
+        themePage.Visible = true
+    end)
+    
+    -- Toggle Window
+    local windowVisible = true
+    toggleBtn.MouseButton1Click:Connect(function()
+        windowVisible = not windowVisible
+        main.Visible = windowVisible
+    end)
+    
+    -- Chat Functions
+    local function addMessage(text, color)
+        local label = Instance.new("TextLabel")
+        label.Size = UDim2.new(1, 0, 0, 0)
+        label.AutomaticSize = Enum.AutomaticSize.Y
+        label.BackgroundTransparency = 1
+        label.Text = text
+        label.TextColor3 = color
+        label.Font = Enum.Font.GothamMedium
+        label.TextSize = 12
+        label.TextXAlignment = Enum.TextXAlignment.Left
+        label.TextWrapped = true
+        label.Parent = scroll
+        task.wait()
+        scroll.CanvasPosition = Vector2.new(0, scroll.CanvasSize.Y.Offset)
+    end
+    
+    local function addSystemMessage(text)
+        local label = Instance.new("TextLabel")
+        label.Size = UDim2.new(1, 0, 0, 0)
+        label.AutomaticSize = Enum.AutomaticSize.Y
+        label.BackgroundTransparency = 1
+        label.Text = "📢 " .. text
+        label.TextColor3 = Color3.fromRGB(255, 200, 100)
+        label.Font = Enum.Font.GothamMedium
+        label.TextSize = 11
+        label.TextXAlignment = Enum.TextXAlignment.Left
+        label.TextWrapped = true
+        label.Parent = scroll
+        task.wait()
+        scroll.CanvasPosition = Vector2.new(0, scroll.CanvasSize.Y.Offset)
+    end
+    
+    local function updateActiveCount()
+        local count = #activeUsers
+        if count == 0 then
+            onlineLabel.Text = "👥 Active: 1 (You)"
+            if not table.find(activeUsers, Player.Name) then
+                table.insert(activeUsers, Player.Name)
+            end
+        else
+            onlineLabel.Text = "👥 Active: " .. count
+        end
+    end
+    
+    -- Send Message via RemoteEvent
+    local function sendMessage(msg)
+        if msg == "" or not msg then return end
+        
+        local role = SUPER_ADMINS[Player.Name] and "OWNER" or "USER"
+        local prefix = role == "OWNER" and "👑 [OWNER] " or "👤 [USER] "
+        
+        addMessage(prefix .. Player.Name .. ": " .. msg, Color3.new(1, 1, 1))
+        
+        -- Bubble Chat
+        pcall(function()
+            if Player.Character and Player.Character:FindFirstChild("Head") then
+                local bubble = Instance.new("BillboardGui")
+                bubble.Size = UDim2.new(0, 200, 0, 40)
+                bubble.StudsOffset = Vector3.new(0, 2.5, 0)
+                bubble.AlwaysOnTop = true
+                bubble.Parent = Player.Character.Head
+                
+                local text = Instance.new("TextLabel")
+                text.Size = UDim2.new(1, 0, 1, 0)
+                text.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+                text.BackgroundTransparency = 0.4
+                text.TextColor3 = Color3.new(1, 1, 1)
+                text.Text = msg
+                text.Font = Enum.Font.GothamMedium
+                text.TextSize = 12
+                text.TextWrapped = true
+                text.Parent = bubble
+                Instance.new("UICorner", text).CornerRadius = UDim.new(0, 8)
+                
+                game:GetService("Debris"):AddItem(bubble, 3)
+            end
+        end)
+        
+        -- Send via RemoteEvent to all script users
+        if RemoteEvent then
+            RemoteEvent:FireAllClients({
+                type = "message",
+                user = Player.Name,
+                msg = msg,
+                role = role,
+                timestamp = os.time()
+            })
+        end
+    end
+    
+    -- Receive Message Handler
+    local function onMessageReceived(data)
+        if data.type == "message" and data.user ~= Player.Name then
+            -- Check for duplicate
+            local msgKey = data.user .. data.msg .. data.timestamp
+            local alreadySeen = false
+            for _, seen in ipairs(messageHistory) do
+                if seen == msgKey then
+                    alreadySeen = true
+                    break
+                end
+            end
+            
+            if not alreadySeen then
+                table.insert(messageHistory, msgKey)
+                if #messageHistory > 200 then
+                    table.remove(messageHistory, 1)
+                end
+                
+                -- Add to active users
+                local userExists = false
+                for _, u in ipairs(activeUsers) do
+                    if u == data.user then
+                        userExists = true
+                        break
+                    end
+                end
+                if not userExists then
+                    table.insert(activeUsers, data.user)
+                    updateActiveCount()
+                    addSystemMessage("✨ " .. data.user .. " joined the chat!")
+                end
+                
+                -- Show message
+                if data.role == "OWNER" then
+                    addMessage("👑 [OWNER] " .. data.user .. ": " .. data.msg, Color3.new(1, 1, 1))
+                else
+                    addMessage("👤 [USER] " .. data.user .. ": " .. data.msg, Color3.new(1, 1, 1))
+                end
+            end
+        elseif data.type == "join" and data.user ~= Player.Name then
+            local userExists = false
+            for _, u in ipairs(activeUsers) do
+                if u == data.user then
+                    userExists = true
+                    break
+                end
+            end
+            if not userExists then
+                table.insert(activeUsers, data.user)
+                updateActiveCount()
+                addSystemMessage("✨ " .. data.user .. " joined the chat!")
+            end
+        elseif data.type == "leave" and data.user ~= Player.Name then
+            for i, u in ipairs(activeUsers) do
+                if u == data.user then
+                    table.remove(activeUsers, i)
+                    updateActiveCount()
+                    addSystemMessage("👋 " .. data.user .. " left the chat!")
+                    break
+                end
+            end
+        end
+    end
+    
+    -- Heartbeat to show online status
+    local function sendHeartbeat()
+        if RemoteEvent then
+            RemoteEvent:FireAllClients({
+                type = "heartbeat",
+                user = Player.Name,
+                timestamp = os.time()
+            })
+        end
+    end
+    
+    -- Cleanup inactive users
+    local lastHeartbeatTime = {}
+    local function cleanupInactive()
+        local now = os.time()
+        for i, user in ipairs(activeUsers) do
+            if user ~= Player.Name then
+                local lastTime = lastHeartbeatTime[user] or 0
+                if now - lastTime > 60 then
+                    table.remove(activeUsers, i)
+                    updateActiveCount()
+                    addSystemMessage("👋 " .. user .. " left the chat!")
+                end
+            end
+        end
+    end
+    
+    -- Heartbeat receiver
+    local function onHeartbeat(data)
+        if data.user ~= Player.Name then
+            lastHeartbeatTime[data.user] = data.timestamp or os.time()
+            
+            -- Add to active if not exists
+            local userExists = false
+            for _, u in ipairs(activeUsers) do
+                if u == data.user then
+                    userExists = true
+                    break
+                end
+            end
+            if not userExists then
+                table.insert(activeUsers, data.user)
+                updateActiveCount()
+                addSystemMessage("✨ " .. data.user .. " joined the chat!")
+            end
+        end
+    end
+    
+    -- Connect RemoteEvent
+    if RemoteEvent then
+        RemoteEvent.OnClientEvent:Connect(function(data)
+            if data.type == "message" then
+                onMessageReceived(data)
+            elseif data.type == "heartbeat" then
+                onHeartbeat(data)
+            elseif data.type == "join" then
+                onMessageReceived(data)
+            elseif data.type == "leave" then
+                onMessageReceived(data)
+            end
+        end)
+    end
+    
+    -- Input Handler
+    inputBox.FocusLost:Connect(function(enter)
+        if enter and inputBox.Text ~= "" then
+            sendMessage(inputBox.Text)
+            inputBox.Text = ""
+        end
+    end)
+    
+    -- RGB Border Effect
+    task.spawn(function()
+        local hue = 0
+        while true do
+            hue = (hue + 0.002) % 1
+            local color = Color3.fromHSV(hue, 1, 0.9)
+            pcall(function()
+                stroke.Color = color
+                toggleStroke.Color = color
+            end)
+            task.wait(0.05)
+        end
+    end)
+    
+    -- Initialization
+    task.spawn(function()
+        task.wait(1)
+        
+        -- Add self to active users
+        table.insert(activeUsers, Player.Name)
+        updateActiveCount()
+        
+        -- Send join message
+        if RemoteEvent then
+            RemoteEvent:FireAllClients({
+                type = "join",
+                user = Player.Name,
+                timestamp = os.time()
+            })
+        end
+        
+        -- Start heartbeat
+        task.spawn(function()
+            while true do
+                task.wait(30)
+                sendHeartbeat()
+            end
+        end)
+        
+        -- Cleanup inactive users
+        task.spawn(function()
+            while true do
+                task.wait(60)
+                cleanupInactive()
+            end
+        end)
+        
+        -- Welcome messages
+        addSystemMessage("✨ Welcome to Zayn Private Chat!")
+        addSystemMessage("💬 Brookhaven Compatible Edition!")
+        addSystemMessage("👤 You are: " .. Player.Name)
+        addSystemMessage("🎨 Click THEMES to change colors")
+        addSystemMessage("📌 Drag the title bar to move this window")
+    end)
+    
+    return main
+end
+
+-- ============================================
+-- INITIALIZE
+-- ============================================
+setupRemote()
+setupUI()
+print("✅ Zayn Private Chat - Brookhaven Edition Loaded!")
+print("💬 Messages will be visible to all script users via RemoteEvent!")
