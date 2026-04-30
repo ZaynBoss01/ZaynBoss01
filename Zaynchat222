@@ -1,5 +1,5 @@
 -- ========================================================== --
--- BLANK CHAT - SERVER, GALLERY & VOICE EDITION               --
+-- ZAYN CHAT - SERVER, GALLERY & VOICE EDITION               --
 -- THEME: OBSIDIAN DARK & SOFT RELAXING PASTEL                --
 -- SECURITY: TITANGUARD V10 (WATCHDOG+SANDBOX)                --
 -- FIXES: DM ROUTING FIXED, SYNC DETECTOR FIXED, VOICE ADDED  --
@@ -104,7 +104,7 @@ StatusTexts.GroupTransparency = 1
 StatusTexts.Parent = Halo
 
 local StatusMain = Instance.new("TextLabel")
-StatusMain.Text = "DEV : iZayn | BLANK CHAT UPDATED!" 
+StatusMain.Text = "DEV : iZayn | ZAYN CHAT UPDATED!" 
 StatusMain.Font = Enum.Font.Gotham
 StatusMain.TextSize = 12
 StatusMain.TextColor3 = Color3.fromRGB(150, 150, 150)
@@ -161,7 +161,7 @@ TweenService:Create(StatusTexts, t_sine, {GroupTransparency = 0}):Play()
 task.spawn(function()
     TypewriterEffect(StatusDetails, "> Welcome " .. LocalPlayer.DisplayName .. ". Verifying Access...", 0.04)
     task.wait(0.8)
-    TypewriterEffect(StatusDetails, "> BLANK CHAT ACTIVE!", 0.03)
+    TypewriterEffect(StatusDetails, "> ZAYN CHAT ACTIVE!", 0.03)
     task.wait(1)
 end)
 
@@ -331,8 +331,8 @@ local function startMainChat()
 
     local titleBar = Instance.new("Frame", main); titleBar.Size = UDim2.new(1, 0, 0, 42); titleBar.BackgroundTransparency = 1
     
-    -- 🔥 FIX 4: BLANK TITLE ADDED 🔥
-    local titleLabel = Instance.new("TextLabel", titleBar); titleLabel.Size = UDim2.new(1, -75, 1, 0); titleLabel.Text = "BLANK"; titleLabel.Font = Enum.Font.GothamBlack; titleLabel.TextSize = 16; titleLabel.TextColor3 = Color3.fromRGB(168, 230, 207); titleLabel.BackgroundTransparency = 1; titleLabel.TextXAlignment = Enum.TextXAlignment.Right
+    -- 🔥 FIX 4: ZAYN TITLE ADDED 🔥
+    local titleLabel = Instance.new("TextLabel", titleBar); titleLabel.Size = UDim2.new(1, -75, 1, 0); titleLabel.Text = "ZAYN"; titleLabel.Font = Enum.Font.GothamBlack; titleLabel.TextSize = 16; titleLabel.TextColor3 = Color3.fromRGB(168, 230, 207); titleLabel.BackgroundTransparency = 1; titleLabel.TextXAlignment = Enum.TextXAlignment.Right
     
     local serverTabBtn = Instance.new("TextButton", titleBar); serverTabBtn.Size = UDim2.new(0, 60, 0, 20); serverTabBtn.Position = UDim2.new(0, 10, 0.5, 0); serverTabBtn.AnchorPoint = Vector2.new(0, 0.5); serverTabBtn.Text = "🌍 SERVER"; serverTabBtn.Font = Enum.Font.GothamBold; serverTabBtn.TextSize = 11; serverTabBtn.TextColor3 = Colors.Primary; serverTabBtn.BackgroundColor3 = Colors.Dark; serverTabBtn.BackgroundTransparency = 0.5; Instance.new("UICorner", serverTabBtn).CornerRadius = UDim.new(0, 6)
     local galleryTabBtn = Instance.new("TextButton", titleBar); galleryTabBtn.Size = UDim2.new(0, 75, 0, 20); galleryTabBtn.Position = UDim2.new(0, 75, 0.5, 0); galleryTabBtn.AnchorPoint = Vector2.new(0, 0.5); galleryTabBtn.Text = "🖼️ GALLERY"; galleryTabBtn.Font = Enum.Font.GothamBold; galleryTabBtn.TextSize = 10; galleryTabBtn.TextColor3 = Colors.SystemYellow; galleryTabBtn.BackgroundColor3 = Colors.Dark; galleryTabBtn.BackgroundTransparency = 0.5; Instance.new("UICorner", galleryTabBtn).CornerRadius = UDim.new(0, 6)
