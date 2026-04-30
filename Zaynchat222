@@ -1,9 +1,8 @@
 -- ========================================================== --
--- ZAYN UI LAB - SERVER & GALLERY EDITION (V44.0 TITAN)       --
+-- BLANK CHAT - SERVER, GALLERY & VOICE EDITION               --
 -- THEME: OBSIDIAN DARK & SOFT RELAXING PASTEL                --
 -- SECURITY: TITANGUARD V10 (WATCHDOG+SANDBOX)                --
--- FIXES: MEDIA PORTAL INVISIBLE BUG FIXED, SELF JOIN FIXED   --
--- NEW: PROFILE EDITOR, DP, BIO ADDED IN SAFE BASE SCRIPT     --
+-- FIXES: DM ROUTING FIXED, SYNC DETECTOR FIXED, VOICE ADDED  --
 -- ========================================================== --
 
 local TweenService = game:GetService("TweenService")
@@ -12,6 +11,8 @@ local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 
 local UI_PARENT = (gethui and gethui()) or CoreGui
+
+local function safeCall(func, ...) if func then return pcall(func, ...) end end
 
 -- ================================================================= --
 -- [STAGE 1] : CLEANUP OLD UI BEFORE STARTING
@@ -74,7 +75,7 @@ HaloGradient.Color = ColorSequence.new({
 HaloGradient.Parent = HaloGlow
 
 local HubTitle = Instance.new("TextLabel")
-HubTitle.Text = "Z A Y N  C H A T" 
+HubTitle.Text = "B L A N K" 
 HubTitle.Font = Enum.Font.GothamBlack
 HubTitle.TextSize = 42
 HubTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -103,7 +104,7 @@ StatusTexts.GroupTransparency = 1
 StatusTexts.Parent = Halo
 
 local StatusMain = Instance.new("TextLabel")
-StatusMain.Text = "DEV : iZayn | ZAYN CHAT UPDATED!" 
+StatusMain.Text = "DEV : iZayn | BLANK CHAT UPDATED!" 
 StatusMain.Font = Enum.Font.Gotham
 StatusMain.TextSize = 12
 StatusMain.TextColor3 = Color3.fromRGB(150, 150, 150)
@@ -160,7 +161,7 @@ TweenService:Create(StatusTexts, t_sine, {GroupTransparency = 0}):Play()
 task.spawn(function()
     TypewriterEffect(StatusDetails, "> Welcome " .. LocalPlayer.DisplayName .. ". Verifying Access...", 0.04)
     task.wait(0.8)
-    TypewriterEffect(StatusDetails, "> ZAYN CHAT ACTIVE!", 0.03)
+    TypewriterEffect(StatusDetails, "> BLANK CHAT ACTIVE!", 0.03)
     task.wait(1)
 end)
 
@@ -230,16 +231,15 @@ local function startMainChat()
     if not _rawReq then pcall(function() LocalPlayer:Kick("🛡️ Error: Unsupported Executor!") end) return end
 
     local function reqFunc(options)
-        if checkTamper(_rawReq) then pcall(function() while true do end end) end
+        if checkTamper(_rawReq) then return {Success = false, Body = "null"} end
         options.Headers = options.Headers or {}; options.Headers["Content-Type"] = "application/json"
         local success, result = pcall(_rawReq, options); if success then return result else return {Success = false, Body = "null"} end
     end
 
     local function getStrictIdentity(uid)
         local numericUid = tonumber(uid); if not numericUid then return "Unknown", "Unknown" end
-        local s, info = pcall(function() return game:GetService("UserService"):GetUserInfosByUserIdsAsync({numericUid}) end)
-        if s and info and info[1] then return info[1].DisplayName, info[1].Username end
-        local s2, name = pcall(function() return Players:GetNameFromUserIdAsync(numericUid) end); if s2 and name then return name, name end return "User_"..tostring(uid):sub(1,4), "User_"..tostring(uid):sub(1,4)
+        local s2, name = pcall(function() return Players:GetNameFromUserIdAsync(numericUid) end)
+        if s2 and name then return name, name end return "User_"..tostring(uid):sub(1,4), "User_"..tostring(uid):sub(1,4)
     end
 
     local myUserId = tostring(LocalPlayer.UserId)
@@ -253,7 +253,9 @@ local function startMainChat()
     local SECURE_AUTH_KEY = "ZAYN_NOITCETORP_99X"
 
     local activeScriptUsers = {}
-    local customProfiles = {} -- Added to store Profile/Bio
+    local customProfiles = {} 
+    local dmHistories = {}
+
     activeScriptUsers[myUserId] = {displayName = myName, name = myUser, lastSeen = os.time()}
 
     local STICKER_LIST = {"95112780943766", "90286953844894", "100722574482118", "108550928457595", "111616336841381", "72793460663497", "97531898393056", "124047412639555", "86402817297314", "108283809544243", "76757365751988", "134676873059671", "130819442854007", "108796531608917", "87693756574279", "102923210652647"}
@@ -262,22 +264,22 @@ local function startMainChat()
         if not raw or raw == "" then return nil, nil, nil, nil end
         raw = raw:gsub("^%s+", "")
         if raw:find("%[SYSTEM%]") then
-            local cleanSysMsg = raw:match("%[SYSTEM%]%s*:%s*([%s%S]*)%s*||") or raw:match("%[SYSTEM%]%s*:%s*([%s%S]*)")
+            local cleanSysMsg = raw:match("%[SYSTEM%]%s*:%s*(.*)%s*||") or raw:match("%[SYSTEM%]%s*:%s*(.*)")
             if cleanSysMsg then return "[SYSTEM]", cleanSysMsg, nil, "[SYSTEM]" end
         end
         local function extractSecureData(str)
-            local sMsg, sUID, sHash, sTS = str:match("^([%s%S]*)||%s*([%w_]+)::([%w_]+)::(%d+)%s*$")
-            if sMsg then sMsg = sMsg:gsub("%s+$", "") else sMsg, sUID = str:match("^([%s%S]*)||%s*([%w_]+)%s*$"); if sMsg then sMsg = sMsg:gsub("%s+$", "") end end
+            local sMsg, sUID, sHash, sTS = str:match("^(.*)||%s*([%w_]+)::([%w_]+)::(%d+)%s*$")
+            if sMsg then sMsg = sMsg:gsub("%s+$", "") else sMsg, sUID = str:match("^(.*)||%s*([%w_]+)%s*$"); if sMsg then sMsg = sMsg:gsub("%s+$", "") end end
             return sMsg, sUID, sHash, sTS
         end
-        local titlePart, namePart, msgPart = raw:match("^%[([^%]]+)%]%s+([^:]+):%s*([%s%S]*)$")
+        local titlePart, namePart, msgPart = raw:match("^%[([^%]]+)%]%s+([^:]+):%s*(.*)$")
         if titlePart and namePart and msgPart then
             if not titlePart:find("TITLE_") and not titlePart:find("SERVER_ANN") and not titlePart:find("ZAYN_SYNC") and not titlePart:find("CHAT_MUTE") and not titlePart:find("GBAN") then
                 local sMsg, sUID = extractSecureData(msgPart)
                 return "[" .. titlePart .. "] " .. namePart:gsub("^%s+", ""):gsub("%s+$", ""), sMsg or msgPart, sUID, namePart:gsub("^%s+", ""):gsub("%s+$", "")
             end
         end
-        local namePart2, msgPart2 = raw:match("^([^:%[]+):%s*([%s%S]*)$")
+        local namePart2, msgPart2 = raw:match("^([^:%[]+):%s*(.*)$")
         if namePart2 and msgPart2 then
             local sMsg, sUID = extractSecureData(msgPart2); local pName = namePart2:gsub("^%s+", ""):gsub("%s+$", "")
             return pName, sMsg or msgPart2, sUID, pName
@@ -328,11 +330,17 @@ local function startMainChat()
     local mainStroke = Instance.new("UIStroke", main); mainStroke.Thickness = 2; mainStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border; task.spawn(function() while mainStroke and mainStroke.Parent do pcall(function() mainStroke.Color = Colors.Primary:Lerp(Colors.Secondary, (math.sin(tick() * 2) + 1) / 2) end); task.wait(0.04) end end)
 
     local titleBar = Instance.new("Frame", main); titleBar.Size = UDim2.new(1, 0, 0, 42); titleBar.BackgroundTransparency = 1
-    local titleLabel = Instance.new("TextLabel", titleBar); titleLabel.Size = UDim2.new(1, -75, 1, 0); titleLabel.Text = "ZAYN UI LAB"; titleLabel.Font = Enum.Font.GothamBlack; titleLabel.TextSize = 16; titleLabel.TextColor3 = Color3.fromRGB(168, 230, 207); titleLabel.BackgroundTransparency = 1; titleLabel.TextXAlignment = Enum.TextXAlignment.Right
+    
+    -- 🔥 FIX 4: BLANK TITLE ADDED 🔥
+    local titleLabel = Instance.new("TextLabel", titleBar); titleLabel.Size = UDim2.new(1, -75, 1, 0); titleLabel.Text = "BLANK"; titleLabel.Font = Enum.Font.GothamBlack; titleLabel.TextSize = 16; titleLabel.TextColor3 = Color3.fromRGB(168, 230, 207); titleLabel.BackgroundTransparency = 1; titleLabel.TextXAlignment = Enum.TextXAlignment.Right
+    
     local serverTabBtn = Instance.new("TextButton", titleBar); serverTabBtn.Size = UDim2.new(0, 60, 0, 20); serverTabBtn.Position = UDim2.new(0, 10, 0.5, 0); serverTabBtn.AnchorPoint = Vector2.new(0, 0.5); serverTabBtn.Text = "🌍 SERVER"; serverTabBtn.Font = Enum.Font.GothamBold; serverTabBtn.TextSize = 11; serverTabBtn.TextColor3 = Colors.Primary; serverTabBtn.BackgroundColor3 = Colors.Dark; serverTabBtn.BackgroundTransparency = 0.5; Instance.new("UICorner", serverTabBtn).CornerRadius = UDim.new(0, 6)
     local galleryTabBtn = Instance.new("TextButton", titleBar); galleryTabBtn.Size = UDim2.new(0, 75, 0, 20); galleryTabBtn.Position = UDim2.new(0, 75, 0.5, 0); galleryTabBtn.AnchorPoint = Vector2.new(0, 0.5); galleryTabBtn.Text = "🖼️ GALLERY"; galleryTabBtn.Font = Enum.Font.GothamBold; galleryTabBtn.TextSize = 10; galleryTabBtn.TextColor3 = Colors.SystemYellow; galleryTabBtn.BackgroundColor3 = Colors.Dark; galleryTabBtn.BackgroundTransparency = 0.5; Instance.new("UICorner", galleryTabBtn).CornerRadius = UDim.new(0, 6)
     
-    local profileTabBtn = Instance.new("TextButton", titleBar); profileTabBtn.Size = UDim2.new(0, 65, 0, 20); profileTabBtn.Position = UDim2.new(0, 155, 0.5, 0); profileTabBtn.AnchorPoint = Vector2.new(0, 0.5); profileTabBtn.Text = "⚙️ PROFILE"; profileTabBtn.Font = Enum.Font.GothamBold; profileTabBtn.TextSize = 10; profileTabBtn.TextColor3 = Colors.Light; profileTabBtn.BackgroundColor3 = Colors.Dark; profileTabBtn.BackgroundTransparency = 0.5; Instance.new("UICorner", profileTabBtn).CornerRadius = UDim.new(0, 6)
+    -- 🔥 FIX 3: RESTORED VOICE BUTTON 🔥
+    local voiceTabBtn = Instance.new("TextButton", titleBar); voiceTabBtn.Size = UDim2.new(0, 60, 0, 20); voiceTabBtn.Position = UDim2.new(0, 155, 0.5, 0); voiceTabBtn.AnchorPoint = Vector2.new(0, 0.5); voiceTabBtn.Text = "🎵 VOICES"; voiceTabBtn.Font = Enum.Font.GothamBold; voiceTabBtn.TextSize = 10; voiceTabBtn.TextColor3 = Colors.NeonPink; voiceTabBtn.BackgroundColor3 = Colors.Dark; voiceTabBtn.BackgroundTransparency = 0.5; Instance.new("UICorner", voiceTabBtn).CornerRadius = UDim.new(0, 6)
+
+    local profileTabBtn = Instance.new("TextButton", titleBar); profileTabBtn.Size = UDim2.new(0, 65, 0, 20); profileTabBtn.Position = UDim2.new(0, 220, 0.5, 0); profileTabBtn.AnchorPoint = Vector2.new(0, 0.5); profileTabBtn.Text = "⚙️ PROFILE"; profileTabBtn.Font = Enum.Font.GothamBold; profileTabBtn.TextSize = 10; profileTabBtn.TextColor3 = Colors.Light; profileTabBtn.BackgroundColor3 = Colors.Dark; profileTabBtn.BackgroundTransparency = 0.5; Instance.new("UICorner", profileTabBtn).CornerRadius = UDim.new(0, 6)
 
     local closeBtn = Instance.new("TextButton", titleBar); closeBtn.Size = UDim2.new(0, 28, 0, 28); closeBtn.Position = UDim2.new(1, -36, 0.5, -14); closeBtn.Text = "-"; closeBtn.TextColor3 = Colors.Text; closeBtn.Font = Enum.Font.GothamBold; closeBtn.TextSize = 16; closeBtn.BackgroundColor3 = Colors.Dark; closeBtn.BackgroundTransparency = 0.2; Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(1, 0); Instance.new("UIStroke", closeBtn).Color = Colors.TextDim
     
@@ -343,6 +351,10 @@ local function startMainChat()
     local galleryContainer = Instance.new("Frame", main); galleryContainer.Size = UDim2.new(1, 0, 1, -42); galleryContainer.Position = UDim2.new(0, 0, 0, 42); galleryContainer.BackgroundTransparency = 1; galleryContainer.Visible = false
     local galleryScroll = Instance.new("ScrollingFrame", galleryContainer); galleryScroll.Size = UDim2.new(1, -22, 1, -10); galleryScroll.Position = UDim2.new(0, 11, 0, 5); galleryScroll.BackgroundTransparency = 1; galleryScroll.ScrollBarThickness = 4; galleryScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
     local galleryGrid = Instance.new("UIGridLayout", galleryScroll); galleryGrid.CellSize = UDim2.new(0, 100, 0, 100); galleryGrid.CellPadding = UDim2.new(0, 10, 0, 10)
+
+    local voiceContainer = Instance.new("Frame", main); voiceContainer.Size = UDim2.new(1, 0, 1, -42); voiceContainer.Position = UDim2.new(0, 0, 0, 42); voiceContainer.BackgroundTransparency = 1; voiceContainer.Visible = false
+    local voiceScroll = Instance.new("ScrollingFrame", voiceContainer); voiceScroll.Size = UDim2.new(1, -22, 1, -10); voiceScroll.Position = UDim2.new(0, 11, 0, 5); voiceScroll.BackgroundTransparency = 1; voiceScroll.ScrollBarThickness = 4; voiceScroll.ScrollBarImageColor3 = Colors.NeonPink; voiceScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    local voiceLayout = Instance.new("UIListLayout", voiceScroll); voiceLayout.Padding = UDim.new(0, 8)
 
     local function openFullScreenPreview(imgIdOrUrl)
         if UI_PARENT:FindFirstChild("ZaynPreviewModal") then UI_PARENT.ZaynPreviewModal:Destroy() end
@@ -384,7 +396,7 @@ local function startMainChat()
 
     local function updateServerReplyState(name, msg)
         if name and msg then
-            local cleanMsg = tostring(msg):gsub("%[STICKER:%d+%]", "[Sticker]"):gsub("%[PHOTO:.-%]", "[Photo]")
+            local cleanMsg = tostring(msg):gsub("%[STICKER:%d+%]", "[Sticker]"):gsub("%[PHOTO:.-%]", "[Photo]"):gsub("%[VOICE:%d+%]", "[Voice Msg]")
             if cleanMsg:match("^🔥") then cleanMsg = "[Snap 🔥]" end 
             serverReplyContext = name .. ": " .. cleanMsg; srvReplyText.Text = "Replying to " .. serverReplyContext; serverReplyBar.Visible = true; safeTween(serverReplyBar, {Position = UDim2.new(0, 11, 1, -85)}, 0.4)
         else serverReplyContext = nil; local tw = safeTween(serverReplyBar, {Position = UDim2.new(0, 11, 1, -50)}, 0.3); if tw then tw.Completed:Connect(function() if not serverReplyContext then serverReplyBar.Visible = false end end) end end
@@ -392,7 +404,7 @@ local function startMainChat()
     srvReplyCancel.MouseButton1Click:Connect(function() updateServerReplyState(nil, nil) end)
 
     local inputBg = Instance.new("Frame", contentFrame); inputBg.Size = UDim2.new(1, -20, 0, 40); inputBg.Position = UDim2.new(0, 10, 1, -50); inputBg.BackgroundColor3 = Colors.Dark; inputBg.BackgroundTransparency = 0.4; Instance.new("UICorner", inputBg).CornerRadius = UDim.new(0, 12)
-    local txtInput = Instance.new("TextBox", inputBg); txtInput.Size = UDim2.new(1, -125, 1, 0); txtInput.Position = UDim2.new(0, 10, 0, 0); txtInput.Text = ""; txtInput.PlaceholderText = "Message, /img, /snap or /afk..."; txtInput.BackgroundTransparency = 1; txtInput.TextColor3 = Colors.TextDim; txtInput.TextSize = 12; txtInput.Font = Enum.Font.Gotham; txtInput.TextXAlignment = Enum.TextXAlignment.Left; txtInput.ClearTextOnFocus = false
+    local txtInput = Instance.new("TextBox", inputBg); txtInput.Size = UDim2.new(1, -125, 1, 0); txtInput.Position = UDim2.new(0, 10, 0, 0); txtInput.Text = ""; txtInput.PlaceholderText = "Message, /img, /voice or /afk..."; txtInput.BackgroundTransparency = 1; txtInput.TextColor3 = Colors.TextDim; txtInput.TextSize = 12; txtInput.Font = Enum.Font.Gotham; txtInput.TextXAlignment = Enum.TextXAlignment.Left; txtInput.ClearTextOnFocus = false
     local stickerBtn = Instance.new("TextButton", inputBg); stickerBtn.Size = UDim2.new(0, 30, 0, 30); stickerBtn.Position = UDim2.new(1, -80, 0.5, -15); stickerBtn.Text = "🌸"; stickerBtn.TextSize = 18; stickerBtn.BackgroundTransparency = 1
     local mediaBtn = Instance.new("TextButton", inputBg); mediaBtn.Size = UDim2.new(0, 30, 0, 30); mediaBtn.Position = UDim2.new(1, -115, 0.5, -15); mediaBtn.Text = "📷"; mediaBtn.TextColor3 = Colors.Accent; mediaBtn.TextSize = 18; mediaBtn.BackgroundTransparency = 1
     local sendBtn = Instance.new("TextButton", inputBg); sendBtn.Size = UDim2.new(0, 35, 0, 30); sendBtn.Position = UDim2.new(1, -45, 0.5, -15); sendBtn.Text = "▶"; sendBtn.TextColor3 = Colors.Dark; sendBtn.Font = Enum.Font.GothamBold; sendBtn.TextSize = 16; sendBtn.BackgroundColor3 = Colors.Primary; Instance.new("UICorner", sendBtn).CornerRadius = UDim.new(0, 8)
@@ -415,7 +427,7 @@ local function startMainChat()
     local dmReplyBar = serverReplyBar:Clone(); dmReplyBar.Parent = dmChatContainer; local dmReplyText = dmReplyBar:FindFirstChildWhichIsA("TextLabel", true); local dmReplyCancel = dmReplyBar:FindFirstChildWhichIsA("TextButton", true)
     local function updateDmReplyState(name, msg)
         if name and msg then
-            local cleanMsg = tostring(msg):gsub("%[STICKER:%d+%]", "[Sticker]"):gsub("%[PHOTO:.-%]", "[Photo]")
+            local cleanMsg = tostring(msg):gsub("%[STICKER:%d+%]", "[Sticker]"):gsub("%[PHOTO:.-%]", "[Photo]"):gsub("%[VOICE:%d+%]", "[Voice Msg]")
             if cleanMsg:match("^🔥") then cleanMsg = "[Snap 🔥]" end
             dmReplyContext = name .. ": " .. cleanMsg; dmReplyText.Text = "Replying to " .. dmReplyContext; dmReplyBar.Visible = true; safeTween(dmReplyBar, {Position = UDim2.new(0, 11, 1, -72)}, 0.4)
         else dmReplyContext = nil; local tw = safeTween(dmReplyBar, {Position = UDim2.new(0, 11, 1, -42)}, 0.3); if tw then tw.Completed:Connect(function() if not dmReplyContext then dmReplyBar.Visible = false end end) end end
@@ -435,12 +447,20 @@ local function startMainChat()
     stickerBtn.MouseButton1Click:Connect(function() isStickerPanelOpen = not isStickerPanelOpen; safeTween(stickerPanel, {Size = UDim2.new(1, -22, 0, isStickerPanelOpen and 140 or 0)}, 0.35) end)
     if dmStickerBtn then dmStickerBtn.MouseButton1Click:Connect(function() isStickerPanelOpen = not isStickerPanelOpen; safeTween(stickerPanel, {Size = UDim2.new(1, -22, 0, isStickerPanelOpen and 140 or 0)}, 0.35) end) end
 
+    local function loadDmHistory(uid)
+        for _, child in ipairs(dmChatFrame:GetChildren()) do if child:IsA("Frame") then child:Destroy() end end
+        if dmHistories[tonumber(uid)] then for _, msgObj in ipairs(dmHistories[tonumber(uid)]) do addMessageToChat(msgObj.name, msgObj.msg, msgObj.isSystem, msgObj.uid, "DM") end end
+        task.spawn(function() task.wait(0.1); dmChatFrame.CanvasPosition = Vector2.new(0, 99999) end)
+    end
+
     local function switchTab(tabName) 
-        currentTab = tabName; contentFrame.Visible = (tabName == "Server"); galleryContainer.Visible = (tabName == "Gallery"); dmChatContainer.Visible = (tabName == "DMChat")
+        currentTab = tabName; contentFrame.Visible = (tabName == "Server"); galleryContainer.Visible = (tabName == "Gallery"); voiceContainer.Visible = (tabName == "Voice"); dmChatContainer.Visible = (tabName == "DMChat")
         isStickerPanelOpen = false; safeTween(stickerPanel, {Size = UDim2.new(1, -22, 0, 0)}, 0.2); mentionMenu.Visible = false
+        if tabName == "DMChat" then loadDmHistory(activeDmUserId) end
     end
     serverTabBtn.MouseButton1Click:Connect(function() switchTab("Server") end)
     galleryTabBtn.MouseButton1Click:Connect(function() switchTab("Gallery") end)
+    voiceTabBtn.MouseButton1Click:Connect(function() switchTab("Voice") end)
     dmBackBtn.MouseButton1Click:Connect(function() switchTab("Server") end)
 
     local function openZaynMediaBox(prefillUrl)
@@ -452,7 +472,7 @@ local function startMainChat()
         local box = Instance.new("Frame", bgOverlay); box.Name = "Frame"; box.Size = UDim2.new(0, 300, 0, 330); box.Position = UDim2.new(0.5, -150, 0.5, -180); box.BackgroundColor3 = Color3.fromRGB(15, 15, 20); box.Active = true; box.Draggable = true; Instance.new("UICorner", box).CornerRadius = UDim.new(0, 16); local boxStroke = Instance.new("UIStroke", box); boxStroke.Color = Colors.Primary; boxStroke.Thickness = 2
         safeTween(box, {Position = UDim2.new(0.5, -150, 0.5, -165)}, 0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
         local title = Instance.new("TextLabel", box); title.Size = UDim2.new(1, 0, 0, 45); title.Text = "📸 MEDIA PORTAL"; title.TextColor3 = Colors.Accent; title.Font = Enum.Font.GothamBlack; title.TextSize = 14; title.BackgroundTransparency = 1
-        local function closePortal() safeTween(bgOverlay, {BackgroundTransparency = 1}, 0.3); safeTween(blur, {Size = 0}, 0.3); safeTween(box, {Position = UDim2.new(0.5, -150, 0.5, -150)}, 0.3).Completed:Connect(function() mediaGui:Destroy(); blur:Destroy() end) end
+        local function closePortal() safeTween(bgOverlay, {BackgroundTransparency = 1}, 0.3); safeTween(blur, {Size = 0}, 0.3); safeTween(box, {Position = UDim2.new(0.5, -150, 0.5, -150)}, 0.3).Completed:Connect(function() safeCall(function() mediaGui:Destroy(); blur:Destroy() end) end) end
         local close = Instance.new("TextButton", box); close.Size = UDim2.new(0, 30, 0, 30); close.Position = UDim2.new(1, -35, 0, 7); close.Text = "✖"; close.TextColor3 = Colors.NeonPink; close.BackgroundTransparency = 1; close.Font = Enum.Font.GothamBold; close.TextSize = 16; close.MouseButton1Click:Connect(closePortal)
         local linkIn = Instance.new("TextBox", box); linkIn.Name = "LinkInput"; linkIn.Size = UDim2.new(1, -30, 0, 40); linkIn.Position = UDim2.new(0, 15, 0, 50); linkIn.PlaceholderText = "Paste Image Link Here..."; linkIn.BackgroundColor3 = Color3.fromRGB(25, 25, 30); linkIn.TextColor3 = Colors.Text; linkIn.Font = Enum.Font.Gotham; linkIn.TextSize = 11; linkIn.ClearTextOnFocus = false; linkIn.TextTruncate = Enum.TextTruncate.AtEnd; Instance.new("UICorner", linkIn).CornerRadius = UDim.new(0, 8); Instance.new("UIStroke", linkIn).Color = Color3.fromRGB(50,50,60)
         local previewBg = Instance.new("Frame", box); previewBg.Size = UDim2.new(0, 150, 0, 150); previewBg.Position = UDim2.new(0.5, -75, 0, 105); previewBg.BackgroundColor3 = Color3.fromRGB(10, 10, 15); Instance.new("UICorner", previewBg).CornerRadius = UDim.new(0, 8); Instance.new("UIStroke", previewBg).Color = Colors.Primary
@@ -484,12 +504,47 @@ local function startMainChat()
     end
     for _, url in ipairs(savedGalleryList) do addPhotoToGallery(url, true) end
 
-    -- 🔥 NEW PROFILE EDITOR ADDED SAFELY 🔥
+    -- 🔥 RESTORED VOICE GALLERY 🔥
+    local savedVoiceList = {}
+    if isfile and readfile and isfile("ZaynVoices_Saved.json") then pcall(function() savedVoiceList = HttpService:JSONDecode(readfile("ZaynVoices_Saved.json")) end) end
+    local function saveVoicesToDisk() if writefile then pcall(function() writefile("ZaynVoices_Saved.json", HttpService:JSONEncode(savedVoiceList)) end) end end
+
+    local savedVoicesMap = {}
+    local function addVoiceToGallery(voiceId, isInitialLoad)
+        if savedVoicesMap[voiceId] then return end; savedVoicesMap[voiceId] = true
+        if not isInitialLoad then table.insert(savedVoiceList, voiceId); saveVoicesToDisk() end
+        local vWrap = Instance.new("Frame", voiceScroll); vWrap.Size = UDim2.new(1, 0, 0, 40); vWrap.BackgroundColor3 = Colors.Dark; Instance.new("UICorner", vWrap).CornerRadius = UDim.new(0, 8); Instance.new("UIStroke", vWrap).Color = Colors.NeonPink
+        local playBtn = Instance.new("TextButton", vWrap); playBtn.Size = UDim2.new(1, -40, 1, 0); playBtn.BackgroundTransparency = 1; playBtn.Text = "▶ Play Voice: " .. voiceId; playBtn.Font = Enum.Font.GothamBold; playBtn.TextColor3 = Colors.Light; playBtn.TextSize = 12
+        local delBtn = Instance.new("TextButton", vWrap); delBtn.Size = UDim2.new(0, 30, 0, 30); delBtn.Position = UDim2.new(1, -35, 0.5, -15); delBtn.Text = "🗑️"; delBtn.BackgroundTransparency = 1
+        
+        local currentSound = nil
+        playBtn.MouseButton1Click:Connect(function()
+            if currentSound and currentSound.Parent then
+                pcall(function() currentSound:Stop(); currentSound:Destroy() end)
+                currentSound = nil
+                playBtn.Text = "▶ Play Voice: " .. voiceId
+            else
+                currentSound = Instance.new("Sound", UI_PARENT)
+                currentSound.SoundId = "rbxassetid://" .. voiceId:match("%d+")
+                currentSound.Volume = 2
+                currentSound.PlayOnRemove = false
+                currentSound:Play()
+                playBtn.Text = "⏹️ Stop Voice: " .. voiceId
+                currentSound.Ended:Connect(function()
+                    pcall(function() currentSound:Destroy() end)
+                    currentSound = nil
+                    playBtn.Text = "▶ Play Voice: " .. voiceId
+                end)
+            end
+        end)
+        delBtn.MouseButton1Click:Connect(function() savedVoicesMap[voiceId] = nil; for i, id in ipairs(savedVoiceList) do if id == voiceId then table.remove(savedVoiceList, i); break end end; saveVoicesToDisk(); pcall(function() vWrap:Destroy() end) end)
+    end
+    for _, id in ipairs(savedVoiceList) do addVoiceToGallery(id, true) end
+
     local function openProfileEditor()
         if UI_PARENT:FindFirstChild("ZaynProfileEditor") then UI_PARENT.ZaynProfileEditor:Destroy() end
         
-        local editGui = Instance.new("ScreenGui", UI_PARENT)
-        editGui.Name = "ZaynProfileEditor"; editGui.DisplayOrder = 9999; editGui.IgnoreGuiInset = true
+        local editGui = Instance.new("ScreenGui", UI_PARENT); editGui.Name = "ZaynProfileEditor"; editGui.DisplayOrder = 9999; editGui.IgnoreGuiInset = true
         
         local bgOverlay = Instance.new("TextButton", editGui)
         bgOverlay.Size = UDim2.new(1,0,1,0); bgOverlay.BackgroundColor3 = Color3.new(0,0,0); bgOverlay.BackgroundTransparency = 1; bgOverlay.Text = ""; bgOverlay.AutoButtonColor = false
@@ -555,7 +610,6 @@ local function startMainChat()
     end
     profileTabBtn.MouseButton1Click:Connect(function() openProfileEditor() end)
 
-    -- 🔥 SMART MINI PROFILE (SAFELY UPDATED) 🔥
     local function openMiniProfile(tUid, tName, tTitleData)
         if UI_PARENT:FindFirstChild("ZaynMiniProfile") then UI_PARENT.ZaynMiniProfile:Destroy() end
         local pGui = Instance.new("ScreenGui", UI_PARENT); pGui.Name = "ZaynMiniProfile"; pGui.DisplayOrder = 1000
@@ -623,7 +677,7 @@ local function startMainChat()
         local notifStroke = Instance.new("UIStroke", n); notifStroke.Color = isDm and Colors.NeonPink or Colors.Primary; notifStroke.Thickness = 1.5; notifStroke.Transparency = 0.2
         local hasAvatar = (senderUid and tonumber(senderUid)) ~= nil; local textMaxWidth = hasAvatar and -100 or -58
         local t = Instance.new("TextLabel", n); t.Size = UDim2.new(1, textMaxWidth, 0, 22); t.Position = UDim2.new(0, 54, 0, 10); t.Text = sender; t.TextColor3 = Colors.Light; t.BackgroundTransparency = 1; t.Font = Enum.Font.GothamBold; t.TextSize = 12; t.TextXAlignment = Enum.TextXAlignment.Left
-        local cleanMsg = msg:gsub("%[STICKER:%d+%]", "🖼️ Sent a Sticker"):gsub("%[PHOTO:.-%]", "📸 Sent a Photo"):gsub("%[SNAP%].*", "🔥 Sent a Snap")
+        local cleanMsg = msg:gsub("%[STICKER:%d+%]", "🖼️ Sent a Sticker"):gsub("%[PHOTO:.-%]", "📸 Sent a Photo"):gsub("%[SNAP%].*", "🔥 Sent a Snap"):gsub("%[VOICE:%d+%]", "🎵 Sent a Voice Msg")
         local m = Instance.new("TextLabel", n); m.Size = UDim2.new(1, textMaxWidth, 0, 28); m.Position = UDim2.new(0, 54, 0, 34); m.Text = cleanMsg; m.TextColor3 = Colors.TextDim; m.BackgroundTransparency = 1; m.Font = Enum.Font.Gotham; m.TextSize = 11; m.TextXAlignment = Enum.TextXAlignment.Left; m.TextWrapped = true
         if hasAvatar then local pfp = Instance.new("ImageLabel", n); pfp.Size = UDim2.new(0, 42, 0, 42); pfp.Position = UDim2.new(1, -52, 0.5, -21); pfp.BackgroundTransparency = 1; pfp.Image = "rbxthumb://type=AvatarHeadShot&id=" .. senderUid .. "&w=150&h=150"; Instance.new("UICorner", pfp).CornerRadius = UDim.new(1, 0); pfp.ZIndex = 101 end
         task.spawn(function() pcall(function() local sfx = Instance.new("Sound"); sfx.SoundId = "rbxassetid://4590662766"; sfx.Volume = 1; sfx.Parent = UI_PARENT; sfx:Play(); task.wait(2); sfx:Destroy() end) end)
@@ -634,7 +688,7 @@ local function startMainChat()
         if not targetPlayer or not targetPlayer.Character then return end
         local head = targetPlayer.Character:FindFirstChild("Head") or targetPlayer.Character.PrimaryPart; if not head then return end
         local cleanMsg = msg; local repMatch, restMsg = msg:match("^↪️ %[Replying to (.-)%]\n(.*)")
-        if repMatch then cleanMsg = restMsg end; if tostring(cleanMsg):match("^%[STICKER:(%d+)%]$") then cleanMsg = "[Sticker 🌸]" elseif tostring(cleanMsg):match("^%[PHOTO:(.-)%]$") then cleanMsg = "[Photo 📸]" elseif tostring(cleanMsg):match("^%[SNAP%]") then cleanMsg = "[Snap 🔥]" end
+        if repMatch then cleanMsg = restMsg end; if tostring(cleanMsg):match("^%[STICKER:(%d+)%]$") then cleanMsg = "[Sticker 🌸]" elseif tostring(cleanMsg):match("^%[PHOTO:(.-)%]$") then cleanMsg = "[Photo 📸]" elseif tostring(cleanMsg):match("^%[SNAP%]") then cleanMsg = "[Snap 🔥]" elseif tostring(cleanMsg):match("^%[VOICE:%d+%]$") then cleanMsg = "[Voice Msg 🎵]" end
         pcall(function() game:GetService("TextChatService"):DisplayBubble(targetPlayer.Character, cleanMsg) end)
     end
 
@@ -686,6 +740,7 @@ local function startMainChat()
 
                 local stickerId = tostring(cleanMsgTxt):match("^%[STICKER:(%d+)%]$")
                 local photoUrl = tostring(cleanMsgTxt):match("^%[PHOTO:(.-)%]$")
+                local voiceId = tostring(cleanMsgTxt):match("^%[VOICE:(%d+)%]$")
 
                 if photoUrl then
                     if tostring(userId) == myUserId then addPhotoToGallery(photoUrl, false) end
@@ -697,6 +752,33 @@ local function startMainChat()
                     local sThumb = "rbxthumb://type=Asset&id=" .. stickerId .. "&w=150&h=150"
                     local sImg = Instance.new("ImageButton", rowFrame); sImg.BackgroundTransparency = 1; sImg.Size = UDim2.new(0, 90, 0, 90); sImg.Image = sThumb; sImg.LayoutOrder = 4
                     sImg.MouseButton1Click:Connect(function() openFullScreenPreview(sThumb) end)
+                elseif voiceId then
+                    -- 🔥 RESTORED VOICE PLAYING FEATURE 🔥
+                    if tostring(userId) == myUserId then addVoiceToGallery(voiceId, false) end
+                    local vFrame = Instance.new("Frame", rowFrame); vFrame.Size = UDim2.new(0, 110, 0, 25); vFrame.BackgroundColor3 = color; vFrame.BackgroundTransparency = 0.8; vFrame.LayoutOrder = 4; Instance.new("UICorner", vFrame).CornerRadius = UDim.new(0, 6)
+                    local vBtn = Instance.new("TextButton", vFrame); vBtn.Size = UDim2.new(1, 0, 1, 0); vBtn.BackgroundTransparency = 1; vBtn.Text = "🎵 Play Audio"; vBtn.TextColor3 = Colors.Text; vBtn.Font = Enum.Font.GothamBold; vBtn.TextSize = 11
+                    
+                    local currentSound = nil
+                    vBtn.MouseButton1Click:Connect(function()
+                        if currentSound and currentSound.Parent then
+                            pcall(function() currentSound:Stop(); currentSound:Destroy() end)
+                            currentSound = nil
+                            vBtn.Text = "🎵 Play Audio"
+                        else
+                            currentSound = Instance.new("Sound", UI_PARENT)
+                            currentSound.SoundId = "rbxassetid://" .. voiceId:match("%d+")
+                            currentSound.Volume = 1.5
+                            currentSound.PlayOnRemove = false
+                            currentSound:Play()
+                            vBtn.Text = "⏹️ Stop Audio"
+                            
+                            currentSound.Ended:Connect(function()
+                                pcall(function() currentSound:Destroy() end)
+                                currentSound = nil
+                                vBtn.Text = "🎵 Play Audio"
+                            end)
+                        end
+                    end)
                 else
                     local urlMatch = cleanMsgTxt:match("(https?://[%w-_%.%?%.:/%+=&]+)")
                     if urlMatch then
@@ -757,6 +839,7 @@ local function startMainChat()
         if txt:lower():sub(1,5) == "/afk " then myAfkReason = txt:sub(6); addMessageToChat("[SYSTEM]", "You are now AFK: " .. myAfkReason, true, nil, "Server"); return elseif myAfkReason then myAfkReason = nil; addMessageToChat("[SYSTEM]", "Welcome back! AFK mode disabled.", true, nil, "Server") end
 
         if txt:lower():sub(1,5) == "/img " then local url = txt:sub(6):gsub("%s+", ""); if url:find("http") then txt = "[PHOTO:" .. url .. "]" else return end end
+        if txt:lower():sub(1,7) == "/voice " then local id = txt:sub(8):gsub("%s+", ""); if tonumber(id) then txt = "[VOICE:" .. id .. "]" else return end end
         if txt:lower():sub(1,6) == "/snap " then txt = "[SNAP] " .. txt:sub(7) end
         if txt:lower() == "/admincmds" then if isOwner then addMessageToChat("[SYSTEM]", "👑 ADMIN CMDS\n/gban [User]\n/ungban [User]\n/mutechat\n/unmutechat\n/say [Msg]\n/server [Msg]\n/title [User] [Color] [Days] [Title]\n/removetitle [User]\n/target [User]\n/untarget", true, nil, "Server") end return end
 
@@ -773,11 +856,11 @@ local function startMainChat()
             if txt:lower():sub(1,13) == "/removetitle " then local tU=txt:sub(14):match("^%s*(%S+)"); if tU then local tgt=nil; for u,d in pairs(activeScriptUsers) do if d.name:lower()==tU:lower() or d.displayName:lower()==tU:lower() then tgt=u; break end end if tgt then reqFunc({Url=FIREBASE_URL..TITLES_DB_PATH..tgt..".json", Method="DELETE"}); table.insert(messageQueue, {text="["..SERVER_ID.."] [SERVER_ANN] SYSTEM: Owner removed title from "..tU, timestamp=os.time()}); processQueue(); end end return end
         end
 
-        if serverReplyContext and not txt:find("%[STICKER:") and not txt:find("%[PHOTO:") then txt = "↪️ [Replying to " .. serverReplyContext .. "]\n" .. txt; updateServerReplyState(nil, nil) end
+        if serverReplyContext and not txt:find("%[STICKER:") and not txt:find("%[PHOTO:") and not txt:find("%[VOICE:") then txt = "↪️ [Replying to " .. serverReplyContext .. "]\n" .. txt; updateServerReplyState(nil, nil) end
 
         local ts = os.time(); local out = myName .. ": " .. txt .. " ||" .. myUserId .. "::" .. generateMessageHash(myUserId, txt, ts) .. "::" .. ts
         pcall(function() addMessageToChat(myName, txt, false, myUserId, "Server") end)
-        createBubble(myName, txt, Player)
+        createBubble(myName, txt, LocalPlayer)
         table.insert(messageQueue, {text = out, timestamp = ts}); processQueue()
     end
     
@@ -785,9 +868,13 @@ local function startMainChat()
         if isBlacklisted then return end
         txt = tostring(txt):gsub("^%s+", ""):gsub("%s+$", "")
         if txt == "" then return end
-        if dmReplyContext and not txt:find("%[STICKER:") and not txt:find("%[PHOTO:") then txt = "↪️ [Replying to " .. dmReplyContext .. "]\n" .. txt; updateDmReplyState(nil, nil) end
+        if dmReplyContext and not txt:find("%[STICKER:") and not txt:find("%[PHOTO:") and not txt:find("%[VOICE:") then txt = "↪️ [Replying to " .. dmReplyContext .. "]\n" .. txt; updateDmReplyState(nil, nil) end
+        
+        -- 🔥 FIX: Changed myUserId to tonumber(myUserId) to match history table key types 🔥
         if not dmHistories[targetUid] then dmHistories[targetUid] = {} end
-        table.insert(dmHistories[targetUid], {name = myName, msg = txt, isSystem = false, uid = myUserId}); addMessageToChat(myName, txt, false, myUserId, "DM")
+        table.insert(dmHistories[targetUid], {name = myName, msg = txt, isSystem = false, uid = tonumber(myUserId)})
+        addMessageToChat(myName, txt, false, tonumber(myUserId), "DM")
+        
         local ts = os.time()
         table.insert(messageQueue, {text = "[ZAYN_DM:"..tostring(targetUid).."] ["..SERVER_ID.."] " .. myName .. ": " .. txt .. " ||" .. myUserId .. "::" .. generateMessageHash(myUserId, txt, ts) .. "::" .. ts, timestamp = ts}); processQueue()
     end
@@ -830,14 +917,20 @@ local function startMainChat()
                             
                             local mtext = msgData.text
                             
+                            -- 🔥 FIX: Expanded Time Check Tolerance for Syncing (System Detector) 🔥
                             if mtext:find("%[ZAYN_SYNC%]") then
                                 local tStamp, tSig, syncUid = mtext:match("%[ZAYN_SYNC%] (%d+):(%d+)%s*||([%w_]+)")
                                 if syncUid and tStamp and tSig then
-                                    if math.abs(os.time() - tonumber(tStamp)) <= 120 and tSig == generateSignature("SYNC", syncUid, tStamp) then
+                                    if math.abs(os.time() - tonumber(tStamp)) <= 864000 and tSig == generateSignature("SYNC", syncUid, tStamp) then
                                         if not activeScriptUsers[syncUid] then 
                                             local strictDisplayName, strictUsername = getStrictIdentity(syncUid)
                                             activeScriptUsers[syncUid] = {displayName = strictDisplayName, name = strictUsername, lastSeen = os.time()} 
-                                        else activeScriptUsers[syncUid].lastSeen = os.time() end
+                                            if not isFirstLoad and tostring(syncUid) ~= myUserId then 
+                                                addMessageToChat("System", "✨ " .. strictDisplayName .. " joined the Chat!", true, nil, "Server") 
+                                            end
+                                        else 
+                                            activeScriptUsers[syncUid].lastSeen = os.time() 
+                                        end
                                     end
                                 end continue
                             end
@@ -876,7 +969,11 @@ local function startMainChat()
                                         if targetUidStr == tostring(myUserId) and dN then
                                             if not dmHistories[tonumber(dU)] then dmHistories[tonumber(dU)] = {} end
                                             table.insert(dmHistories[tonumber(dU)], {name = dCN, msg = dM, isSystem = false, uid = tonumber(dU)})
-                                            if currentTab == "DMChat" and activeDmUserId == tonumber(dU) then addMessageToChat(dCN, dM, false, tonumber(dU), "DM") else showNotif("🔒 DM: " .. dCN, dM, true, tonumber(dU)) end
+                                            if currentTab == "DMChat" and activeDmUserId == tonumber(dU) then 
+                                                addMessageToChat(dCN, dM, false, tonumber(dU), "DM") 
+                                            else 
+                                                showNotif("🔒 DM: " .. dCN, dM, true, tonumber(dU)) 
+                                            end
                                         end
                                     end
                                 else
