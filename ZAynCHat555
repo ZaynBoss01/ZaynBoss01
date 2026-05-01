@@ -1,5 +1,5 @@
 -- ========================================================== --
--- ZAYN UI LAB - SERVER & GALLERY EDITION (V44.8 TITAN)       --
+-- ZAYN UI LAB - SERVER & GALLERY EDITION (V44.9 TITAN)       --
 -- THEME: OBSIDIAN DARK & SOFT RELAXING PASTEL                --
 -- SECURITY: TITANGUARD V10.1 (ANTI-SPOOF + WATCHDOG)         --
 -- FIX: JOIN SPAM REMOVED (ONLY EXECUTION DETECTED)           --
@@ -18,6 +18,8 @@
 -- ENHANCED: UNIFORM MIND-RELAXING CYAN GLASS GC BUTTONS      --
 -- NEW: GC AUTO-DELETE (0 PLAYERS) & UNIQUE NAMES ONLY        --
 -- ENHANCED: GC MENU TABS GIVEN NORMAL SOLID LOOK             --
+-- FIX: LIVE KICK DETECT (TYRANT SYNC) & OFFLINE NOTIF SPAM   --
+-- FIX: REFRESH DISCOVER DEBOUNCE PREVENTS UI DUPLICATION     --
 -- ========================================================== --
 
 local TweenService = game:GetService("TweenService")
@@ -1470,9 +1472,23 @@ local function startMainChat()
                     end
                 end
 
-                -- Cross-Server GC Polling Loop
+                -- Cross-Server GC Polling Loop (TYRANT SYNC & NO SPAM)
                 for gId, _ in pairs(myJoinedGCs) do
                     task.spawn(function()
+                        -- LIVE KICK DETECTION
+                        local memRes = reqFunc({ Url = FIREBASE_URL .. "global_gcs/" .. gId .. '/members/' .. myUserId .. '.json', Method = "GET" })
+                        if memRes.Success and memRes.Body == "null" then
+                            myJoinedGCs[gId] = nil
+                            if activeGcId == gId then 
+                                contentFrame.Visible = true; dmChatContainer.Visible = false; gcContainer.Visible = false; currentTab = "Server"
+                                activeGcId = nil
+                                addMessageToChat("System", "⚠️ You were kicked from the GC.", true, nil, "Server")
+                            end
+                            refreshDiscover()
+                            return
+                        end
+
+                        -- MESSAGE FETCHING
                         local gcRes = reqFunc({ Url = FIREBASE_URL .. "global_gcs/" .. gId .. '/messages.json?orderBy="$key"&limitToLast=15', Method = "GET" })
                         if gcRes.Success and gcRes.Body ~= "null" then
                             local gData = game:GetService("HttpService"):JSONDecode(gcRes.Body)
@@ -1484,7 +1500,10 @@ local function startMainChat()
                                         if currentTab == "GCChat" and activeGcId == gId then
                                             addMessageToChat(mVal.senderName, mVal.text, false, tonumber(mVal.senderId), "DM")
                                         else
-                                            showNotif("👥 GC: " .. mVal.senderName, mVal.text, true, tonumber(mVal.senderId))
+                                            -- STRICT CHECK: Only notify if the message was sent in the last 15 seconds
+                                            if mVal.timestamp and (os.time() - tonumber(mVal.timestamp) <= 15) then
+                                                showNotif("👥 GC: " .. mVal.senderName, mVal.text, true, tonumber(mVal.senderId))
+                                            end
                                         end
                                     end
                                 end
@@ -1766,7 +1785,11 @@ local function startMainChat()
         end
     end
 
+    local isRefreshingGCs = false
     refreshDiscover = function()
+        if isRefreshingGCs then return end
+        isRefreshingGCs = true
+
         for _, c in ipairs(discoverList:GetChildren()) do if c:IsA("Frame") then c:Destroy() end end
         for _, c in ipairs(myGcsFrame:GetChildren()) do if c:IsA("Frame") then c:Destroy() end end
         for _, c in ipairs(reqFrame:GetChildren()) do if c:IsA("Frame") then c:Destroy() end end
@@ -1867,7 +1890,7 @@ local function startMainChat()
                         end)
                     end
 
-                    -- Populate Requests (If Owner) - People wanting to join your GC
+                    -- Populate Requests
                     if gData.ownerId == myUserId and gData.requests then
                         for reqUid, reqName in pairs(gData.requests) do
                             local rItem = Instance.new("Frame", reqFrame); rItem.Size = UDim2.new(1, 0, 0, 35); rItem.BackgroundColor3 = Colors.Dark; Instance.new("UICorner", rItem).CornerRadius = UDim.new(0, 6)
@@ -1920,6 +1943,7 @@ local function startMainChat()
                       end)
                  end
             end
+            isRefreshingGCs = false
         end)
     end
     btnDiscover.MouseButton1Click:Connect(refreshDiscover)
