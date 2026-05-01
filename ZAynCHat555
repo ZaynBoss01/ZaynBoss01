@@ -27,8 +27,7 @@
 -- FIX: MALFORMED STRING ERROR (DP NOTIF) COMPLETELY FIXED    --
 -- ENHANCED: 31 UNIQUE STICKERS COMBINED WITHOUT REPEATS      --
 -- ENHANCED: SMART ADD FRIEND (DIRECT IF IN SERVER, ELSE DB)  --
--- NEW: CLICKABLE NOTIFICATIONS (AUTO-ROUTE TO GC & DM)       --
--- FIX: PRIVATE DMS DO NOT SAVE LOCALLY UPON EXIT             --
+-- UPDATED: CLICKABLE STACKING NOTIFICATIONS WITH REDIRECT    --
 -- ========================================================== --
 
 local TweenService = game:GetService("TweenService")
@@ -558,28 +557,604 @@ local function startMainChat()
         if gcContainer then gcContainer.Visible = false end
         isStickerPanelOpen = false; safeTween(stickerPanel, {Size = UDim2.new(1, -22, 0, 0)}, 0.2); mentionMenu.Visible = false
     end
-    
     serverTabBtn.MouseButton1Click:Connect(function() switchTab("Server") end)
     galleryTabBtn.MouseButton1Click:Connect(function() switchTab("Gallery") end)
     voiceTabBtn.MouseButton1Click:Connect(function() switchTab("Voice") end)
-    
-    -- IMPORTANT: Wiping DM History when returning from DM to any other Tab
     dmBackBtn.MouseButton1Click:Connect(function() 
         if currentTab == "GCChat" then 
             local gcContainer = main:FindFirstChild("ZaynGcContainer")
             if gcContainer then gcContainer.Visible = true end
             dmChatContainer.Visible = false; currentTab = "GC" 
-        elseif currentTab == "DMChat" then
-            if activeDmUserId then dmHistories[activeDmUserId] = nil end -- Wipes chat perfectly
-            switchTab("Server") 
-        else 
-            switchTab("Server") 
-        end 
+        else switchTab("Server") end 
     end)
 
-    local messageCount = 0 -- Re-declaring for inner scope usage
+    -- ================================================================= --
+    -- UPDATED NOTIFICATION SYSTEM (CLICKABLE + STACKING)
+    -- ================================================================= --
+    local activeNotifs = 0 -- Global stacking tracker
 
-    local function addMessageToChat(name, message, isSystem, userId, chatType)
+    local function showNotif(sender, msg, isDm, senderUid, contextType, contextId, gcName)
+        local n = Instance.new("TextButton", sg)
+        n.Size = UDim2.new(0, 280, 0, 65)
+        
+        -- Stacking Calculation (Notifications ab overlap nahi hongi)
+        local targetY = -80 - (activeNotifs * 75)
+        activeNotifs = activeNotifs + 1
+        
+        n.Position = UDim2.new(1, 15, 1, targetY)
+        n.BackgroundColor3 = Colors.Darker
+        n.BackgroundTransparency = 0.25
+        n.BorderSizePixel = 0
+        n.ZIndex = 100
+        n.ClipsDescendants = true
+        n.AutoButtonColor = false
+        n.Text = ""
+        Instance.new("UICorner", n).CornerRadius = UDim.new(0, 12)
+        
+        local notifStroke = Instance.new("UIStroke", n)
+        notifStroke.Color = isDm and Colors.NeonPink or Colors.Primary
+        notifStroke.Thickness = 1.5
+        notifStroke.Transparency = 0.2
+        
+        local hasAvatar = (senderUid and tonumber(senderUid)) ~= nil
+        local textMaxWidth = hasAvatar and -100 or -58
+        
+        local t = Instance.new("TextLabel", n)
+        t.Size = UDim2.new(1, textMaxWidth, 0, 22)
+        t.Position = UDim2.new(0, 54, 0, 10)
+        t.Text = sender
+        t.TextColor3 = Colors.Light
+        t.BackgroundTransparency = 1
+        t.Font = Enum.Font.GothamBold
+        t.TextSize = 12
+        t.TextXAlignment = Enum.TextXAlignment.Left
+        
+        local cleanMsg = msg:gsub("%[STICKER:%d+%]", "🖼️ Sent a Sticker"):gsub("%[PHOTO:.-%]", "📸 Sent a Photo"):gsub("%[SNAP%].*", "🔥 Sent a Snap"):gsub("%[VOICE:.-%]", "🎵 Sent a Voice Audio")
+        
+        local m = Instance.new("TextLabel", n)
+        m.Size = UDim2.new(1, textMaxWidth, 0, 28)
+        m.Position = UDim2.new(0, 54, 0, 34)
+        m.Text = cleanMsg
+        m.TextColor3 = Colors.TextDim
+        m.BackgroundTransparency = 1
+        m.Font = Enum.Font.Gotham
+        m.TextSize = 11
+        m.TextXAlignment = Enum.TextXAlignment.Left
+        m.TextWrapped = true
+        
+        if hasAvatar then 
+            local pfp = Instance.new("ImageLabel", n)
+            pfp.Size = UDim2.new(0, 42, 0, 42)
+            pfp.Position = UDim2.new(1, -52, 0.5, -21)
+            pfp.BackgroundTransparency = 1
+            pfp.ScaleType = Enum.ScaleType.Crop
+            Instance.new("UICorner", pfp).CornerRadius = UDim.new(1, 0)
+            pfp.ZIndex = 101 
+            
+            local customDpUrl = (customProfiles[tostring(senderUid)] and customProfiles[tostring(senderUid)].dp)
+            if customDpUrl and customDpUrl:find("http") then
+                pfp.ImageTransparency = 1
+                task.spawn(function()
+                    if _rawReq and writefile and getcustomasset then
+                        local s, r = pcall(_rawReq, {Url = customDpUrl, Method = "GET"})
+                        if s and r.StatusCode == 200 then
+                            local fN = "z_notif_"..tostring(senderUid)..".png"
+                            writefile(fN, r.Body)
+                            pfp.Image = getcustomasset(fN)
+                            safeTween(pfp, {ImageTransparency = 0}, 0.3)
+                        else
+                            pfp.Image = "rbxthumb://type=AvatarHeadShot&id=" .. senderUid .. "&w=150&h=150"
+                            safeTween(pfp, {ImageTransparency = 0}, 0.3)
+                        end
+                    end
+                end)
+            else
+                pfp.Image = "rbxthumb://type=AvatarHeadShot&id=" .. senderUid .. "&w=150&h=150"
+            end
+        end
+
+        task.spawn(function() pcall(function() local sfx = Instance.new("Sound"); sfx.SoundId = "rbxassetid://4590662766"; sfx.Volume = 1; sfx.Parent = UI_PARENT; sfx:Play(); task.wait(2); sfx:Destroy() end) end)
+        safeTween(n, {Position = UDim2.new(1, -300, 1, targetY)}, 0.45)
+        
+        -- === CLICK HANDLER: DIRECT TO CHAT ===
+        n.MouseButton1Click:Connect(function()
+            if not isUiOpen then toggleMainUI(true) end 
+            
+            if contextType == "DM" and contextId then
+                activeDmUserId = tonumber(contextId)
+                activeDmUserName = sender:gsub("🔒 DM: ", "")
+                if dmChatTitle then dmChatTitle.Text = "Chat with " .. activeDmUserName end
+                
+                for _, c in ipairs(dmChatFrame:GetChildren()) do if c:IsA("Frame") then c:Destroy() end end
+                if dmHistories[activeDmUserId] then
+                    for _, h in ipairs(dmHistories[activeDmUserId]) do
+                        addMessageToChat(h.name, h.msg, h.isSystem, h.uid, "DM")
+                    end
+                    task.wait(0.1)
+                    local maxScroll = dmChatLayout.AbsoluteContentSize.Y - dmChatFrame.AbsoluteSize.Y + 20
+                    if maxScroll > 0 then dmChatFrame.CanvasPosition = Vector2.new(0, maxScroll) end
+                end
+                switchTab("DMChat")
+                
+            elseif contextType == "GC" and contextId then
+                activeGcId = contextId
+                dmChatTitle.Text = "GC: " .. (gcName or "Chat")
+                for _, c in ipairs(dmChatFrame:GetChildren()) do if c:IsA("Frame") then c:Destroy() end end
+                switchTab("GCChat")
+                
+                task.spawn(function()
+                    local histRes = reqFunc({Url = FIREBASE_URL .. "global_gcs/" .. contextId .. "/messages.json", Method = "GET"})
+                    if histRes.Success and histRes.Body ~= "null" then
+                        local hData = game:GetService("HttpService"):JSONDecode(histRes.Body)
+                        local sortedMsgs = {}
+                        for mKey, mVal in pairs(hData) do
+                            if not string.find(mVal.text or "", "%[ZAYN_GC_KICK%]") then
+                                mVal.key = mKey
+                                table.insert(sortedMsgs, mVal)
+                            end
+                        end
+                        table.sort(sortedMsgs, function(a, b) return (a.timestamp or 0) < (b.timestamp or 0) end)
+                        for _, msgg in ipairs(sortedMsgs) do
+                            addMessageToChat(msgg.senderName, msgg.text, false, tonumber(msgg.senderId), "DM")
+                        end
+                        task.wait(0.2)
+                        local maxScroll = dmChatLayout.AbsoluteContentSize.Y - dmChatFrame.AbsoluteSize.Y + 20
+                        if maxScroll > 0 then safeTween(dmChatFrame, {CanvasPosition = Vector2.new(0, maxScroll)}, 0.3) end
+                    end
+                end)
+                
+            elseif contextType == "Server" then
+                switchTab("Server")
+            end
+            
+            activeNotifs = math.max(0, activeNotifs - 1)
+            safeTween(n, {Position = UDim2.new(1, 15, 1, targetY), BackgroundTransparency = 1}, 0.2)
+            task.delay(0.2, function() pcall(function() n:Destroy() end) end)
+        end)
+
+        task.delay(4, function() 
+            if n and n.Parent then 
+                activeNotifs = math.max(0, activeNotifs - 1)
+                safeTween(n, {Position = UDim2.new(1, 15, 1, targetY), BackgroundTransparency = 1}, 0.35, Enum.EasingStyle.Sine).Completed:Connect(function() pcall(function() n:Destroy() end) end) 
+            end 
+        end)
+    end
+
+    -- GLOBAL CROSS-SERVER DM INBOX POLLER
+    local processedDMs = {}
+    task.spawn(function()
+        while task.wait(3) do
+            pcall(function()
+                local res = reqFunc({Url = FIREBASE_URL .. "global_dms/" .. myUserId .. ".json", Method = "GET"})
+                if res.Success and res.Body ~= "null" then
+                    local dms = game:GetService("HttpService"):JSONDecode(res.Body)
+                    for mKey, mVal in pairs(dms) do
+                        if not processedDMs[mKey] then
+                            processedDMs[mKey] = true
+                            
+                            local sUid = tonumber(mVal.senderId)
+                            if not dmHistories[sUid] then dmHistories[sUid] = {} end
+                            table.insert(dmHistories[sUid], {name = mVal.senderName, msg = mVal.text, isSystem = false, uid = sUid})
+                            
+                            if currentTab == "DMChat" and activeDmUserId == sUid then 
+                                addMessageToChat(mVal.senderName, mVal.text, false, sUid, "DM") 
+                            else 
+                                showNotif("🔒 DM: " .. mVal.senderName, mVal.text, true, sUid, "DM", sUid) 
+                            end
+                            
+                            reqFunc({Url = FIREBASE_URL .. "global_dms/" .. myUserId .. "/" .. mKey .. ".json", Method = "DELETE"})
+                        end
+                    end
+                end
+            end)
+        end
+    end)
+
+    local function openZaynMediaBox(prefillUrl)
+        if UI_PARENT:FindFirstChild("ZaynMediaBox") then UI_PARENT.ZaynMediaBox:Destroy() end
+        local mediaGui = Instance.new("ScreenGui", UI_PARENT); mediaGui.Name = "ZaynMediaBox"; mediaGui.DisplayOrder = 9999; mediaGui.IgnoreGuiInset = true
+        local bgOverlay = Instance.new("TextButton", mediaGui); bgOverlay.Size = UDim2.new(1,0,1,0); bgOverlay.BackgroundColor3 = Color3.new(0,0,0); bgOverlay.BackgroundTransparency = 1; bgOverlay.Text = ""; bgOverlay.AutoButtonColor = false
+        safeTween(bgOverlay, {BackgroundTransparency = 0.4}, 0.3)
+        local blur = Instance.new("BlurEffect", game.Lighting); blur.Size = 0; safeTween(blur, {Size = 15}, 0.3)
+        local box = Instance.new("Frame", bgOverlay); box.Name = "Frame"; box.Size = UDim2.new(0, 300, 0, 330); box.Position = UDim2.new(0.5, -150, 0.5, -180); box.BackgroundColor3 = Color3.fromRGB(15, 15, 20); box.Active = true; box.Draggable = true; Instance.new("UICorner", box).CornerRadius = UDim.new(0, 16); local boxStroke = Instance.new("UIStroke", box); boxStroke.Color = Colors.Primary; boxStroke.Thickness = 2
+        safeTween(box, {Position = UDim2.new(0.5, -150, 0.5, -165)}, 0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+        local title = Instance.new("TextLabel", box); title.Size = UDim2.new(1, 0, 0, 45); title.Text = "📸 MEDIA PORTAL"; title.TextColor3 = Colors.Accent; title.Font = Enum.Font.GothamBlack; title.TextSize = 14; title.BackgroundTransparency = 1
+        local function closePortal() safeTween(bgOverlay, {BackgroundTransparency = 1}, 0.3); safeTween(blur, {Size = 0}, 0.3); safeTween(box, {Position = UDim2.new(0.5, -150, 0.5, -150)}, 0.3).Completed:Connect(function() mediaGui:Destroy(); blur:Destroy() end) end
+        local close = Instance.new("TextButton", box); close.Size = UDim2.new(0, 30, 0, 30); close.Position = UDim2.new(1, -35, 0, 7); close.Text = "✖"; close.TextColor3 = Colors.NeonPink; close.BackgroundTransparency = 1; close.Font = Enum.Font.GothamBold; close.TextSize = 16; close.MouseButton1Click:Connect(closePortal)
+        local linkIn = Instance.new("TextBox", box); linkIn.Name = "LinkInput"; linkIn.Size = UDim2.new(1, -30, 0, 40); linkIn.Position = UDim2.new(0, 15, 0, 50); linkIn.PlaceholderText = "Paste Image Link Here..."; linkIn.BackgroundColor3 = Color3.fromRGB(25, 25, 30); linkIn.TextColor3 = Colors.Text; linkIn.Font = Enum.Font.Gotham; linkIn.TextSize = 11; linkIn.ClearTextOnFocus = false; linkIn.TextTruncate = Enum.TextTruncate.AtEnd; Instance.new("UICorner", linkIn).CornerRadius = UDim.new(0, 8); Instance.new("UIStroke", linkIn).Color = Color3.fromRGB(50,50,60)
+        local previewBg = Instance.new("Frame", box); previewBg.Size = UDim2.new(0, 150, 0, 150); previewBg.Position = UDim2.new(0.5, -75, 0, 105); previewBg.BackgroundColor3 = Color3.fromRGB(10, 10, 15); Instance.new("UICorner", previewBg).CornerRadius = UDim.new(0, 8); Instance.new("UIStroke", previewBg).Color = Colors.Primary
+        local preview = Instance.new("ImageLabel", previewBg); preview.Size = UDim2.new(1, 0, 1, 0); preview.BackgroundTransparency = 1; preview.ScaleType = Enum.ScaleType.Fit; Instance.new("UICorner", preview).CornerRadius = UDim.new(0, 8); preview.ImageTransparency = 1
+        local function loadPreview(url) if url:find("http") then task.spawn(function() if _rawReq and writefile and getcustomasset then local s, r = pcall(_rawReq, {Url = url, Method = "GET"}); if s and r.StatusCode == 200 then local fN = "z_pre_" .. math.random(100000, 999999) .. ".png"; writefile(fN, r.Body); preview.Image = getcustomasset(fN); safeTween(preview, {ImageTransparency = 0}, 0.3) end end end) else safeTween(preview, {ImageTransparency = 1}, 0.3) end end
+        linkIn:GetPropertyChangedSignal("Text"):Connect(function() loadPreview(linkIn.Text) end)
+        if prefillUrl then linkIn.Text = prefillUrl; loadPreview(prefillUrl) end
+        local submit = Instance.new("TextButton", box); submit.Size = UDim2.new(1, -30, 0, 40); submit.Position = UDim2.new(0, 15, 1, -55); submit.Text = "SEND TO CHAT"; submit.BackgroundColor3 = Colors.Accent; submit.TextColor3 = Colors.Dark; submit.Font = Enum.Font.GothamBold; submit.TextSize = 13; Instance.new("UICorner", submit).CornerRadius = UDim.new(0, 8)
+        
+        submit.MouseButton1Click:Connect(function() 
+            if linkIn.Text:find("http") then 
+                if currentTab == "DMChat" and activeDmUserId then 
+                    sendDmMsg("[PHOTO:" .. linkIn.Text .. "]", activeDmUserId) 
+                elseif currentTab == "GCChat" and activeGcId then 
+                    sendGcMsg("[PHOTO:" .. linkIn.Text .. "]", activeGcId) 
+                else 
+                    sendMsg("/img " .. linkIn.Text); 
+                    if currentTab == "Gallery" then switchTab("Server") end 
+                end; 
+                closePortal() 
+            end 
+        end)
+    end
+    mediaBtn.MouseButton1Click:Connect(function() openZaynMediaBox() end)
+    if dmMediaBtn then dmMediaBtn.MouseButton1Click:Connect(function() openZaynMediaBox() end) end
+
+    local savedGalleryList = {}
+    if isfile and readfile and isfile("ZaynGallery_Saved.json") then pcall(function() savedGalleryList = HttpService:JSONDecode(readfile("ZaynGallery_Saved.json")) end) end
+    local function saveGalleryToDisk() if writefile then pcall(function() writefile("ZaynGallery_Saved.json", HttpService:JSONEncode(savedGalleryList)) end) end end
+
+    local savedImagesMap = {}
+    local function addPhotoToGallery(url, isInitialLoad)
+        if savedImagesMap[url] then return end; savedImagesMap[url] = true
+        if not isInitialLoad then table.insert(savedGalleryList, url); saveGalleryToDisk() end
+        local imgWrap = Instance.new("Frame", galleryScroll); imgWrap.BackgroundColor3 = Colors.Dark; Instance.new("UICorner", imgWrap).CornerRadius = UDim.new(0, 8); Instance.new("UIStroke", imgWrap).Color = Colors.Accent
+        local imgBtn = Instance.new("ImageButton", imgWrap); imgBtn.Size = UDim2.new(1, 0, 1, 0); imgBtn.BackgroundTransparency = 1; imgBtn.ScaleType = Enum.ScaleType.Crop; Instance.new("UICorner", imgBtn).CornerRadius = UDim.new(0, 8)
+        local delBtn = Instance.new("TextButton", imgWrap); delBtn.Size = UDim2.new(0, 25, 0, 25); delBtn.Position = UDim2.new(1, -25, 0, 0); delBtn.Text = "🗑️"; delBtn.BackgroundTransparency = 1; delBtn.ZIndex = 5
+        delBtn.MouseButton1Click:Connect(function() savedImagesMap[url] = nil; for i, u in ipairs(savedGalleryList) do if u == url then table.remove(savedGalleryList, i); break end end; saveGalleryToDisk(); pcall(function() imgWrap:Destroy() end) end)
+        task.spawn(function() if _rawReq and writefile and getcustomasset then local s, res = pcall(_rawReq, {Url = url, Method = "GET"}); if s and res.StatusCode == 200 then local fN = "gal_"..math.random(10000,99999)..".png"; writefile(fN, res.Body); imgBtn.Image = getcustomasset(fN) end end end)
+        local currentUrl = url
+        imgBtn.MouseButton1Click:Connect(function() openZaynMediaBox(currentUrl) end)
+    end
+    for _, url in ipairs(savedGalleryList) do addPhotoToGallery(url, true) end
+
+    local savedVoiceList = {}
+    if isfile and readfile and isfile("ZaynVoice_Saved.json") then 
+        pcall(function() 
+            local loadedList = HttpService:JSONDecode(readfile("ZaynVoice_Saved.json"))
+            for _, v in ipairs(loadedList) do
+                if type(v) == "string" then table.insert(savedVoiceList, {id = v, name = "Audio: " .. v}) else table.insert(savedVoiceList, v) end
+            end
+        end) 
+    end
+    local function saveVoiceToDisk() if writefile then pcall(function() writefile("ZaynVoice_Saved.json", HttpService:JSONEncode(savedVoiceList)) end) end end
+
+    local savedVoicesMap = {}
+    local function addVoiceToSaved(voiceData, isInitialLoad)
+        local id = type(voiceData) == "table" and voiceData.id or voiceData
+        local vName = type(voiceData) == "table" and voiceData.name or ("Audio: " .. id)
+        
+        if savedVoicesMap[id] then return end; savedVoicesMap[id] = true
+        if not isInitialLoad then table.insert(savedVoiceList, {id = id, name = vName}); saveVoiceToDisk() end
+
+        local vWrap = Instance.new("Frame", voiceScroll)
+        vWrap.Size = UDim2.new(1, 0, 0, 45)
+        vWrap.BackgroundColor3 = Colors.Dark
+        Instance.new("UICorner", vWrap).CornerRadius = UDim.new(0, 8)
+        Instance.new("UIStroke", vWrap).Color = Colors.Accent
+
+        local playBtn = Instance.new("TextButton", vWrap)
+        playBtn.Size = UDim2.new(0, 30, 0, 30)
+        playBtn.Position = UDim2.new(0, 5, 0.5, -15)
+        playBtn.Text = "▶"
+        playBtn.TextColor3 = Colors.Primary
+        playBtn.BackgroundTransparency = 1
+        playBtn.Font = Enum.Font.GothamBold
+        playBtn.TextSize = 14
+
+        local nameInput = Instance.new("TextBox", vWrap)
+        nameInput.Size = UDim2.new(1, -145, 1, 0)
+        nameInput.Position = UDim2.new(0, 35, 0, 0)
+        nameInput.Text = vName
+        nameInput.PlaceholderText = "Type Name & Hit Enter..."
+        nameInput.TextColor3 = Colors.Text
+        nameInput.BackgroundTransparency = 1
+        nameInput.TextXAlignment = Enum.TextXAlignment.Left
+        nameInput.Font = Enum.Font.Gotham
+        nameInput.TextSize = 12
+        nameInput.ClearTextOnFocus = false
+        
+        local editIcon = Instance.new("TextLabel", vWrap)
+        editIcon.Size = UDim2.new(0, 20, 1, 0)
+        editIcon.Position = UDim2.new(1, -110, 0, 0)
+        editIcon.Text = "✏️"
+        editIcon.BackgroundTransparency = 1
+        editIcon.TextSize = 10
+
+        nameInput.FocusLost:Connect(function()
+            local newName = nameInput.Text
+            if newName == "" then newName = "Audio: " .. id; nameInput.Text = newName end
+            for i, v in ipairs(savedVoiceList) do
+                if type(v) == "table" and v.id == id then
+                    v.name = newName
+                    break
+                end
+            end
+            saveVoiceToDisk()
+        end)
+
+        local sendVBtn = Instance.new("TextButton", vWrap)
+        sendVBtn.Size = UDim2.new(0, 45, 0, 25)
+        sendVBtn.Position = UDim2.new(1, -80, 0.5, -12.5)
+        sendVBtn.Text = "Send"
+        sendVBtn.BackgroundColor3 = Colors.Primary
+        sendVBtn.TextColor3 = Colors.Dark
+        sendVBtn.Font = Enum.Font.GothamBold
+        sendVBtn.TextSize = 10
+        Instance.new("UICorner", sendVBtn).CornerRadius = UDim.new(0, 4)
+
+        local delBtn = Instance.new("TextButton", vWrap)
+        delBtn.Size = UDim2.new(0, 25, 0, 25)
+        delBtn.Position = UDim2.new(1, -30, 0.5, -12.5)
+        delBtn.Text = "🗑️"
+        delBtn.BackgroundTransparency = 1
+
+        local audio = Instance.new("Sound", vWrap)
+        audio.SoundId = "rbxassetid://" .. id
+
+        local isPlaying = false
+        playBtn.MouseButton1Click:Connect(function()
+            if isPlaying then audio:Stop(); playBtn.Text = "▶"; isPlaying = false
+            else audio:Play(); playBtn.Text = "⏸"; isPlaying = true end
+        end)
+        audio.Ended:Connect(function() playBtn.Text = "▶"; isPlaying = false end)
+
+        sendVBtn.MouseButton1Click:Connect(function()
+            if currentTab == "DMChat" and activeDmUserId then 
+                sendDmMsg("[VOICE:" .. id .. "]", activeDmUserId) 
+            elseif currentTab == "GCChat" and activeGcId then 
+                sendGcMsg("[VOICE:" .. id .. "]", activeGcId) 
+            else 
+                sendMsg("[VOICE:" .. id .. "]")
+                switchTab("Server") 
+            end
+        end)
+
+        delBtn.MouseButton1Click:Connect(function()
+            savedVoicesMap[id] = nil
+            for i, v in ipairs(savedVoiceList) do 
+                if type(v) == "table" and v.id == id then table.remove(savedVoiceList, i); break end 
+            end
+            saveVoiceToDisk()
+            pcall(function() vWrap:Destroy() end)
+        end)
+    end
+    for _, vObj in ipairs(savedVoiceList) do addVoiceToSaved(vObj, true) end
+
+    local function openProfileEditor()
+        if UI_PARENT:FindFirstChild("ZaynProfileEditor") then UI_PARENT.ZaynProfileEditor:Destroy() end
+        
+        local editGui = Instance.new("ScreenGui", UI_PARENT)
+        editGui.Name = "ZaynProfileEditor"; editGui.DisplayOrder = 9999; editGui.IgnoreGuiInset = true
+        
+        local bgOverlay = Instance.new("TextButton", editGui)
+        bgOverlay.Size = UDim2.new(1,0,1,0); bgOverlay.BackgroundColor3 = Color3.new(0,0,0); bgOverlay.BackgroundTransparency = 1; bgOverlay.Text = ""; bgOverlay.AutoButtonColor = false
+        safeTween(bgOverlay, {BackgroundTransparency = 0.5}, 0.3)
+        
+        local blur = Instance.new("BlurEffect", game.Lighting); blur.Size = 0; safeTween(blur, {Size = 15}, 0.3)
+        
+        local box = Instance.new("Frame", bgOverlay)
+        box.Size = UDim2.new(0, 320, 0, 340); box.Position = UDim2.new(0.5, -160, 0.5, -170)
+        box.BackgroundColor3 = Colors.Darker; box.Active = true; box.Draggable = true
+        Instance.new("UICorner", box).CornerRadius = UDim.new(0, 16)
+        Instance.new("UIStroke", box).Color = Colors.Primary; Instance.new("UIStroke", box).Thickness = 2
+        
+        local title = Instance.new("TextLabel", box)
+        title.Size = UDim2.new(1, 0, 0, 35); title.Text = "✏️ EDIT PROFILE"; title.TextColor3 = Colors.Light
+        title.Font = Enum.Font.GothamBlack; title.TextSize = 14; title.BackgroundTransparency = 1
+        
+        local closeBtn = Instance.new("TextButton", box)
+        closeBtn.Size = UDim2.new(0, 30, 0, 30); closeBtn.Position = UDim2.new(1, -35, 0, 2)
+        closeBtn.Text = "✖"; closeBtn.TextColor3 = Colors.NeonPink; closeBtn.BackgroundTransparency = 1
+        closeBtn.Font = Enum.Font.GothamBold; closeBtn.TextSize = 16
+        closeBtn.MouseButton1Click:Connect(function() 
+            safeTween(bgOverlay, {BackgroundTransparency = 1}, 0.3); safeTween(blur, {Size = 0}, 0.3)
+            safeTween(box, {Position = UDim2.new(0.5, -160, 0.5, -130)}, 0.3).Completed:Connect(function() pcall(function() editGui:Destroy(); blur:Destroy() end) end)
+        end)
+
+        local avatarPreview = Instance.new("ImageLabel", box)
+        avatarPreview.Size = UDim2.new(0, 50, 0, 50)
+        avatarPreview.Position = UDim2.new(0.5, -25, 0, 40)
+        avatarPreview.BackgroundTransparency = 1
+        avatarPreview.ScaleType = Enum.ScaleType.Crop
+        Instance.new("UICorner", avatarPreview).CornerRadius = UDim.new(1, 0)
+        local avStroke = Instance.new("UIStroke", avatarPreview)
+        avStroke.Color = Colors.Accent; avStroke.Thickness = 2
+
+        local function updateDpPreview(url)
+            if url and url:find("http") then
+                task.spawn(function()
+                    if _rawReq and writefile and getcustomasset then
+                        local s, r = pcall(_rawReq, {Url = url, Method = "GET"})
+                        if s and r.StatusCode == 200 then
+                            local fN = "z_dp_preview_"..math.random(1000,9999)..".png"
+                            writefile(fN, r.Body)
+                            avatarPreview.Image = getcustomasset(fN)
+                        end
+                    end
+                end)
+            else
+                avatarPreview.Image = "rbxthumb://type=AvatarHeadShot&id="..myUserId.."&w=150&h=150"
+            end
+        end
+
+        local infoLbl = Instance.new("TextLabel", box)
+        infoLbl.Size = UDim2.new(1, -30, 0, 20); infoLbl.Position = UDim2.new(0, 15, 0, 95)
+        infoLbl.Text = "Name: " .. cleanMyName .. " | @" .. myUser
+        infoLbl.TextColor3 = Colors.SystemYellow; infoLbl.Font = Enum.Font.GothamBold; infoLbl.TextSize = 11
+        infoLbl.BackgroundTransparency = 1; infoLbl.TextXAlignment = Enum.TextXAlignment.Left
+
+        local dpInput = Instance.new("TextBox", box)
+        dpInput.Size = UDim2.new(1, -30, 0, 35); dpInput.Position = UDim2.new(0, 15, 0, 120)
+        dpInput.PlaceholderText = "Custom DP Image URL (http...)"
+        dpInput.BackgroundColor3 = Colors.Dark; dpInput.TextColor3 = Colors.Text; dpInput.Font = Enum.Font.Gotham; dpInput.TextSize = 11
+        dpInput.ClearTextOnFocus = false; dpInput.TextTruncate = Enum.TextTruncate.AtEnd
+        Instance.new("UICorner", dpInput).CornerRadius = UDim.new(0, 8); Instance.new("UIStroke", dpInput).Color = Color3.fromRGB(50,50,60)
+        
+        if customProfiles[myUserId] and customProfiles[myUserId].dp then 
+            dpInput.Text = customProfiles[myUserId].dp 
+            updateDpPreview(customProfiles[myUserId].dp)
+        else updateDpPreview("") end
+
+        dpInput:GetPropertyChangedSignal("Text"):Connect(function() updateDpPreview(dpInput.Text) end)
+
+        local bioInput = Instance.new("TextBox", box)
+        bioInput.Size = UDim2.new(1, -30, 0, 65); bioInput.Position = UDim2.new(0, 15, 0, 165)
+        bioInput.PlaceholderText = "Write your custom bio here..."
+        bioInput.BackgroundColor3 = Colors.Dark; bioInput.TextColor3 = Colors.Text; bioInput.Font = Enum.Font.Gotham; bioInput.TextSize = 11
+        bioInput.ClearTextOnFocus = false; bioInput.TextWrapped = true; bioInput.TextYAlignment = Enum.TextYAlignment.Top
+        Instance.new("UICorner", bioInput).CornerRadius = UDim.new(0, 8); Instance.new("UIStroke", bioInput).Color = Color3.fromRGB(50,50,60)
+        if customProfiles[myUserId] and customProfiles[myUserId].bio then bioInput.Text = customProfiles[myUserId].bio end
+
+        local langInput = Instance.new("TextBox", box)
+        langInput.Size = UDim2.new(1, -30, 0, 30); langInput.Position = UDim2.new(0, 15, 0, 240)
+        langInput.PlaceholderText = "Auto Translate Lang (e.g. en, hi, es)"
+        langInput.BackgroundColor3 = Colors.Dark; langInput.TextColor3 = Colors.SystemYellow; langInput.Font = Enum.Font.GothamBold; langInput.TextSize = 11
+        langInput.ClearTextOnFocus = false; langInput.Text = "Auto-Translate To: " .. myTargetLang:upper()
+        Instance.new("UICorner", langInput).CornerRadius = UDim.new(0, 8); Instance.new("UIStroke", langInput).Color = Color3.fromRGB(50,50,60)
+        
+        langInput.Focused:Connect(function() langInput.Text = myTargetLang end)
+        langInput.FocusLost:Connect(function()
+            local code = langInput.Text:lower():gsub("%s+", "")
+            if code ~= "" and #code <= 5 then saveLang(code) else saveLang("en") end
+            langInput.Text = "Auto-Translate To: " .. myTargetLang:upper()
+            addMessageToChat("[SYSTEM]", "✅ Default translation language changed to: " .. myTargetLang, true, nil, "Server")
+        end)
+
+        local saveBtn = Instance.new("TextButton", box)
+        saveBtn.Size = UDim2.new(1, -30, 0, 35); saveBtn.Position = UDim2.new(0, 15, 1, -45)
+        saveBtn.Text = "SAVE PROFILE"; saveBtn.BackgroundColor3 = Colors.Accent; saveBtn.TextColor3 = Colors.Dark
+        saveBtn.Font = Enum.Font.GothamBold; saveBtn.TextSize = 13; Instance.new("UICorner", saveBtn).CornerRadius = UDim.new(0, 8)
+        
+        saveBtn.MouseButton1Click:Connect(function()
+            customProfiles[myUserId] = {dp = dpInput.Text, bio = bioInput.Text}
+            task.spawn(function()
+                if reqFunc then
+                    reqFunc({Url = FIREBASE_URL .. "profiles/" .. myUserId .. ".json", Method = "PUT", Headers = {["Content-Type"] = "application/json"}, Body = game:GetService("HttpService"):JSONEncode(customProfiles[myUserId])})
+                    table.insert(messageQueue, {text="[ZAYN_PROFILE_SYNC] " .. myUserId, timestamp=os.time()}); processQueue();
+                end
+            end)
+            saveBtn.Text = "SAVED! ✔️"; task.wait(1); closeBtn.MouseButton1Click:Fire()
+        end)
+    end
+    profileTabBtn.MouseButton1Click:Connect(function() openProfileEditor() end)
+
+    local function openMiniProfile(tUid, tName, tTitleData)
+        if UI_PARENT:FindFirstChild("ZaynMiniProfile") then UI_PARENT.ZaynMiniProfile:Destroy() end
+        local pGui = Instance.new("ScreenGui", UI_PARENT); pGui.Name = "ZaynMiniProfile"; pGui.DisplayOrder = 1000
+        
+        local box = Instance.new("Frame", pGui); box.Size = UDim2.new(0, 260, 0, 310); box.Position = UDim2.new(0.5, -130, 0.5, -155)
+        box.BackgroundColor3 = Colors.Darker; box.BackgroundTransparency = 0.1; box.Active = true; box.Draggable = true
+        Instance.new("UICorner", box).CornerRadius = UDim.new(0, 12); Instance.new("UIStroke", box).Color = Colors.Accent
+        
+        local close = Instance.new("TextButton", box); close.Size=UDim2.new(0,25,0,25); close.Position=UDim2.new(1,-30,0,5)
+        close.Text="✖"; close.TextColor3=Colors.NeonPink; close.BackgroundTransparency=1; close.Font=Enum.Font.GothamBold
+        close.MouseButton1Click:Connect(function() pcall(function() pGui:Destroy() end) end)
+        
+        local pData = customProfiles[tUid] or {}
+        local customDpUrl = pData.dp; local customBio = pData.bio and pData.bio ~= "" and pData.bio or "Welcome Dear " .. tName
+        
+        local avatar = Instance.new("ImageLabel", box); avatar.Size=UDim2.new(0,70,0,70); avatar.Position=UDim2.new(0.5,-35,0,25)
+        avatar.BackgroundTransparency=1; avatar.ScaleType = Enum.ScaleType.Crop; Instance.new("UICorner", avatar).CornerRadius=UDim.new(1,0)
+        local avatarStroke = Instance.new("UIStroke", avatar); avatarStroke.Color = Colors.Primary; avatarStroke.Thickness = 2
+        
+        if customDpUrl and customDpUrl:find("http") then
+            avatar.ImageTransparency = 1
+            task.spawn(function()
+                if _rawReq and writefile and getcustomasset then 
+                    local s, r = pcall(_rawReq, {Url = customDpUrl, Method = "GET"})
+                    if s and r.StatusCode == 200 then 
+                        local fN = "z_dp_"..tUid..".png"; writefile(fN, r.Body); avatar.Image = getcustomasset(fN)
+                        safeTween(avatar, {ImageTransparency = 0}, 0.3)
+                    else
+                        avatar.Image="rbxthumb://type=AvatarHeadShot&id="..tUid.."&w=150&h=150"; safeTween(avatar, {ImageTransparency = 0}, 0.3)
+                    end 
+                end
+            end)
+        else avatar.Image="rbxthumb://type=AvatarHeadShot&id="..tUid.."&w=150&h=150" end
+
+        local nameLbl = Instance.new("TextLabel", box); nameLbl.Size=UDim2.new(1,0,0,20); nameLbl.Position=UDim2.new(0,0,0,105)
+        nameLbl.Text=tName; nameLbl.Font=Enum.Font.GothamBlack; nameLbl.TextColor3=Colors.Text; nameLbl.TextSize=16; nameLbl.BackgroundTransparency=1
+        
+        local rblxUser = (activeScriptUsers[tUid] and activeScriptUsers[tUid].name) or "Unknown"
+        local userLbl = Instance.new("TextLabel", box); userLbl.Size=UDim2.new(1,0,0,15); userLbl.Position=UDim2.new(0,0,0,125)
+        userLbl.Text="@" .. rblxUser; userLbl.Font=Enum.Font.Gotham; userLbl.TextColor3=Colors.SystemYellow; userLbl.TextSize=11; userLbl.BackgroundTransparency=1
+        
+        local titleText = tTitleData and tTitleData.text or "MEMBER"
+        local titleColor = tTitleData and getColorFromName(tTitleData.color) or Colors.TextDim
+        local titleLbl = Instance.new("TextLabel", box); titleLbl.Size=UDim2.new(1,0,0,15); titleLbl.Position=UDim2.new(0,0,0,140)
+        titleLbl.Text="["..titleText.."]"; titleLbl.Font=Enum.Font.GothamBold; titleLbl.TextColor3=titleColor; titleLbl.TextSize=12; titleLbl.BackgroundTransparency=1
+        
+        local bioFrame = Instance.new("Frame", box); bioFrame.Size = UDim2.new(1, -30, 0, 45); bioFrame.Position = UDim2.new(0, 15, 0, 160)
+        bioFrame.BackgroundColor3 = Colors.Dark; bioFrame.BorderSizePixel = 0; Instance.new("UICorner", bioFrame).CornerRadius = UDim.new(0, 6)
+        
+        local bioText = Instance.new("TextLabel", bioFrame); bioText.Size=UDim2.new(1,-10,1,-10); bioText.Position=UDim2.new(0,5,0,5)
+        bioText.Text=customBio; bioText.Font=Enum.Font.Gotham; bioText.TextColor3=Colors.TextDim; bioText.TextSize=11
+        bioText.TextWrapped=true; bioText.BackgroundTransparency=1; bioText.TextYAlignment=Enum.TextYAlignment.Top
+        
+        -- Smart Add Friend Button
+        local addFriendBtn = Instance.new("TextButton", box)
+        addFriendBtn.Size = UDim2.new(1, -40, 0, 32)
+        addFriendBtn.Position = UDim2.new(0, 20, 1, -80)
+        addFriendBtn.Text = "➕ ADD FRIEND"
+        addFriendBtn.BackgroundColor3 = Colors.Accent
+        addFriendBtn.TextColor3 = Colors.Dark
+        addFriendBtn.Font = Enum.Font.GothamBold
+        Instance.new("UICorner", addFriendBtn).CornerRadius = UDim.new(0, 8)
+
+        addFriendBtn.MouseButton1Click:Connect(function()
+            local uidNum = tonumber(tUid)
+            local targetPlayer = Players:GetPlayerByUserId(uidNum)
+            
+            if targetPlayer then
+                -- Same server, direct popup
+                pcall(function() game:GetService("StarterGui"):SetCore("PromptSendFriendRequest", targetPlayer) end)
+                addFriendBtn.Text = "REQUEST PROMPTED!"
+                task.wait(2)
+                addFriendBtn.Text = "➕ ADD FRIEND"
+            else
+                -- Cross server, requires Avatar Page
+                local s = pcall(function() game:GetService("GuiService"):InspectPlayerFromUserId(uidNum) end)
+                if s then
+                    addFriendBtn.Text = "OPENED PROFILE TO ADD!"
+                else
+                    addFriendBtn.Text = "ERROR!"
+                end
+                task.wait(2)
+                addFriendBtn.Text = "➕ ADD FRIEND"
+            end
+        end)
+        
+        -- Direct Message Button
+        local dmBtn = Instance.new("TextButton", box); dmBtn.Size=UDim2.new(1,-40,0,32); dmBtn.Position=UDim2.new(0,20,1,-42)
+        dmBtn.Text="📩 DIRECT MESSAGE"; dmBtn.BackgroundColor3=Colors.Primary; dmBtn.TextColor3=Colors.Dark; dmBtn.Font=Enum.Font.GothamBold; Instance.new("UICorner", dmBtn).CornerRadius=UDim.new(0,8)
+        
+        dmBtn.MouseButton1Click:Connect(function() 
+            pcall(function() pGui:Destroy() end)
+            activeDmUserId = tonumber(tUid)
+            activeDmUserName = tName
+            if dmChatTitle then dmChatTitle.Text = "Chat with " .. activeDmUserName end
+            
+            for _, c in ipairs(dmChatFrame:GetChildren()) do if c:IsA("Frame") then c:Destroy() end end
+            if dmHistories[activeDmUserId] then
+                for _, h in ipairs(dmHistories[activeDmUserId]) do
+                    addMessageToChat(h.name, h.msg, h.isSystem, h.uid, "DM")
+                end
+                task.wait(0.1)
+                local maxScroll = dmChatLayout.AbsoluteContentSize.Y - dmChatFrame.AbsoluteSize.Y + 20
+                if maxScroll > 0 then dmChatFrame.CanvasPosition = Vector2.new(0, maxScroll) end
+            end
+            switchTab("DMChat") 
+        end)
+    end
+
+    local function createBubble(displayName, msg, targetPlayer)
+        if not targetPlayer or not targetPlayer.Character then return end
+        local head = targetPlayer.Character:FindFirstChild("Head") or targetPlayer.Character.PrimaryPart; if not head then return end
+        local cleanMsg = msg; local repMatch, restMsg = msg:match("^↪️ %[Replying to (.-)%]\n(.*)")
+        if repMatch then cleanMsg = restMsg end; if tostring(cleanMsg):match("^%[STICKER:(%d+)%]$") then cleanMsg = "[Sticker 🌸]" elseif tostring(cleanMsg):match("^%[PHOTO:(.-)%]$") then cleanMsg = "[Photo 📸]" elseif tostring(cleanMsg):match("^%[SNAP%]") then cleanMsg = "[Snap 🔥]" elseif tostring(cleanMsg):match("^%[VOICE:(.-)%]$") then cleanMsg = "[Voice Audio 🎵]" end
+        pcall(function() game:GetService("TextChatService"):DisplayBubble(targetPlayer.Character, cleanMsg) end)
+    end
+
+    local MAX_MESSAGES_ON_SCREEN = 150
+    local messageCount = 0
+    function addMessageToChat(name, message, isSystem, userId, chatType)
         pcall(function()
             messageCount = messageCount + 1
             local targetFrame = (chatType == "DM") and dmChatFrame or chatFrame
@@ -620,7 +1195,8 @@ local function startMainChat()
 
                 local nameLabel = Instance.new("TextButton", rowFrame); nameLabel.BackgroundTransparency = 1; nameLabel.Text = cleanName; nameLabel.Font = Enum.Font.GothamBlack; nameLabel.Size = UDim2.new(0, 0, 0, 15); nameLabel.TextSize = 12; nameLabel.TextColor3 = color; nameLabel.AutomaticSize = Enum.AutomaticSize.X; nameLabel.TextYAlignment = Enum.TextYAlignment.Top; nameLabel.LayoutOrder = 2; nameLabel.TextTruncate = Enum.TextTruncate.AtEnd
                 local nameCon = Instance.new("UISizeConstraint", nameLabel); nameCon.MaxSize = Vector2.new(120, 15)
-                
+                nameLabel.MouseButton1Click:Connect(function() if chatType ~= "DM" and userId and tostring(userId) ~= myUserId then openMiniProfile(tostring(userId), cleanName, titleData) end end)
+
                 local colonLabel = Instance.new("TextLabel", rowFrame); colonLabel.BackgroundTransparency = 1; colonLabel.Text = ":"; colonLabel.Font = Enum.Font.GothamBlack; colonLabel.Size = UDim2.new(0, 0, 0, 15); colonLabel.TextSize = 12; colonLabel.TextColor3 = Colors.TextDim; colonLabel.AutomaticSize = Enum.AutomaticSize.X; colonLabel.TextYAlignment = Enum.TextYAlignment.Top; colonLabel.LayoutOrder = 3
 
                 local stickerId = tostring(cleanMsgTxt):match("^%[STICKER:(%d+)%]$")
@@ -652,7 +1228,7 @@ local function startMainChat()
                     local urlMatch = cleanMsgTxt:match("(https?://[%w-_%.%?%.:/%+=&]+)")
                     if urlMatch then
                         local lBtn = Instance.new("TextButton", rowFrame); lBtn.Size = UDim2.new(0, 80, 0, 15); lBtn.Text = "🔗 Open Link"; lBtn.TextColor3 = Colors.Primary; lBtn.Font = Enum.Font.GothamBold; lBtn.TextSize = 10; lBtn.BackgroundColor3 = Colors.Dark; lBtn.LayoutOrder = 5; Instance.new("UICorner", lBtn).CornerRadius = UDim.new(0, 4)
-                        lBtn.MouseButton1Click:Connect(function() if setclipboard then setclipboard(urlMatch); end end)
+                        lBtn.MouseButton1Click:Connect(function() if setclipboard then setclipboard(urlMatch); showNotif("🔗 Link", "Copied to clipboard!", true, nil, "Server", nil) end end)
                     end
                     
                     local msgTextLabel = Instance.new("TextLabel", rowFrame); msgTextLabel.BackgroundTransparency = 1; msgTextLabel.Text = tostring(cleanMsgTxt); msgTextLabel.Font = isMentioned and Enum.Font.GothamBold or Enum.Font.Gotham; msgTextLabel.TextColor3 = isMentioned and Colors.Gold or Colors.Text; msgTextLabel.Size = UDim2.new(0, 0, 0, 15); msgTextLabel.TextSize = 12; msgTextLabel.AutomaticSize = Enum.AutomaticSize.XY; msgTextLabel.TextWrapped = true; msgTextLabel.TextXAlignment = Enum.TextXAlignment.Left; msgTextLabel.TextYAlignment = Enum.TextYAlignment.Top; msgTextLabel.LayoutOrder = 4
@@ -711,128 +1287,6 @@ local function startMainChat()
                 if #messages > MAX_MESSAGES_ON_SCREEN then table.sort(messages, function(a, b) return a.LayoutOrder < b.LayoutOrder end); for i = 1, #messages - MAX_MESSAGES_ON_SCREEN do pcall(function() messages[i]:Destroy() end) end end
             end)
         end)
-    end
-
-    local processedGcIds = {}
-
-    local function openDmChat(uid, uName)
-        activeDmUserId = tonumber(uid)
-        activeDmUserName = uName
-        if dmChatTitle then dmChatTitle.Text = "Chat with " .. activeDmUserName end
-        
-        for _, c in ipairs(dmChatFrame:GetChildren()) do if c:IsA("Frame") then c:Destroy() end end
-        if dmHistories[activeDmUserId] then
-            for _, h in ipairs(dmHistories[activeDmUserId]) do
-                addMessageToChat(h.name, h.msg, h.isSystem, h.uid, "DM")
-            end
-            task.wait(0.1)
-            local maxScroll = dmChatLayout.AbsoluteContentSize.Y - dmChatFrame.AbsoluteSize.Y + 20
-            if maxScroll > 0 then safeTween(dmChatFrame, {CanvasPosition = Vector2.new(0, maxScroll)}, 0.3) end
-        end
-        switchTab("DMChat") 
-        if not isUiOpen then toggleMainUI(true) end
-    end
-
-    local function openGcChat(gcId, gcName)
-        activeGcId = gcId
-        if dmChatTitle then dmChatTitle.Text = "GC: " .. gcName end
-        
-        for _, c in ipairs(dmChatFrame:GetChildren()) do if c:IsA("Frame") then c:Destroy() end end
-        switchTab("GCChat")
-        
-        task.spawn(function()
-            local histRes = reqFunc({Url = FIREBASE_URL .. "global_gcs/" .. activeGcId .. "/messages.json", Method = "GET"})
-            if histRes.Success and histRes.Body ~= "null" then
-                local hData = game:GetService("HttpService"):JSONDecode(histRes.Body)
-                local oneWeekAgo = os.time() - 604800
-                local sortedMsgs = {}
-                
-                for mKey, mVal in pairs(hData) do
-                    if mVal.timestamp and mVal.timestamp < oneWeekAgo then
-                        reqFunc({Url = FIREBASE_URL .. "global_gcs/" .. activeGcId .. "/messages/" .. mKey .. ".json", Method = "DELETE"})
-                    else
-                        if not string.find(mVal.text or "", "%[ZAYN_GC_KICK%]") then
-                            mVal.key = mKey
-                            table.insert(sortedMsgs, mVal)
-                        end
-                    end
-                end
-                
-                table.sort(sortedMsgs, function(a, b) return (a.timestamp or 0) < (b.timestamp or 0) end)
-                
-                for _, msg in ipairs(sortedMsgs) do
-                    processedGcIds[msg.key] = true
-                    addMessageToChat(msg.senderName, msg.text, false, tonumber(msg.senderId), "DM")
-                end
-                task.wait(0.2)
-                local maxScroll = dmChatLayout.AbsoluteContentSize.Y - dmChatFrame.AbsoluteSize.Y + 20
-                if maxScroll > 0 then safeTween(dmChatFrame, {CanvasPosition = Vector2.new(0, maxScroll)}, 0.3) end
-            end
-        end)
-        if not isUiOpen then toggleMainUI(true) end
-    end
-
-    local function showNotif(sender, msg, isDm, senderUid, contextType, contextId, contextName)
-        local n = Instance.new("TextButton", sg)
-        n.Size = UDim2.new(0, 280, 0, 65)
-        n.Position = UDim2.new(1, 15, 1, -80)
-        n.BackgroundColor3 = Colors.Darker
-        n.BackgroundTransparency = 0.15
-        n.BorderSizePixel = 0
-        n.ZIndex = 999999
-        n.ClipsDescendants = true
-        Instance.new("UICorner", n).CornerRadius = UDim.new(0, 12)
-        n.AutoButtonColor = false
-        n.Text = "" 
-
-        n.MouseButton1Click:Connect(function()
-            if contextType == "DM" and contextId then
-                openDmChat(contextId, contextName or sender)
-            elseif contextType == "GC" and contextId then
-                openGcChat(contextId, contextName or sender)
-            elseif contextType == "Server" then
-                switchTab("Server")
-                if not isUiOpen then toggleMainUI(true) end
-            end
-            pcall(function() n:Destroy() end)
-        end)
-
-        local notifStroke = Instance.new("UIStroke", n); notifStroke.Color = isDm and Colors.NeonPink or Colors.Primary; notifStroke.Thickness = 1.5; notifStroke.Transparency = 0.2
-        local hasAvatar = (senderUid and tonumber(senderUid)) ~= nil; local textMaxWidth = hasAvatar and -100 or -58
-        local t = Instance.new("TextLabel", n); t.Size = UDim2.new(1, textMaxWidth, 0, 22); t.Position = UDim2.new(0, 54, 0, 10); t.Text = sender; t.TextColor3 = Colors.Light; t.BackgroundTransparency = 1; t.Font = Enum.Font.GothamBold; t.TextSize = 12; t.TextXAlignment = Enum.TextXAlignment.Left; t.ZIndex = 999999
-        local cleanMsg = msg:gsub("%[STICKER:%d+%]", "🖼️ Sent a Sticker"):gsub("%[PHOTO:.-%]", "📸 Sent a Photo"):gsub("%[SNAP%].*", "🔥 Sent a Snap"):gsub("%[VOICE:.-%]", "🎵 Sent a Voice Audio")
-        local m = Instance.new("TextLabel", n); m.Size = UDim2.new(1, textMaxWidth, 0, 28); m.Position = UDim2.new(0, 54, 0, 34); m.Text = cleanMsg; m.TextColor3 = Colors.TextDim; m.BackgroundTransparency = 1; m.Font = Enum.Font.Gotham; m.TextSize = 11; m.TextXAlignment = Enum.TextXAlignment.Left; m.TextWrapped = true; m.ZIndex = 999999
-        
-        if hasAvatar then 
-            local pfp = Instance.new("ImageLabel", n); 
-            pfp.Size = UDim2.new(0, 42, 0, 42); pfp.Position = UDim2.new(1, -52, 0.5, -21); 
-            pfp.BackgroundTransparency = 1; pfp.ScaleType = Enum.ScaleType.Crop
-            Instance.new("UICorner", pfp).CornerRadius = UDim.new(1, 0); pfp.ZIndex = 999999 
-            
-            local customDpUrl = (customProfiles[tostring(senderUid)] and customProfiles[tostring(senderUid)].dp)
-            if customDpUrl and customDpUrl:find("http") then
-                pfp.ImageTransparency = 1
-                task.spawn(function()
-                    if _rawReq and writefile and getcustomasset then
-                        local s, r = pcall(_rawReq, {Url = customDpUrl, Method = "GET"})
-                        if s and r.StatusCode == 200 then
-                            local fN = "z_notif_"..tostring(senderUid)..".png"
-                            writefile(fN, r.Body)
-                            pfp.Image = getcustomasset(fN)
-                            safeTween(pfp, {ImageTransparency = 0}, 0.3)
-                        else
-                            pfp.Image = "rbxthumb://type=AvatarHeadShot&id=" .. senderUid .. "&w=150&h=150"
-                            safeTween(pfp, {ImageTransparency = 0}, 0.3)
-                        end
-                    end
-                end)
-            else
-                pfp.Image = "rbxthumb://type=AvatarHeadShot&id=" .. senderUid .. "&w=150&h=150"
-            end
-        end
-
-        task.spawn(function() pcall(function() local sfx = Instance.new("Sound"); sfx.SoundId = "rbxassetid://4590662766"; sfx.Volume = 1; sfx.Parent = UI_PARENT; sfx:Play(); task.wait(2); sfx:Destroy() end) end)
-        safeTween(n, {Position = UDim2.new(1, -300, 1, -80)}, 0.45); task.delay(4, function() if n then safeTween(n, {Position = UDim2.new(1, 15, 1, -80), BackgroundTransparency = 1}, 0.35, Enum.EasingStyle.Sine).Completed:Connect(function() pcall(function() n:Destroy() end) end) end end)
     end
 
     local messageQueue, queueProcessing = {}, false
@@ -1099,40 +1553,8 @@ local function startMainChat()
     end)
 
     local processedIds = {}
+    local processedGcIds = {}
     local isFirstLoad = true
-    
-    -- GLOBAL CROSS-SERVER DM INBOX POLLER
-    local processedDMs = {}
-    task.spawn(function()
-        while task.wait(3) do
-            pcall(function()
-                local res = reqFunc({Url = FIREBASE_URL .. "global_dms/" .. myUserId .. ".json", Method = "GET"})
-                if res.Success and res.Body ~= "null" then
-                    local dms = game:GetService("HttpService"):JSONDecode(res.Body)
-                    for mKey, mVal in pairs(dms) do
-                        if not processedDMs[mKey] then
-                            processedDMs[mKey] = true
-                            local sUid = tonumber(mVal.senderId) or 0
-                            local senderName = mVal.senderName or "Unknown"
-                            local text = mVal.text or ""
-                            
-                            if not dmHistories[sUid] then dmHistories[sUid] = {} end
-                            table.insert(dmHistories[sUid], {name = senderName, msg = text, isSystem = false, uid = sUid})
-                            
-                            if currentTab == "DMChat" and activeDmUserId == sUid then 
-                                addMessageToChat(senderName, text, false, sUid, "DM") 
-                            else 
-                                showNotif("🔒 DM: " .. senderName, text, true, sUid, "DM", sUid, senderName) 
-                            end
-                            
-                            reqFunc({Url = FIREBASE_URL .. "global_dms/" .. myUserId .. "/" .. mKey .. ".json", Method = "DELETE"})
-                        end
-                    end
-                end
-            end)
-        end
-    end)
-
     task.spawn(function()
         task.wait(2)
         local joinTs = os.time(); local joinSig = generateSignature("SYNC", myUserId, joinTs)
@@ -1254,16 +1676,12 @@ local function startMainChat()
                                         if targetUidStr == tostring(myUserId) and dN then
                                             if not dmHistories[tonumber(dU)] then dmHistories[tonumber(dU)] = {} end
                                             table.insert(dmHistories[tonumber(dU)], {name = dCN, msg = dM, isSystem = false, uid = tonumber(dU)})
-                                            if currentTab == "DMChat" and activeDmUserId == tonumber(dU) then 
-                                                addMessageToChat(dCN, dM, false, tonumber(dU), "DM") 
-                                            else 
-                                                showNotif("🔒 DM: " .. dCN, dM, true, tonumber(dU), "DM", tonumber(dU), dCN)
-                                            end
+                                            if currentTab == "DMChat" and activeDmUserId == tonumber(dU) then addMessageToChat(dCN, dM, false, tonumber(dU), "DM") else showNotif("🔒 DM: " .. dCN, dM, true, tonumber(dU), "DM", tonumber(dU)) end
                                         end
                                     end
                                 else
-                                    addMessageToChat(cleanName, sMsg, false, tonumber(sUID), "Server"); 
-                                    showNotif(cleanName, sMsg, false, tonumber(sUID), "Server", nil, nil)
+                                    addMessageToChat(cleanName, sMsg, false, tonumber(sUID), "Server")
+                                    showNotif(cleanName, sMsg, false, tonumber(sUID), "Server", nil)
                                     local targetP = tonumber(sUID) and Players:GetPlayerByUserId(tonumber(sUID)); if targetP then createBubble(cleanName, sMsg, targetP) end
                                 end
                             end
@@ -1750,6 +2168,7 @@ local function startMainChat()
         end)
     end
 
+    local isRefreshingGCs = false
     refreshDiscover = function()
         if isRefreshingGCs then return end
         isRefreshingGCs = true
@@ -1789,7 +2208,43 @@ local function startMainChat()
                         local chatBtn = mItem:FindFirstChildWhichIsA("TextButton"); chatBtn.Text = "CHAT"; chatBtn.BackgroundColor3 = Colors.Accent; chatBtn.TextColor3 = Colors.Dark
                         
                         chatBtn.MouseButton1Click:Connect(function()
-                            openGcChat(gId, gData.name)
+                            activeGcId = gId; dmChatTitle.Text = "GC: " .. gData.name
+                            
+                            -- Load History & Purge 1-Week Old Messages
+                            for _, c in ipairs(dmChatFrame:GetChildren()) do if c:IsA("Frame") then c:Destroy() end end
+                            contentFrame.Visible = false; gcContainer.Visible = false; dmChatContainer.Visible = true; currentTab = "GCChat"
+                            
+                            task.spawn(function()
+                                local histRes = reqFunc({Url = FIREBASE_URL .. "global_gcs/" .. gId .. "/messages.json", Method = "GET"})
+                                if histRes.Success and histRes.Body ~= "null" then
+                                    local hData = game:GetService("HttpService"):JSONDecode(histRes.Body)
+                                    local oneWeekAgo = os.time() - 604800 -- 7 days in seconds
+                                    local sortedMsgs = {}
+                                    
+                                    for mKey, mVal in pairs(hData) do
+                                        if mVal.timestamp and mVal.timestamp < oneWeekAgo then
+                                            -- Delete Old Message
+                                            reqFunc({Url = FIREBASE_URL .. "global_gcs/" .. gId .. "/messages/" .. mKey .. ".json", Method = "DELETE"})
+                                        else
+                                            -- Skip kick signals from rendering
+                                            if not string.find(mVal.text or "", "%[ZAYN_GC_KICK%]") then
+                                                mVal.key = mKey
+                                                table.insert(sortedMsgs, mVal)
+                                            end
+                                        end
+                                    end
+                                    
+                                    table.sort(sortedMsgs, function(a, b) return (a.timestamp or 0) < (b.timestamp or 0) end)
+                                    
+                                    for _, msg in ipairs(sortedMsgs) do
+                                        processedGcIds[msg.key] = true
+                                        addMessageToChat(msg.senderName, msg.text, false, tonumber(msg.senderId), "DM")
+                                    end
+                                    task.wait(0.2)
+                                    local maxScroll = dmChatLayout.AbsoluteContentSize.Y - dmChatFrame.AbsoluteSize.Y + 20
+                                    if maxScroll > 0 then safeTween(dmChatFrame, {CanvasPosition = Vector2.new(0, maxScroll)}, 0.3) end
+                                end
+                            end)
                         end)
                         
                         local leaveBtn = chatBtn:Clone(); leaveBtn.Parent = mItem; leaveBtn.Text = "LEAVE"; leaveBtn.BackgroundColor3 = Colors.NeonPink
