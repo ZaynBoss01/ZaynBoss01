@@ -2,7 +2,7 @@
 -- ZAYN UI LAB - SERVER & GALLERY EDITION (V45.6 TITAN)       --
 -- THEME: OBSIDIAN DARK & SOFT RELAXING PASTEL                --
 -- SECURITY: TITANGUARD V10.1 (ANTI-SPOOF + WATCHDOG)         --
--- FIX: MESSAGE QUEUE SCOPING, REACTION HALT & GC BUGS FIXED  --
+-- FIX: GLOBAL CROSS-SERVER DM RECEIVER LOOP RESTORED         --
 -- ========================================================== --
 
 local TweenService = game:GetService("TweenService")
@@ -191,7 +191,6 @@ local function startMainChat()
     local BLACKLIST_DB_PATH = "blacklist/"
     local TITLES_DB_PATH = "titles/"
     
-    -- FIXED: QUEUE VARS MOVED TO TOP SCOPE SO CONTEXT MENU CAN ACCESS THEM
     local messageQueue = {}
     local queueProcessing = false
 
@@ -1091,7 +1090,36 @@ local function startMainChat()
 
     local messageCount = 0
     local MAX_MESSAGES_ON_SCREEN = 150
--- END OF PART 1 (WAIT FOR PART 2)
+
+    local processedDMs = {}
+    task.spawn(function()
+        while task.wait(3) do
+            pcall(function()
+                local res = reqFunc({Url = FIREBASE_URL .. "global_dms/" .. myUserId .. ".json", Method = "GET"})
+                if res.Success and res.Body ~= "null" then
+                    local dms = game:GetService("HttpService"):JSONDecode(res.Body)
+                    for mKey, mVal in pairs(dms) do
+                        if not processedDMs[mKey] then
+                            processedDMs[mKey] = true
+                            
+                            local sUid = tonumber(mVal.senderId)
+                            if not dmHistories[sUid] then dmHistories[sUid] = {} end
+                            table.insert(dmHistories[sUid], {name = mVal.senderName, msg = mVal.text, isSystem = false, uid = sUid})
+                            
+                            if currentTab == "DMChat" and activeDmUserId == sUid then 
+                                addMessageToChat(mVal.senderName, mVal.text, false, sUid, "DM") 
+                            else 
+                                showNotif("🔒 DM: " .. mVal.senderName, mVal.text, true, sUid, "DM", sUid) 
+                            end
+                            
+                            reqFunc({Url = FIREBASE_URL .. "global_dms/" .. myUserId .. "/" .. mKey .. ".json", Method = "DELETE"})
+                        end
+                    end
+                end
+            end)
+        end
+    end)
+
     local function addMessageToChat(name, message, isSystem, userId, chatType)
         pcall(function()
             messageCount = messageCount + 1
