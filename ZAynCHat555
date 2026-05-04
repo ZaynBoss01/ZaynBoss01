@@ -2,13 +2,14 @@
 -- ZAYN UI LAB - SERVER & GALLERY EDITION (V45.6 TITAN)       --
 -- THEME: OBSIDIAN DARK & SOFT RELAXING PASTEL                --
 -- SECURITY: TITANGUARD V10.1 (ANTI-SPOOF + WATCHDOG)         --
--- FIX: REACTION CANCEL, GC NOTIFS & DJ ON-LOAD PERSISTENCE   --
+-- FIX: MESSAGE QUEUE SCOPING, REACTION HALT & GC BUGS FIXED  --
 -- ========================================================== --
 
 local TweenService = game:GetService("TweenService")
 local CoreGui = game:GetService("CoreGui")
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
+
 local UI_PARENT = (gethui and gethui()) or CoreGui
 
 -- ================================================================= --
@@ -190,6 +191,10 @@ local function startMainChat()
     local BLACKLIST_DB_PATH = "blacklist/"
     local TITLES_DB_PATH = "titles/"
     
+    -- FIXED: QUEUE VARS MOVED TO TOP SCOPE SO CONTEXT MENU CAN ACCESS THEM
+    local messageQueue = {}
+    local queueProcessing = false
+
     local isChatMuted, isBlacklisted = false, false
     local myAfkReason = nil; local lastAfkReply = 0; local spamTracker = {}
     local myJoinedGCs = {} 
@@ -564,7 +569,7 @@ local function startMainChat()
             switchTab("Server") 
         end 
     end)
-
+    
     local function openZaynMediaBox(prefillUrl)
         if UI_PARENT:FindFirstChild("ZaynMediaBox") then UI_PARENT.ZaynMediaBox:Destroy() end
         local mediaGui = Instance.new("ScreenGui", UI_PARENT); mediaGui.Name = "ZaynMediaBox"; mediaGui.DisplayOrder = 9999; mediaGui.IgnoreGuiInset = true
@@ -1041,7 +1046,7 @@ local function startMainChat()
             eBtn.Size = UDim2.new(0, 22, 0, 22); eBtn.Text = emj; eBtn.TextSize = 16; eBtn.BackgroundTransparency = 1
             eBtn.MouseButton1Click:Connect(function()
                 ctxGui:Destroy()
-                -- FIX: Send only global sync. Do NOT create local pill here.
+                -- FIX: Send global sync only. No double local pill.
                 table.insert(messageQueue, {text="["..SERVER_ID.."] [ZAYN_REACT_SYNC] " .. msgTextOriginal .. "::" .. emj .. "::" .. myUserId, timestamp=os.time()})
                 if typeof(processQueue) == "function" then processQueue() end
             end)
@@ -1247,201 +1252,9 @@ local function startMainChat()
         end)
     end
 
-    local activeNotifs = 0 
-    local function showNotif(sender, msg, isDm, senderUid, contextType, contextId, gcName)
-        local n = Instance.new("TextButton", sg)
-        n.Size = UDim2.new(0, 280, 0, 65)
-        
-        local targetY = -80 - (activeNotifs * 75)
-        activeNotifs = activeNotifs + 1
-        
-        n.Position = UDim2.new(1, 15, 1, targetY)
-        n.BackgroundColor3 = Colors.Darker
-        n.BackgroundTransparency = 0.25
-        n.BorderSizePixel = 0
-        n.ZIndex = 100
-        n.ClipsDescendants = true
-        n.AutoButtonColor = false
-        n.Text = ""
-        Instance.new("UICorner", n).CornerRadius = UDim.new(0, 12)
-        
-        local notifStroke = Instance.new("UIStroke", n)
-        notifStroke.Color = isDm and Colors.NeonPink or Colors.Primary
-        notifStroke.Thickness = 1.5
-        notifStroke.Transparency = 0.2
-        
-        local hasAvatar = (senderUid and tonumber(senderUid)) ~= nil
-        local textMaxWidth = hasAvatar and -100 or -58
-        
-        local t = Instance.new("TextLabel", n)
-        t.Size = UDim2.new(1, textMaxWidth, 0, 22)
-        t.Position = UDim2.new(0, 54, 0, 10)
-        t.Text = sender
-        t.TextColor3 = Colors.Light
-        t.BackgroundTransparency = 1
-        t.Font = Enum.Font.GothamBold
-        t.TextSize = 12
-        t.TextXAlignment = Enum.TextXAlignment.Left
-        
-        local cleanMsg = msg:gsub("%[STICKER:%d+%]", "🖼️ Sent a Sticker"):gsub("%[PHOTO:.-%]", "📸 Sent a Photo"):gsub("%[SNAP%].*", "🔥 Sent a Snap"):gsub("%[VOICE:.-%]", "🎵 Sent a Voice Audio")
-        
-        local m = Instance.new("TextLabel", n)
-        m.Size = UDim2.new(1, textMaxWidth, 0, 28)
-        m.Position = UDim2.new(0, 54, 0, 34)
-        m.Text = cleanMsg
-        m.TextColor3 = Colors.TextDim
-        m.BackgroundTransparency = 1
-        m.Font = Enum.Font.Gotham
-        m.TextSize = 11
-        m.TextXAlignment = Enum.TextXAlignment.Left
-        m.TextWrapped = true
-        
-        if hasAvatar then 
-            local pfp = Instance.new("ImageLabel", n)
-            pfp.Size = UDim2.new(0, 42, 0, 42)
-            pfp.Position = UDim2.new(1, -52, 0.5, -21)
-            pfp.BackgroundTransparency = 1
-            pfp.ScaleType = Enum.ScaleType.Crop
-            Instance.new("UICorner", pfp).CornerRadius = UDim.new(1, 0)
-            pfp.ZIndex = 101 
-            
-            local customDpUrl = (customProfiles[tostring(senderUid)] and customProfiles[tostring(senderUid)].dp)
-            if customDpUrl and customDpUrl:find("http") then
-                pfp.ImageTransparency = 1
-                task.spawn(function()
-                    if _rawReq and writefile and getcustomasset then
-                        local s, r = pcall(_rawReq, {Url = customDpUrl, Method = "GET"})
-                        if s and r.StatusCode == 200 then
-                            local fN = "z_notif_"..tostring(senderUid)..".png"
-                            writefile(fN, r.Body)
-                            pfp.Image = getcustomasset(fN)
-                            safeTween(pfp, {ImageTransparency = 0}, 0.3)
-                        else
-                            pfp.Image = "rbxthumb://type=AvatarHeadShot&id=" .. senderUid .. "&w=150&h=150"
-                            safeTween(pfp, {ImageTransparency = 0}, 0.3)
-                        end
-                    end
-                end)
-            else
-                pfp.Image = "rbxthumb://type=AvatarHeadShot&id=" .. senderUid .. "&w=150&h=150"
-            end
-        end
-
-        task.spawn(function() pcall(function() local sfx = Instance.new("Sound"); sfx.SoundId = "rbxassetid://4590662766"; sfx.Volume = 1; sfx.Parent = UI_PARENT; sfx:Play(); task.wait(2); sfx:Destroy() end) end)
-        safeTween(n, {Position = UDim2.new(1, -300, 1, targetY)}, 0.45)
-        
-        n.MouseButton1Click:Connect(function()
-            if not isUiOpen then toggleMainUI(true) end 
-            
-            if contextType == "DM" and contextId then
-                activeDmUserId = tonumber(contextId)
-                activeDmUserName = sender:gsub("🔒 DM: ", "")
-                if dmChatTitle then dmChatTitle.Text = "Chat with " .. activeDmUserName end
-                
-                for _, c in ipairs(dmChatFrame:GetChildren()) do if c:IsA("Frame") then c:Destroy() end end
-                
-                contentFrame.Visible = false
-                local gcContainer = main:FindFirstChild("ZaynGcContainer")
-                if gcContainer then gcContainer.Visible = false end
-                dmChatContainer.Visible = true
-                currentTab = "DMChat"
-
-                task.wait(0.2) -- FIX: Ensure UI toggles before rendering
-
-                if dmHistories[activeDmUserId] then
-                    for _, h in ipairs(dmHistories[activeDmUserId]) do
-                        addMessageToChat(h.name, h.msg, h.isSystem, h.uid, "DM")
-                    end
-                    task.wait(0.1)
-                    local maxScroll = dmChatLayout.AbsoluteContentSize.Y - dmChatFrame.AbsoluteSize.Y + 20
-                    if maxScroll > 0 then dmChatFrame.CanvasPosition = Vector2.new(0, maxScroll) end
-                end
-                
-            elseif contextType == "GC" and contextId then
-                activeGcId = contextId
-                dmChatTitle.Text = "GC: " .. (gcName or "Chat")
-                for _, c in ipairs(dmChatFrame:GetChildren()) do if c:IsA("Frame") then c:Destroy() end end
-                
-                contentFrame.Visible = false
-                local gcContainer = main:FindFirstChild("ZaynGcContainer")
-                if gcContainer then gcContainer.Visible = false end
-                dmChatContainer.Visible = true
-                currentTab = "GCChat"
-                
-                task.wait(0.2) -- FIX: Allows UI swap to complete before rendering messages
-                
-                task.spawn(function()
-                    local histRes = reqFunc({Url = FIREBASE_URL .. "global_gcs/" .. contextId .. "/messages.json", Method = "GET"})
-                    if histRes.Success and histRes.Body ~= "null" then
-                        local hData = game:GetService("HttpService"):JSONDecode(histRes.Body)
-                        local sortedMsgs = {}
-                        for mKey, mVal in pairs(hData) do
-                            if not string.find(mVal.text or "", "%[ZAYN_GC_KICK%]") then
-                                mVal.key = mKey
-                                table.insert(sortedMsgs, mVal)
-                            end
-                        end
-                        table.sort(sortedMsgs, function(a, b) return (a.timestamp or 0) < (b.timestamp or 0) end)
-                        for _, msgg in ipairs(sortedMsgs) do
-                            processedGcIds[msgg.key] = true
-                            addMessageToChat(msgg.senderName, msgg.text, false, tonumber(msgg.senderId), "DM")
-                        end
-                        task.wait(0.2)
-                        local maxScroll = dmChatLayout.AbsoluteContentSize.Y - dmChatFrame.AbsoluteSize.Y + 20
-                        if maxScroll > 0 then safeTween(dmChatFrame, {CanvasPosition = Vector2.new(0, maxScroll)}, 0.3) end
-                    end
-                end)
-                
-            elseif contextType == "Server" then
-                contentFrame.Visible = true
-                dmChatContainer.Visible = false
-                local gcContainer = main:FindFirstChild("ZaynGcContainer")
-                if gcContainer then gcContainer.Visible = false end
-                currentTab = "Server"
-            end
-            
-            activeNotifs = math.max(0, activeNotifs - 1)
-            safeTween(n, {Position = UDim2.new(1, 15, 1, targetY), BackgroundTransparency = 1}, 0.2)
-            task.delay(0.2, function() pcall(function() n:Destroy() end) end)
-        end)
-
-        task.delay(4, function() 
-            if n and n.Parent then 
-                activeNotifs = math.max(0, activeNotifs - 1)
-                safeTween(n, {Position = UDim2.new(1, 15, 1, targetY), BackgroundTransparency = 1}, 0.35, Enum.EasingStyle.Sine).Completed:Connect(function() pcall(function() n:Destroy() end) end) 
-            end 
-        end)
-    end
-
-    local processedDMs = {}
-    task.spawn(function()
-        while task.wait(3) do
-            pcall(function()
-                local res = reqFunc({Url = FIREBASE_URL .. "global_dms/" .. myUserId .. ".json", Method = "GET"})
-                if res.Success and res.Body ~= "null" then
-                    local dms = game:GetService("HttpService"):JSONDecode(res.Body)
-                    for mKey, mVal in pairs(dms) do
-                        if not processedDMs[mKey] then
-                            processedDMs[mKey] = true
-                            
-                            local sUid = tonumber(mVal.senderId)
-                            if not dmHistories[sUid] then dmHistories[sUid] = {} end
-                            table.insert(dmHistories[sUid], {name = mVal.senderName, msg = mVal.text, isSystem = false, uid = sUid})
-                            
-                            if currentTab == "DMChat" and activeDmUserId == sUid then 
-                                addMessageToChat(mVal.senderName, mVal.text, false, sUid, "DM") 
-                            else 
-                                showNotif("🔒 DM: " .. mVal.senderName, mVal.text, true, sUid, "DM", sUid) 
-                            end
-                            
-                            reqFunc({Url = FIREBASE_URL .. "global_dms/" .. myUserId .. "/" .. mKey .. ".json", Method = "DELETE"})
-                        end
-                    end
-                end
-            end)
-        end
-    end)
-
+    -- ========================================================== --
+    -- ZAYN ADVANCED DJ SYSTEM (WITH PERMISSIONS)
+    -- ========================================================== --
     local RAPID_API_KEY  = "097446f512mshd8abf5f58ef31b1p10a0d0jsn08925256e226"
     local RAPID_API_HOST = "youtube-mp36.p.rapidapi.com"
     local API_URL        = "https://youtube-mp36.p.rapidapi.com/dl?id="
@@ -1511,6 +1324,7 @@ local function startMainChat()
             end
         end)
     end
+    -- ========================================================== --
 
     function processQueue()
         if queueProcessing or not reqFunc then return end; queueProcessing = true
@@ -1824,6 +1638,174 @@ local function startMainChat()
         elseif txtInput.Text == "" then task.spawn(function() reqFunc({Url = FIREBASE_URL .. TYPING_PATH .. myUserId .. ".json", Method = "DELETE"}) end) end
     end)
 
+    local activeNotifs = 0 
+    local function showNotif(sender, msg, isDm, senderUid, contextType, contextId, gcName)
+        local n = Instance.new("TextButton", sg)
+        n.Size = UDim2.new(0, 280, 0, 65)
+        
+        local targetY = -80 - (activeNotifs * 75)
+        activeNotifs = activeNotifs + 1
+        
+        n.Position = UDim2.new(1, 15, 1, targetY)
+        n.BackgroundColor3 = Colors.Darker
+        n.BackgroundTransparency = 0.25
+        n.BorderSizePixel = 0
+        n.ZIndex = 100
+        n.ClipsDescendants = true
+        n.AutoButtonColor = false
+        n.Text = ""
+        Instance.new("UICorner", n).CornerRadius = UDim.new(0, 12)
+        
+        local notifStroke = Instance.new("UIStroke", n)
+        notifStroke.Color = isDm and Colors.NeonPink or Colors.Primary
+        notifStroke.Thickness = 1.5
+        notifStroke.Transparency = 0.2
+        
+        local hasAvatar = (senderUid and tonumber(senderUid)) ~= nil
+        local textMaxWidth = hasAvatar and -100 or -58
+        
+        local t = Instance.new("TextLabel", n)
+        t.Size = UDim2.new(1, textMaxWidth, 0, 22)
+        t.Position = UDim2.new(0, 54, 0, 10)
+        t.Text = sender
+        t.TextColor3 = Colors.Light
+        t.BackgroundTransparency = 1
+        t.Font = Enum.Font.GothamBold
+        t.TextSize = 12
+        t.TextXAlignment = Enum.TextXAlignment.Left
+        
+        local cleanMsg = msg:gsub("%[STICKER:%d+%]", "🖼️ Sent a Sticker"):gsub("%[PHOTO:.-%]", "📸 Sent a Photo"):gsub("%[SNAP%].*", "🔥 Sent a Snap"):gsub("%[VOICE:.-%]", "🎵 Sent a Voice Audio")
+        
+        local m = Instance.new("TextLabel", n)
+        m.Size = UDim2.new(1, textMaxWidth, 0, 28)
+        m.Position = UDim2.new(0, 54, 0, 34)
+        m.Text = cleanMsg
+        m.TextColor3 = Colors.TextDim
+        m.BackgroundTransparency = 1
+        m.Font = Enum.Font.Gotham
+        m.TextSize = 11
+        m.TextXAlignment = Enum.TextXAlignment.Left
+        m.TextWrapped = true
+        
+        if hasAvatar then 
+            local pfp = Instance.new("ImageLabel", n)
+            pfp.Size = UDim2.new(0, 42, 0, 42)
+            pfp.Position = UDim2.new(1, -52, 0.5, -21)
+            pfp.BackgroundTransparency = 1
+            pfp.ScaleType = Enum.ScaleType.Crop
+            Instance.new("UICorner", pfp).CornerRadius = UDim.new(1, 0)
+            pfp.ZIndex = 101 
+            
+            local customDpUrl = (customProfiles[tostring(senderUid)] and customProfiles[tostring(senderUid)].dp)
+            if customDpUrl and customDpUrl:find("http") then
+                pfp.ImageTransparency = 1
+                task.spawn(function()
+                    if _rawReq and writefile and getcustomasset then
+                        local s, r = pcall(_rawReq, {Url = customDpUrl, Method = "GET"})
+                        if s and r.StatusCode == 200 then
+                            local fN = "z_notif_"..tostring(senderUid)..".png"
+                            writefile(fN, r.Body)
+                            pfp.Image = getcustomasset(fN)
+                            safeTween(pfp, {ImageTransparency = 0}, 0.3)
+                        else
+                            pfp.Image = "rbxthumb://type=AvatarHeadShot&id=" .. senderUid .. "&w=150&h=150"
+                            safeTween(pfp, {ImageTransparency = 0}, 0.3)
+                        end
+                    end
+                end)
+            else
+                pfp.Image = "rbxthumb://type=AvatarHeadShot&id=" .. senderUid .. "&w=150&h=150"
+            end
+        end
+
+        task.spawn(function() pcall(function() local sfx = Instance.new("Sound"); sfx.SoundId = "rbxassetid://4590662766"; sfx.Volume = 1; sfx.Parent = UI_PARENT; sfx:Play(); task.wait(2); sfx:Destroy() end) end)
+        safeTween(n, {Position = UDim2.new(1, -300, 1, targetY)}, 0.45)
+        
+        n.MouseButton1Click:Connect(function()
+            if not isUiOpen then toggleMainUI(true) end 
+            
+            if contextType == "DM" and contextId then
+                activeDmUserId = tonumber(contextId)
+                activeDmUserName = sender:gsub("🔒 DM: ", "")
+                if dmChatTitle then dmChatTitle.Text = "Chat with " .. activeDmUserName end
+                
+                for _, c in ipairs(dmChatFrame:GetChildren()) do if c:IsA("Frame") then c:Destroy() end end
+                
+                contentFrame.Visible = false
+                local gcContainer = main:FindFirstChild("ZaynGcContainer")
+                if gcContainer then gcContainer.Visible = false end
+                dmChatContainer.Visible = true
+                currentTab = "DMChat"
+
+                task.wait(0.2)
+
+                if dmHistories[activeDmUserId] then
+                    for _, h in ipairs(dmHistories[activeDmUserId]) do
+                        addMessageToChat(h.name, h.msg, h.isSystem, h.uid, "DM")
+                    end
+                    task.wait(0.1)
+                    local maxScroll = dmChatLayout.AbsoluteContentSize.Y - dmChatFrame.AbsoluteSize.Y + 20
+                    if maxScroll > 0 then dmChatFrame.CanvasPosition = Vector2.new(0, maxScroll) end
+                end
+                
+            elseif contextType == "GC" and contextId then
+                activeGcId = contextId
+                dmChatTitle.Text = "GC: " .. (gcName or "Chat")
+                for _, c in ipairs(dmChatFrame:GetChildren()) do if c:IsA("Frame") then c:Destroy() end end
+                
+                contentFrame.Visible = false
+                local gcContainer = main:FindFirstChild("ZaynGcContainer")
+                if gcContainer then gcContainer.Visible = false end
+                dmChatContainer.Visible = true
+                currentTab = "GCChat"
+                
+                task.wait(0.2)
+                
+                task.spawn(function()
+                    local histRes = reqFunc({Url = FIREBASE_URL .. "global_gcs/" .. contextId .. "/messages.json", Method = "GET"})
+                    if histRes.Success and histRes.Body ~= "null" then
+                        local hData = game:GetService("HttpService"):JSONDecode(histRes.Body)
+                        local sortedMsgs = {}
+                        for mKey, mVal in pairs(hData) do
+                            if not string.find(mVal.text or "", "%[ZAYN_GC_KICK%]") then
+                                mVal.key = mKey
+                                table.insert(sortedMsgs, mVal)
+                            end
+                        end
+                        table.sort(sortedMsgs, function(a, b) return (a.timestamp or 0) < (b.timestamp or 0) end)
+                        for _, msgg in ipairs(sortedMsgs) do
+                            processedGcIds[msgg.key] = true
+                            addMessageToChat(msgg.senderName, msgg.text, false, tonumber(msgg.senderId), "DM")
+                        end
+                        task.wait(0.2)
+                        local maxScroll = dmChatLayout.AbsoluteContentSize.Y - dmChatFrame.AbsoluteSize.Y + 20
+                        if maxScroll > 0 then safeTween(dmChatFrame, {CanvasPosition = Vector2.new(0, maxScroll)}, 0.3) end
+                    end
+                end)
+                
+            elseif contextType == "Server" then
+                contentFrame.Visible = true
+                dmChatContainer.Visible = false
+                local gcContainer = main:FindFirstChild("ZaynGcContainer")
+                if gcContainer then gcContainer.Visible = false end
+                currentTab = "Server"
+            end
+            
+            activeNotifs = math.max(0, activeNotifs - 1)
+            safeTween(n, {Position = UDim2.new(1, 15, 1, targetY), BackgroundTransparency = 1}, 0.2)
+            task.delay(0.2, function() pcall(function() n:Destroy() end) end)
+        end)
+
+        task.delay(4, function() 
+            if n and n.Parent then 
+                activeNotifs = math.max(0, activeNotifs - 1)
+                safeTween(n, {Position = UDim2.new(1, 15, 1, targetY), BackgroundTransparency = 1}, 0.35, Enum.EasingStyle.Sine).Completed:Connect(function() pcall(function() n:Destroy() end) end) 
+            end 
+        end)
+    end
+
+    local processedIds = {}
+    local isFirstLoad = true
     task.spawn(function()
         task.wait(2)
         local joinTs = os.time(); local joinSig = generateSignature("SYNC", myUserId, joinTs)
