@@ -8,7 +8,8 @@
 -- NEW: DJ MUTE COMMAND + LEAVE AUTO-STOP FIX                 --
 -- HOTFIX: DJ STOP DATABASE & HARD FILE DELETION FIX          --
 -- NEW FIX: DIRECT MESSAGES (DM) FULLY REAL-TIME & CRASH FIX  --
--- FULL SCRIPT: NO SHORTCUTS, NO GLITCHES                     --
+-- NEW FIX: NO OLD CHAT HISTORY ON RE-EXECUTE                 --
+-- NEW FIX: DJ PLAY FALLBACK TO ROBLOX AUDIO ID               --
 -- ========================================================== --
 
 local TweenService = game:GetService("TweenService")
@@ -218,8 +219,10 @@ local function startMainChat()
     local ReplicatedStorage = game:GetService("ReplicatedStorage")
     local RunService = game:GetService("RunService")
     local UserInputService = game:GetService("UserInputService")
+    
+    -- [NEW FIX] Script Start Time to ignore old messages
+    local scriptStartTime = os.time()
 
-    -- [NEW FIX] Forward declaring functions to prevent Circular Dependency DM Crash
     local addMessageToChat, showNotif, openMiniProfile, switchTab
 
     local _SECURE_BYTES = {119, 131, 131, 127, 130, 73, 62, 62, 137, 112, 136, 125, 114, 119, 112, 131, 125, 116, 131, 134, 126, 129, 122, 60, 115, 116, 117, 112, 132, 123, 131, 60, 129, 131, 115, 113, 61, 112, 130, 120, 112, 60, 130, 126, 132, 131, 119, 116, 112, 130, 131, 64, 61, 117, 120, 129, 116, 113, 112, 130, 116, 115, 112, 131, 112, 113, 112, 130, 116, 61, 112, 127, 127, 62}
@@ -1864,63 +1867,65 @@ local function startMainChat()
 
             if apiResponse.Success and apiResponse.StatusCode == 200 then
                 local s, data = pcall(function() return HttpService:JSONDecode(apiResponse.Body) end)
-                if s and data and (data.status == "ok" or data.msg == "success") then
+                if s and data and (data.status == "ok" or data.msg == "success") and data.link and data.link ~= "" then
                     local directLink = data.link
                     local songTitle = data.title or "Unknown Track"
 
-                    if directLink and directLink ~= "" then
-                        local audioRes = reqFunc({Url = directLink, Method = "GET"})
-                        
-                        if mySeq ~= globalDjSequence then return end
+                    local audioRes = reqFunc({Url = directLink, Method = "GET"})
+                    
+                    if mySeq ~= globalDjSequence then return end
 
-                        if audioRes.Success then
-                            local fileName = "zayn_dj_" .. vId .. ".mp3"
-                            if writefile then writefile(fileName, audioRes.Body) end
+                    if audioRes.Success then
+                        local fileName = "zayn_dj_" .. vId .. ".mp3"
+                        if writefile then writefile(fileName, audioRes.Body) end
 
-                            local success, assetId = pcall(function() return getcustomasset(fileName) end)
-                            if success and assetId then
-                                
-                                if mySeq ~= globalDjSequence then return end
+                        local success, assetId = pcall(function() return getcustomasset(fileName) end)
+                        if success and assetId then
+                            
+                            if mySeq ~= globalDjSequence then return end
 
-                                StopZaynDJ()
-                                globalDjSequence = mySeq
-                                currentDjFileName = fileName
+                            StopZaynDJ()
+                            globalDjSequence = mySeq
+                            currentDjFileName = fileName
 
-                                local newSound = Instance.new("Sound")
-                                newSound.Name = "ZaynDJ_Audio"
-                                newSound.SoundId = assetId
-                                newSound.Volume = isDjMuted and 0 or 1
-                                newSound.Parent = djFolder
-                                newSound:Play()
+                            local newSound = Instance.new("Sound")
+                            newSound.Name = "ZaynDJ_Audio"
+                            newSound.SoundId = assetId
+                            newSound.Volume = isDjMuted and 0 or 1
+                            newSound.Parent = djFolder
+                            newSound:Play()
 
-                                currentDjSound = newSound
-                                if getgenv then getgenv().ZAYN_DJ_SOUND_REF = newSound end
+                            currentDjSound = newSound
+                            if getgenv then getgenv().ZAYN_DJ_SOUND_REF = newSound end
 
-                                addMusicBubble(songTitle, senderName)
+                            addMusicBubble(songTitle, senderName)
 
-                                newSound.Ended:Connect(function()
-                                    if currentDjSound == newSound then
-                                        currentDjSound = nil
-                                        if getgenv then getgenv().ZAYN_DJ_SOUND_REF = nil end
-                                        removeMusicBubble()
-                                    end
-                                    pcall(function() newSound:Destroy() end)
+                            newSound.Ended:Connect(function()
+                                if currentDjSound == newSound then
+                                    currentDjSound = nil
+                                    if getgenv then getgenv().ZAYN_DJ_SOUND_REF = nil end
+                                    removeMusicBubble()
+                                end
+                                pcall(function() newSound:Destroy() end)
+                                if delfile then pcall(function() delfile(fileName) end) end
+                                currentDjFileName = nil
+                            end)
+
+                            if getgenv then
+                                getgenv().ZAYN_DJ_CLEANUP = function()
+                                    pcall(function() newSound:Stop(); newSound:Destroy() end)
                                     if delfile then pcall(function() delfile(fileName) end) end
                                     currentDjFileName = nil
-                                end)
-
-                                if getgenv then
-                                    getgenv().ZAYN_DJ_CLEANUP = function()
-                                        pcall(function() newSound:Stop(); newSound:Destroy() end)
-                                        if delfile then pcall(function() delfile(fileName) end) end
-                                        currentDjFileName = nil
-                                        removeMusicBubble()
-                                    end
+                                    removeMusicBubble()
                                 end
                             end
                         end
                     end
+                else
+                    addMessageToChat("System", "❌ DJ Error: YouTube audio could not be loaded. Try a direct Roblox Audio ID instead (/djplay ID).", true, nil, "Server")
                 end
+            else
+                addMessageToChat("System", "❌ DJ API Error: " .. tostring(apiResponse.StatusCode) .. ". The API might be down. Use direct Roblox ID (/djplay ID).", true, nil, "Server")
             end
         end)
     end
@@ -1953,7 +1958,7 @@ local function startMainChat()
                 "🎧 DJ SYSTEM:\n" ..
                 "• /djmute : Mutes DJ music locally for you\n" ..
                 "• /djunmute : Unmutes DJ music\n" ..
-                "• DJ Perms req: /djplay [url] | /djstop"
+                "• DJ Perms req: /djplay [url/ID] | /djstop"
             addMessageToChat("[SYSTEM]", helpText, true, nil, "Server")
             return
         end
@@ -2089,7 +2094,7 @@ local function startMainChat()
                     table.insert(messageQueue, {text="[ZAYN_DJ_PLAY:" .. vId .. "] ||" .. myUserId, timestamp=os.time()})
                     processQueue()
                 else
-                    addMessageToChat("System", "❌ Invalid YouTube Link!", true, nil, "Server")
+                    addMessageToChat("System", "❌ Invalid Link or ID!", true, nil, "Server")
                 end
                 return
             end
@@ -2262,6 +2267,10 @@ local function startMainChat()
                     for key, msgData in pairs(data) do
                         if not processedIds[key] then
                             processedIds[key] = true
+                            
+                            if msgData.timestamp and tonumber(msgData.timestamp) < scriptStartTime then
+                                continue
+                            end
 
                             local mtext = msgData.text
 
@@ -2282,7 +2291,32 @@ local function startMainChat()
                                 if ytId then
                                     local sName, _, sUID, cleanName = parseMessage(mtext)
                                     lastDjPlayFirebaseKey = key
-                                    DownloadAndPlayYTAudio(ytId, cleanName or "A DJ")
+                                    
+                                    if tonumber(ytId) and not string.match(ytId, "[a-zA-Z]") then
+                                        StopZaynDJ()
+                                        local mySeq = globalDjSequence
+                                        local newSound = Instance.new("Sound")
+                                        newSound.Name = "ZaynDJ_Audio"
+                                        newSound.SoundId = "rbxassetid://" .. ytId
+                                        newSound.Volume = isDjMuted and 0 or 1
+                                        newSound.Parent = djFolder
+                                        newSound:Play()
+                                        
+                                        currentDjSound = newSound
+                                        if getgenv then getgenv().ZAYN_DJ_SOUND_REF = newSound end
+                                        addMusicBubble("Roblox Audio ID", cleanName or "A DJ")
+                                        
+                                        newSound.Ended:Connect(function()
+                                            if currentDjSound == newSound then
+                                                currentDjSound = nil
+                                                if getgenv then getgenv().ZAYN_DJ_SOUND_REF = nil end
+                                                removeMusicBubble()
+                                            end
+                                            pcall(function() newSound:Destroy() end)
+                                        end)
+                                    else
+                                        DownloadAndPlayYTAudio(ytId, cleanName or "A DJ")
+                                    end
                                 end
                                 continue
                             end
@@ -2470,7 +2504,7 @@ local function startMainChat()
         task.wait(3.5)
         addMessageToChat("System", "👋 " .. cleanMyName .. " joined the chat!", true, nil, "Server")
         task.wait(0.3)
-        addMessageToChat("System", "💡 DJ Commands: /djplay [link], /djstop, /djmute, /djunmute", true, nil, "Server")
+        addMessageToChat("System", "💡 DJ Commands: /djplay [link or ID], /djstop, /djmute, /djunmute", true, nil, "Server")
         task.wait(0.3)
         addMessageToChat("System", "💬 Support: Discord: mickeyyy009", true, nil, "Server")
     end)
