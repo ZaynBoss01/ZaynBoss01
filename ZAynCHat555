@@ -1,5 +1,5 @@
 -- ========================================================== --
--- ZAYN UI LAB - SERVER & GALLERY EDITION (V46.1 TITAN)       --
+-- ZAYN UI LAB - SERVER & GALLERY EDITION (V46.2 TITAN)       --
 -- THEME: OBSIDIAN DARK & SOFT RELAXING PASTEL                --
 -- SECURITY: TITANGUARD V10.1 (ANTI-SPOOF + WATCHDOG)         --
 -- FIX: JOIN SPAM REMOVED (ONLY EXECUTION DETECTED)           --
@@ -8,6 +8,7 @@
 -- NEW: DJ MUTE COMMAND + LEAVE AUTO-STOP FIX                 --
 -- HOTFIX: DJ STOP DATABASE & HARD FILE DELETION FIX          --
 -- NEW FIX: DIRECT MESSAGES (DM) FULLY REAL-TIME & CRASH FIX  --
+-- MAJOR FIX: LOCAL DJ SOUND AUDIBILITY & DM PAGE RE-OPEN FIX --
 -- FULL SCRIPT: NO SHORTCUTS, NO GLITCHES                     --
 -- ========================================================== --
 
@@ -30,7 +31,7 @@ if UI_PARENT:FindFirstChild("ZaynProfileEditor") then UI_PARENT.ZaynProfileEdito
 if UI_PARENT:FindFirstChild("ZaynMsgContext") then UI_PARENT.ZaynMsgContext:Destroy() end
 
 -- ================================================================= --
--- [GLOBAL DJ SOUND CLEANUP ON RE-EXECUTE]
+-- [GLOBAL DJ SOUND CLEANUP ON RE-EXECUTE] - MOVED TO WORKSPACE FIX
 -- ================================================================= --
 if getgenv then
     if getgenv().ZAYN_DJ_SOUND_REF then
@@ -46,18 +47,14 @@ if getgenv then
     end
 end
 
--- Completely wipe out any previous DJ Folders or leftover sounds
-for _, child in ipairs(UI_PARENT:GetChildren()) do
+for _, child in ipairs(workspace:GetChildren()) do
     if child.Name == "ZaynDJ_Folder" then
         pcall(function()
             for _, s in ipairs(child:GetChildren()) do
-                if s:IsA("Sound") then s:Stop() end
+                if s:IsA("Sound") then s:Stop(); s:Destroy() end
             end
             child:Destroy()
         end)
-    end
-    if child:IsA("Sound") and child.Name == "ZaynDJ_Audio" then
-        pcall(function() child:Stop(); child:Destroy() end)
     end
 end
 
@@ -305,7 +302,6 @@ local function startMainChat()
     local _rawReq = (syn and syn.request) or (http and http.request) or http_request or request or (fluxus and fluxus.request)
     if not _rawReq then pcall(function() LocalPlayer:Kick("🛡️ Error: Unsupported Executor!") end) return end
 
-    -- [DM Caching Fix] Added strictly NO CACHE headers to prevent request stuttering
     local function reqFunc(options)
         if checkTamper(_rawReq) then pcall(function() while true do end end) end
         options.Headers = options.Headers or {}
@@ -598,7 +594,7 @@ local function startMainChat()
         voiceContainer.Visible = (tabName == "Voice");
         dmChatContainer.Visible = (tabName == "DMChat" or tabName == "GCChat")
         local gcContainer = main:FindFirstChild("ZaynGcContainer")
-        if gcContainer then gcContainer.Visible = false end
+        if gcContainer then gcContainer.Visible = (tabName == "GC") end
         isStickerPanelOpen = false; safeTween(stickerPanel, {Size = UDim2.new(1, -22, 0, 0)}, 0.2); mentionMenu.Visible = false
     end
     serverTabBtn.MouseButton1Click:Connect(function() switchTab("Server") end)
@@ -611,7 +607,6 @@ local function startMainChat()
             dmChatContainer.Visible = false; currentTab = "GC"
         else switchTab("Server") end
     end)
-    
     -- ================================================================= --
     -- NOTIFICATION SYSTEM (CLICKABLE + STACKING)
     -- ================================================================= --
@@ -707,6 +702,14 @@ local function startMainChat()
                 activeDmUserName = sender:gsub("🔒 DM: ", "")
                 if dmChatTitle then dmChatTitle.Text = "Chat with " .. activeDmUserName end
 
+                contentFrame.Visible = false
+                galleryContainer.Visible = false
+                voiceContainer.Visible = false
+                local gcContainer = main:FindFirstChild("ZaynGcContainer")
+                if gcContainer then gcContainer.Visible = false end
+                dmChatContainer.Visible = true
+                currentTab = "DMChat"
+
                 for _, c in ipairs(dmChatFrame:GetChildren()) do if c:IsA("Frame") then c:Destroy() end end
                 if dmHistories[activeDmUserId] then
                     for _, h in ipairs(dmHistories[activeDmUserId]) do
@@ -716,7 +719,6 @@ local function startMainChat()
                     local maxScroll = dmChatLayout.AbsoluteContentSize.Y - dmChatFrame.AbsoluteSize.Y + 20
                     if maxScroll > 0 then dmChatFrame.CanvasPosition = Vector2.new(0, maxScroll) end
                 end
-                switchTab("DMChat")
 
             elseif contextType == "GC" and contextId then
                 activeGcId = contextId
@@ -778,7 +780,6 @@ local function startMainChat()
                             table.insert(dmHistories[sUid], {name = mVal.senderName, msg = mVal.text, isSystem = false, uid = sUid})
 
                             if currentTab == "DMChat" and activeDmUserId == sUid then
-                                -- FIX 2: Live rendering of DM updates to make sure it's fully visible to both.
                                 for _, c in ipairs(dmChatFrame:GetChildren()) do if c:IsA("Frame") then c:Destroy() end end
                                 for _, h in ipairs(dmHistories[sUid]) do
                                     addMessageToChat(h.name, h.msg, h.isSystem, h.uid, "DM")
@@ -1166,7 +1167,7 @@ local function startMainChat()
             end
         end)
 
-        -- [FIXED 1]: UI Hidden Glitch when re-opening DM from profile
+        -- [FIXED 1]: UI Hidden Glitch & Re-opening Glitch Fix
         local dmBtn = Instance.new("TextButton", box); dmBtn.Size=UDim2.new(1,-40,0,32); dmBtn.Position=UDim2.new(0,20,1,-42)
         dmBtn.Text="📩 DIRECT MESSAGE"; dmBtn.BackgroundColor3=Colors.Primary; dmBtn.TextColor3=Colors.Dark; dmBtn.Font=Enum.Font.GothamBold; Instance.new("UICorner", dmBtn).CornerRadius=UDim.new(0,8)
 
@@ -1180,8 +1181,16 @@ local function startMainChat()
             activeDmUserName = tName
             if dmChatTitle then dmChatTitle.Text = "Chat with " .. activeDmUserName end
 
-            -- FIX: Auto-toggle UI Open if it was closed
             if not isUiOpen then toggleMainUI(true) end
+
+            -- [ABSOLUTE FORCE VISIBILITY FIX]: Overrides all other states to guarantee DM page opens every time
+            contentFrame.Visible = false
+            galleryContainer.Visible = false
+            voiceContainer.Visible = false
+            local gcContainer = main:FindFirstChild("ZaynGcContainer")
+            if gcContainer then gcContainer.Visible = false end
+            dmChatContainer.Visible = true
+            currentTab = "DMChat"
 
             for _, c in ipairs(dmChatFrame:GetChildren()) do if c:IsA("Frame") then c:Destroy() end end
             if dmHistories[activeDmUserId] then
@@ -1192,7 +1201,6 @@ local function startMainChat()
                 local maxScroll = dmChatLayout.AbsoluteContentSize.Y - dmChatFrame.AbsoluteSize.Y + 20
                 if maxScroll > 0 then dmChatFrame.CanvasPosition = Vector2.new(0, maxScroll) end
             end
-            switchTab("DMChat")
         end)
     end
 
@@ -1204,7 +1212,7 @@ local function startMainChat()
         pcall(function() game:GetService("TextChatService"):DisplayBubble(targetPlayer.Character, cleanMsg) end)
     end
 
-    -- --- [PART 1 ENDS HERE] ---
+-- --- [PART 1 ENDS HERE] ---
     -- ================================================================= --
     -- MESSAGE CONTEXT MENU — UNSEND + REPLY + COPY + TRANSLATE
     -- ================================================================= --
@@ -1294,7 +1302,7 @@ local function startMainChat()
             end)
         end)
 
-        -- UNSEND BUTTON [FIXED 4: GLOBAL UNSEND]
+        -- UNSEND BUTTON [FIXED: GLOBAL UNSEND]
         if isMyMessage then
             local unsendBtn = Instance.new("TextButton", mainOpts)
             unsendBtn.Size = UDim2.new(1, -20, 0, 22)
@@ -1803,7 +1811,7 @@ local function startMainChat()
 
     local djFolder = Instance.new("Folder")
     djFolder.Name = "ZaynDJ_Folder"
-    djFolder.Parent = UI_PARENT
+    djFolder.Parent = workspace -- [FIXED 2: Local Sound Audibility]
 
     local function StopZaynDJ()
         globalDjSequence = globalDjSequence + 1
@@ -2275,7 +2283,7 @@ local function startMainChat()
 
                             local mtext = msgData.text
 
-                            -- [FIXED 4: GLOBAL UNSEND RECEIVER]
+                            -- [FIXED: GLOBAL UNSEND RECEIVER]
                             if mtext:find("%[ZAYN_UNSEND%]") then
                                 local delKey = mtext:match("%[ZAYN_UNSEND%] ([%w_-]+)")
                                 if delKey then
