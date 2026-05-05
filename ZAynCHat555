@@ -1,10 +1,10 @@
 -- ========================================================== --
--- ZAYN UI LAB - SERVER & GALLERY EDITION (V45.7 TITAN)       --
+-- Z CHAT LAB - SERVER & GALLERY EDITION (V45.7 TITAN)        --
 -- THEME: OBSIDIAN DARK & SOFT RELAXING PASTEL                --
 -- SECURITY: TITANGUARD V10.1 (ANTI-SPOOF + WATCHDOG)         --
 -- FIX: JOIN SPAM REMOVED (ONLY EXECUTION DETECTED)           --
 -- NEW: ZAYN DJ SYSTEM WITH GLOBAL SYNC & PERMISSIONS         --
--- FIX: UNSEND SYSTEM + PREMIUM MUSIC BUBBLE + DJ BUG FIX     --
+-- FIX: UNSEND GLOBAL SYNC + DJ AUTO STOP/DELETE ON LEAVE     --
 -- FULL SCRIPT: NO SHORTCUTS, NO GLITCHES                     --
 -- ========================================================== --
 
@@ -27,8 +27,6 @@ if UI_PARENT:FindFirstChild("ZaynProfileEditor") then UI_PARENT.ZaynProfileEdito
 
 -- ================================================================= --
 -- [GLOBAL DJ SOUND CLEANUP ON RE-EXECUTE]
--- Ye ensure karta hai ki purana DJ sound destroy ho jaye
--- chahe script pehle se chal rahi ho ya nahi
 -- ================================================================= --
 if getgenv then
     if getgenv().ZAYN_DJ_SOUND_REF then
@@ -44,7 +42,6 @@ if getgenv then
     end
 end
 
--- UI_PARENT mein bhi koi pehle wala DJ sound clean karo
 for _, child in ipairs(UI_PARENT:GetChildren()) do
     if child:IsA("Sound") and child.Name == "ZaynDJ_Audio" then
         pcall(function() child:Stop(); child:Destroy() end)
@@ -52,7 +49,7 @@ for _, child in ipairs(UI_PARENT:GetChildren()) do
 end
 
 -- ================================================================= --
--- [STAGE 2] : ZAYN CHAT | CONCEPTUAL "TITAN REVELATION" STARTUP
+-- [STAGE 2] : Z CHAT | CONCEPTUAL "TITAN REVELATION" STARTUP
 -- ================================================================= --
 local FinalIntroGui = Instance.new("ScreenGui")
 FinalIntroGui.Name = "ZaynTitanRevelation"
@@ -102,7 +99,7 @@ HaloGradient.Color = ColorSequence.new({
 HaloGradient.Parent = HaloGlow
 
 local HubTitle = Instance.new("TextLabel")
-HubTitle.Text = "Z A Y N  C H A T"
+HubTitle.Text = "Z  C H A T"
 HubTitle.Font = Enum.Font.GothamBlack
 HubTitle.TextSize = 42
 HubTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -131,7 +128,7 @@ StatusTexts.GroupTransparency = 1
 StatusTexts.Parent = Halo
 
 local StatusMain = Instance.new("TextLabel")
-StatusMain.Text = "DEV : iZayn | ZAYN CHAT UPDATED!"
+StatusMain.Text = "DEV : iZayn | Z CHAT UPDATED!"
 StatusMain.Font = Enum.Font.Gotham
 StatusMain.TextSize = 12
 StatusMain.TextColor3 = Color3.fromRGB(150, 150, 150)
@@ -188,7 +185,7 @@ TweenService:Create(StatusTexts, t_sine, {GroupTransparency = 0}):Play()
 task.spawn(function()
     TypewriterEffect(StatusDetails, "> Welcome " .. LocalPlayer.DisplayName .. ". Verifying Access...", 0.04)
     task.wait(0.8)
-    TypewriterEffect(StatusDetails, "> ZAYN CHAT ACTIVE!", 0.03)
+    TypewriterEffect(StatusDetails, "> Z CHAT ACTIVE!", 0.03)
     task.wait(1)
 end)
 
@@ -202,7 +199,7 @@ task.wait(1)
 FinalIntroGui:Destroy()
 
 -- ================================================================= --
--- [STAGE 3] : MAIN ZAYN CHAT SYSTEM (LOADED AFTER INTRO)
+-- [STAGE 3] : MAIN Z CHAT SYSTEM (LOADED AFTER INTRO)
 -- ================================================================= --
 local function startMainChat()
     local HttpService = game:GetService("HttpService")
@@ -222,8 +219,6 @@ local function startMainChat()
 
     local isChatMuted, isBlacklisted = false, false
     local myAfkReason = nil; local lastAfkReply = 0; local spamTracker = {}
-    local myJoinedGCs = {}
-    local activeGcId = nil
 
     local myTargetLang = "en"
     if isfile and readfile and isfile("ZaynLang_Saved.txt") then
@@ -409,7 +404,7 @@ local function startMainChat()
         local RE = ReplicatedStorage:FindFirstChild("RE")
         if RE and RE:FindFirstChild("1RPNam1eTex1t") then
             pcall(function()
-                RE["1RPNam1eTex1t"]:FireServer("RolePlayName", "✿ᴢᴀʏɴ ᴄʜᴀᴛ✿")
+                RE["1RPNam1eTex1t"]:FireServer("RolePlayName", "✿ᴢ ᴄʜᴀᴛ✿")
                 RE["1RPNam1eTex1t"]:FireServer("RolePlayBio", "Welcome dear " .. cleanMyName)
             end)
         end
@@ -564,7 +559,7 @@ local function startMainChat()
             isStickerPanelOpen = false; safeTween(stickerPanel, {Size = UDim2.new(1, -22, 0, 0)}, 0.35);
             if currentTab == "Server" then sendMsg("[STICKER:" .. id .. "]")
             elseif currentTab == "DMChat" and activeDmUserId then sendDmMsg("[STICKER:" .. id .. "]", activeDmUserId)
-            elseif currentTab == "GCChat" and activeGcId then sendGcMsg("[STICKER:" .. id .. "]", activeGcId) end
+            end
         end)
     end
     stickerScroll.CanvasSize = UDim2.new(0, 0, 0, math.ceil(#STICKER_LIST / 5) * 58)
@@ -576,28 +571,20 @@ local function startMainChat()
         contentFrame.Visible = (tabName == "Server");
         galleryContainer.Visible = (tabName == "Gallery");
         voiceContainer.Visible = (tabName == "Voice");
-        dmChatContainer.Visible = (tabName == "DMChat" or tabName == "GCChat")
-        local gcContainer = main:FindFirstChild("ZaynGcContainer")
-        if gcContainer then gcContainer.Visible = false end
+        dmChatContainer.Visible = (tabName == "DMChat")
         isStickerPanelOpen = false; safeTween(stickerPanel, {Size = UDim2.new(1, -22, 0, 0)}, 0.2); mentionMenu.Visible = false
     end
     serverTabBtn.MouseButton1Click:Connect(function() switchTab("Server") end)
     galleryTabBtn.MouseButton1Click:Connect(function() switchTab("Gallery") end)
     voiceTabBtn.MouseButton1Click:Connect(function() switchTab("Voice") end)
-    dmBackBtn.MouseButton1Click:Connect(function()
-        if currentTab == "GCChat" then
-            local gcContainer = main:FindFirstChild("ZaynGcContainer")
-            if gcContainer then gcContainer.Visible = true end
-            dmChatContainer.Visible = false; currentTab = "GC"
-        else switchTab("Server") end
-    end)
+    dmBackBtn.MouseButton1Click:Connect(function() switchTab("Server") end)
 
     -- ================================================================= --
     -- NOTIFICATION SYSTEM (CLICKABLE + STACKING)
     -- ================================================================= --
     local activeNotifs = 0
 
-    local function showNotif(sender, msg, isDm, senderUid, contextType, contextId, gcName)
+    local function showNotif(sender, msg, isDm, senderUid, contextType, contextId)
         local n = Instance.new("TextButton", sg)
         n.Size = UDim2.new(0, 280, 0, 65)
 
@@ -698,33 +685,6 @@ local function startMainChat()
                 end
                 switchTab("DMChat")
 
-            elseif contextType == "GC" and contextId then
-                activeGcId = contextId
-                dmChatTitle.Text = "GC: " .. (gcName or "Chat")
-                for _, c in ipairs(dmChatFrame:GetChildren()) do if c:IsA("Frame") then c:Destroy() end end
-                switchTab("GCChat")
-
-                task.spawn(function()
-                    local histRes = reqFunc({Url = FIREBASE_URL .. "global_gcs/" .. contextId .. "/messages.json", Method = "GET"})
-                    if histRes.Success and histRes.Body ~= "null" then
-                        local hData = game:GetService("HttpService"):JSONDecode(histRes.Body)
-                        local sortedMsgs = {}
-                        for mKey, mVal in pairs(hData) do
-                            if not string.find(mVal.text or "", "%[ZAYN_GC_KICK%]") then
-                                mVal.key = mKey
-                                table.insert(sortedMsgs, mVal)
-                            end
-                        end
-                        table.sort(sortedMsgs, function(a, b) return (a.timestamp or 0) < (b.timestamp or 0) end)
-                        for _, msgg in ipairs(sortedMsgs) do
-                            addMessageToChat(msgg.senderName, msgg.text, false, tonumber(msgg.senderId), "DM")
-                        end
-                        task.wait(0.2)
-                        local maxScroll = dmChatLayout.AbsoluteContentSize.Y - dmChatFrame.AbsoluteSize.Y + 20
-                        if maxScroll > 0 then safeTween(dmChatFrame, {CanvasPosition = Vector2.new(0, maxScroll)}, 0.3) end
-                    end
-                end)
-
             elseif contextType == "Server" then
                 switchTab("Server")
             end
@@ -794,8 +754,6 @@ local function startMainChat()
             if linkIn.Text:find("http") then
                 if currentTab == "DMChat" and activeDmUserId then
                     sendDmMsg("[PHOTO:" .. linkIn.Text .. "]", activeDmUserId)
-                elseif currentTab == "GCChat" and activeGcId then
-                    sendGcMsg("[PHOTO:" .. linkIn.Text .. "]", activeGcId)
                 else
                     sendMsg("/img " .. linkIn.Text);
                     if currentTab == "Gallery" then switchTab("Server") end
@@ -919,8 +877,6 @@ local function startMainChat()
         sendVBtn.MouseButton1Click:Connect(function()
             if currentTab == "DMChat" and activeDmUserId then
                 sendDmMsg("[VOICE:" .. id .. "]", activeDmUserId)
-            elseif currentTab == "GCChat" and activeGcId then
-                sendGcMsg("[VOICE:" .. id .. "]", activeGcId)
             else
                 sendMsg("[VOICE:" .. id .. "]")
                 switchTab("Server")
@@ -984,7 +940,7 @@ local function startMainChat()
                     if _rawReq and writefile and getcustomasset then
                         local s, r = pcall(_rawReq, {Url = url, Method = "GET"})
                         if s and r.StatusCode == 200 then
-                            local fN = "z_dp_preview_"..math.random(1000,9999)..".png"
+                            local fN = "z_dp_preview_"..math.random(1000,9999).png
                             writefile(fN, r.Body)
                             avatarPreview.Image = getcustomasset(fN)
                         end
@@ -1171,8 +1127,6 @@ local function startMainChat()
 
     -- ================================================================= --
     -- [NEW] MESSAGE CONTEXT MENU — UNSEND + REPLY + COPY + TRANSLATE
-    -- Apne message par: Unsend, Reply, Copy, Translate
-    -- Dusre ke message par: Reply, Copy, Translate (NO Unsend)
     -- ================================================================= --
     local function openMessageContextMenu(msgTextLabel, msgTextOriginal, senderName, contextType, targetContainer, isMyMessage, firebaseKey)
         if UI_PARENT:FindFirstChild("ZaynMsgContext") then UI_PARENT.ZaynMsgContext:Destroy() end
@@ -1183,7 +1137,6 @@ local function startMainChat()
         local bg = Instance.new("TextButton", ctxGui)
         bg.Size = UDim2.new(1, 0, 1, 0); bg.BackgroundTransparency = 1; bg.Text = ""; bg.AutoButtonColor = false
 
-        -- Height: apne message par 4 buttons (Unsend bhi), dusre par 3 buttons
         local menuHeight = isMyMessage and 120 or 95
         local menu = Instance.new("Frame", bg)
         menu.Size = UDim2.new(0, 175, 0, menuHeight)
@@ -1202,9 +1155,6 @@ local function startMainChat()
         mainLayout.VerticalAlignment = Enum.VerticalAlignment.Center
         mainLayout.Padding = UDim.new(0, 6)
 
-        -- =============================
-        -- REPLY BUTTON (Sabke liye)
-        -- =============================
         local replyBtn = Instance.new("TextButton", mainOpts)
         replyBtn.Size = UDim2.new(1, -20, 0, 22)
         replyBtn.BackgroundColor3 = Colors.Dark
@@ -1220,9 +1170,6 @@ local function startMainChat()
             elseif contextType == "Server" then updateServerReplyState(senderName, swipeText) end
         end)
 
-        -- =============================
-        -- COPY BUTTON (Sabke liye)
-        -- =============================
         local copyBtn = Instance.new("TextButton", mainOpts)
         copyBtn.Size = UDim2.new(1, -20, 0, 22)
         copyBtn.BackgroundColor3 = Colors.Dark
@@ -1241,9 +1188,6 @@ local function startMainChat()
             ctxGui:Destroy()
         end)
 
-        -- =============================
-        -- TRANSLATE BUTTON (Sabke liye)
-        -- =============================
         local trBtn = Instance.new("TextButton", mainOpts)
         trBtn.Size = UDim2.new(1, -20, 0, 22)
         trBtn.BackgroundColor3 = Colors.Dark
@@ -1267,9 +1211,6 @@ local function startMainChat()
             end)
         end)
 
-        -- =============================
-        -- UNSEND BUTTON (Sirf apne message par)
-        -- =============================
         if isMyMessage then
             local unsendBtn = Instance.new("TextButton", mainOpts)
             unsendBtn.Size = UDim2.new(1, -20, 0, 22)
@@ -1282,19 +1223,28 @@ local function startMainChat()
             unsendBtn.MouseButton1Click:Connect(function()
                 ctxGui:Destroy()
 
-                -- Firebase se message delete karo (agar key hai)
                 if firebaseKey and firebaseKey ~= "" then
                     task.spawn(function()
                         pcall(function()
+                            -- 1. Original Message Delete from Firebase
                             reqFunc({
                                 Url = FIREBASE_URL .. DB_PATH .. "/" .. firebaseKey .. ".json",
                                 Method = "DELETE"
+                            })
+                            
+                            -- 2. Send Global Sync Delete Message
+                            local ts = os.time()
+                            local unsendMsg = "[ZAYN_UNSEND] " .. firebaseKey .. " ||" .. myUserId .. "::HASH::" .. ts
+                            reqFunc({
+                                Url = FIREBASE_URL .. DB_PATH .. ".json",
+                                Method = "POST",
+                                Headers = {["Content-Type"] = "application/json"},
+                                Body = game:GetService("HttpService"):JSONEncode({text = unsendMsg, timestamp = ts})
                             })
                         end)
                     end)
                 end
 
-                -- UI se message hatao with animation
                 if targetContainer and targetContainer.Parent then
                     safeTween(targetContainer, {BackgroundTransparency = 1}, 0.2)
                     for _, v in ipairs(targetContainer:GetDescendants()) do
@@ -1323,7 +1273,6 @@ local function startMainChat()
 
     -- ================================================================= --
     -- [NEW] PREMIUM MUSIC NOW PLAYING BUBBLE
-    -- Ye function chat mein ek special styled bubble add karta hai
     -- ================================================================= --
     local function addMusicBubble(songTitle, senderName)
         pcall(function()
@@ -1338,7 +1287,6 @@ local function startMainChat()
             bubbleContainer.BackgroundTransparency = 1
             bubbleContainer.LayoutOrder = messageCount_mb + 99000
 
-            -- Outer glowing card
             local card = Instance.new("Frame", bubbleContainer)
             card.Size = UDim2.new(1, 0, 0, 62)
             card.BackgroundColor3 = Color3.fromRGB(10, 10, 18)
@@ -1346,7 +1294,6 @@ local function startMainChat()
             card.BorderSizePixel = 0
             Instance.new("UICorner", card).CornerRadius = UDim.new(0, 14)
 
-            -- Animated RGB stroke
             local cardStroke = Instance.new("UIStroke", card)
             cardStroke.Thickness = 2
             cardStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
@@ -1360,7 +1307,6 @@ local function startMainChat()
                 end
             end)
 
-            -- Gradient overlay
             local grad = Instance.new("UIGradient", card)
             grad.Color = ColorSequence.new({
                 ColorSequenceKeypoint.new(0, Color3.fromRGB(30, 10, 60)),
@@ -1368,7 +1314,6 @@ local function startMainChat()
             })
             grad.Rotation = 135
 
-            -- Music icon (animated pulse)
             local musicIcon = Instance.new("TextLabel", card)
             musicIcon.Size = UDim2.new(0, 40, 0, 40)
             musicIcon.Position = UDim2.new(0, 8, 0.5, -20)
@@ -1377,7 +1322,6 @@ local function startMainChat()
             musicIcon.BackgroundTransparency = 1
             musicIcon.Font = Enum.Font.GothamBlack
 
-            -- Pulse animation for icon
             task.spawn(function()
                 while musicIcon and musicIcon.Parent do
                     safeTween(musicIcon, {TextTransparency = 0.3}, 0.6, Enum.EasingStyle.Sine)
@@ -1387,7 +1331,6 @@ local function startMainChat()
                 end
             end)
 
-            -- "NOW PLAYING" tag
             local tagLabel = Instance.new("TextLabel", card)
             tagLabel.Size = UDim2.new(1, -60, 0, 16)
             tagLabel.Position = UDim2.new(0, 52, 0, 8)
@@ -1398,7 +1341,6 @@ local function startMainChat()
             tagLabel.TextSize = 10
             tagLabel.TextXAlignment = Enum.TextXAlignment.Left
 
-            -- Song title
             local titleLbl = Instance.new("TextLabel", card)
             titleLbl.Size = UDim2.new(1, -60, 0, 20)
             titleLbl.Position = UDim2.new(0, 52, 0, 22)
@@ -1410,7 +1352,6 @@ local function startMainChat()
             titleLbl.TextXAlignment = Enum.TextXAlignment.Left
             titleLbl.TextTruncate = Enum.TextTruncate.AtEnd
 
-            -- DJ name
             local djLbl = Instance.new("TextLabel", card)
             djLbl.Size = UDim2.new(1, -60, 0, 14)
             djLbl.Position = UDim2.new(0, 52, 0, 42)
@@ -1421,7 +1362,6 @@ local function startMainChat()
             djLbl.TextSize = 10
             djLbl.TextXAlignment = Enum.TextXAlignment.Left
 
-            -- Equalizer bars (visual only, animated)
             local eqFrame = Instance.new("Frame", card)
             eqFrame.Size = UDim2.new(0, 30, 0, 20)
             eqFrame.Position = UDim2.new(1, -38, 0.5, -10)
@@ -1452,11 +1392,9 @@ local function startMainChat()
                 end
             end)
 
-            -- Slide in animation
             card.Position = UDim2.new(0, -200, 0, 0)
             safeTween(card, {Position = UDim2.new(0, 0, 0, 0)}, 0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
 
-            -- Auto scroll to bottom
             task.spawn(function()
                 task.wait(0.15)
                 local maxScroll = chatLayout.AbsoluteContentSize.Y - chatFrame.AbsoluteSize.Y + 20
@@ -1468,21 +1406,21 @@ local function startMainChat()
     local messageCount = 0
     local MAX_MESSAGES_ON_SCREEN = 150
 
-    -- Firebase message keys ko track karte hain unsend ke liye
     local messageFirebaseKeys = {}
 
     local function addMessageToChat(name, message, isSystem, userId, chatType, fbKey)
+        local createdContainer = nil
         pcall(function()
             messageCount = messageCount + 1
             local targetFrame = (chatType == "DM") and dmChatFrame or chatFrame
             local targetLayout = (chatType == "DM") and dmChatLayout or chatLayout
             local masterContainer = Instance.new("Frame", targetFrame)
+            createdContainer = masterContainer
             masterContainer.Size = UDim2.new(1, 0, 0, 20)
             masterContainer.AutomaticSize = Enum.AutomaticSize.Y
             masterContainer.BackgroundTransparency = 1
             masterContainer.LayoutOrder = messageCount
 
-            -- Firebase key store karo (unsend ke liye)
             if fbKey then
                 masterContainer:SetAttribute("FBKey", fbKey)
             end
@@ -1699,11 +1637,6 @@ local function startMainChat()
                     end)
                 end
 
-                -- ================================================================= --
-                -- HOLD TO OPEN CONTEXT MENU
-                -- Apna message: Unsend + Reply + Copy + Translate
-                -- Dusre ka message: Reply + Copy + Translate
-                -- ================================================================= --
                 local function makeHoldable(frame, senderName2, messageTextOriginal2, contextType2)
                     local holdTime = 0.5
                     local isHolding = false
@@ -1712,7 +1645,6 @@ local function startMainChat()
                     local startPos = nil
 
                     local isMyMsg = (tostring(userId) == myUserId)
-                    local storedFbKey = masterContainer:GetAttribute("FBKey") or ""
 
                     frame.InputBegan:Connect(function(input)
                         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -1732,13 +1664,15 @@ local function startMainChat()
                                         sfx:Destroy()
                                     end)
 
-                                    -- Context menu: apne message par Unsend bhi dikhao
+                                    -- Fetch updated Firebase Key directly from Attribute
+                                    local storedFbKey = frame:GetAttribute("FBKey") or ""
+
                                     openMessageContextMenu(
                                         msgTextLabel,
                                         messageTextOriginal2,
                                         senderName2,
                                         contextType2,
-                                        masterContainer,
+                                        frame,
                                         isMyMsg,
                                         storedFbKey
                                     )
@@ -1799,22 +1733,21 @@ local function startMainChat()
                 end
             end)
         end)
+        return createdContainer
     end
 
     -- ================================================================= --
-    -- [FIXED] ZAYN DJ SYSTEM
-    -- Bug fix: Re-execute pe purana sound band hoga
-    -- Double play nahi hoga — ek hi source hoga globally
+    -- [FIXED] Z CHAT DJ SYSTEM (Leave Detection & Permanent DB Clean)
     -- ================================================================= --
     local RAPID_API_KEY  = "097446f512mshd8abf5f58ef31b1p10a0d0jsn08925256e226"
     local RAPID_API_HOST = "youtube-mp36.p.rapidapi.com"
     local API_URL        = "https://youtube-mp36.p.rapidapi.com/dl?id="
 
-    -- currentDjSound ko getgenv mein store karo taaki re-execute pe bhi accessible rahe
     local currentDjSound = nil
+    local currentDjHost = nil
+    local currentDjFirebaseKey = nil
 
     local function StopZaynDJ()
-        -- Local reference se stop karo
         if currentDjSound then
             pcall(function()
                 currentDjSound:Stop()
@@ -1822,7 +1755,6 @@ local function startMainChat()
             end)
             currentDjSound = nil
         end
-        -- getgenv reference bhi check karo
         if getgenv and getgenv().ZAYN_DJ_SOUND_REF then
             pcall(function()
                 getgenv().ZAYN_DJ_SOUND_REF:Stop()
@@ -1830,13 +1762,37 @@ local function startMainChat()
             end)
             getgenv().ZAYN_DJ_SOUND_REF = nil
         end
-        -- UI_PARENT mein koi leftover sound bhi destroy karo
         for _, child in ipairs(UI_PARENT:GetChildren()) do
             if child:IsA("Sound") and child.Name == "ZaynDJ_Audio" then
                 pcall(function() child:Stop(); child:Destroy() end)
             end
         end
     end
+
+    -- Auto Delete DJ Music from DB if Host Leaves
+    task.spawn(function()
+        while task.wait(3) do
+            if currentDjHost and currentDjFirebaseKey then
+                local hostFound = false
+                for _, p in ipairs(Players:GetPlayers()) do
+                    if tostring(p.UserId) == currentDjHost then
+                        hostFound = true
+                        break
+                    end
+                end
+                if not hostFound then
+                    StopZaynDJ()
+                    local keyToDelete = currentDjFirebaseKey
+                    currentDjHost = nil
+                    currentDjFirebaseKey = nil
+                    task.spawn(function()
+                        reqFunc({Url = FIREBASE_URL .. DB_PATH .. "/" .. keyToDelete .. ".json", Method = "DELETE"})
+                    end)
+                    addMessageToChat("System", "🛑 DJ disconnected! Track permanently deleted.", true, nil, "Server")
+                end
+            end
+        end
+    end)
 
     local function GetVideoID(url)
         local id = url:match("v=([%w_-]+)")
@@ -1845,7 +1801,7 @@ local function startMainChat()
     end
 
     local function DownloadAndPlayYTAudio(vId, senderName)
-        StopZaynDJ() -- Pehle se koi baj raha ho toh rokdo
+        StopZaynDJ()
         addMessageToChat("System", "💿 " .. senderName .. " is loading a track... Please wait.", true, nil, "Server")
 
         task.spawn(function()
@@ -1873,7 +1829,6 @@ local function startMainChat()
 
                             local success, assetId = pcall(function() return getcustomasset(fileName) end)
                             if success and assetId then
-                                -- Dobara StopZaynDJ call karo (download ke dauraan koi aur play hua ho toh)
                                 StopZaynDJ()
 
                                 local newSound = Instance.new("Sound")
@@ -1883,13 +1838,11 @@ local function startMainChat()
                                 newSound.Parent = UI_PARENT
                                 newSound:Play()
 
-                                -- Dono references mein store karo
                                 currentDjSound = newSound
                                 if getgenv then
                                     getgenv().ZAYN_DJ_SOUND_REF = newSound
                                 end
 
-                                -- 🎵 PREMIUM MUSIC BUBBLE 🎵
                                 addMusicBubble(songTitle, senderName)
 
                                 newSound.Ended:Connect(function()
@@ -1901,7 +1854,6 @@ local function startMainChat()
                                     if delfile then pcall(function() delfile(fileName) end) end
                                 end)
 
-                                -- Cleanup function register karo
                                 if getgenv then
                                     getgenv().ZAYN_DJ_CLEANUP = function()
                                         pcall(function() newSound:Stop(); newSound:Destroy() end)
@@ -1935,7 +1887,7 @@ local function startMainChat()
         if txt == "" or isBlacklisted then return end
 
         if txt:lower() == "/help" then
-            local helpText = "🌟 ZAYN CHAT - COMMANDS & FEATURES 🌟\n\n" ..
+            local helpText = "🌟 Z CHAT - COMMANDS & FEATURES 🌟\n\n" ..
                 "💬 TRANSLATOR:\n" ..
                 "• /tr [lang] [msg] : Translate your message and send it (e.g. /tr hi Hello)\n" ..
                 "• /setlang [lang] : Set default target language (e.g. /setlang hi)\n" ..
@@ -1955,7 +1907,7 @@ local function startMainChat()
         end
 
         if isOwner and txt:lower() == "/globalhelp" then
-            local globalHelpText = "🌟 ZAYN CHAT GLOBAL ALERT 🌟\n\n" ..
+            local globalHelpText = "🌟 Z CHAT GLOBAL ALERT 🌟\n\n" ..
                 "Type /help in the chat box to see all our premium features!\n" ..
                 "You can use /tr [lang] [message] to translate texts, /snap [message] for self-deleting messages, and hold any message to Reply, Copy, Translate or Unsend your own messages!"
             table.insert(messageQueue, {text="["..SERVER_ID.."] [SERVER_ANN] SYSTEM: "..globalHelpText, timestamp=os.time()})
@@ -2106,6 +2058,12 @@ local function startMainChat()
             end
 
             if txt:lower() == "/djstop" then
+                if currentDjFirebaseKey then
+                    local k = currentDjFirebaseKey
+                    task.spawn(function()
+                        reqFunc({Url = FIREBASE_URL .. DB_PATH .. "/" .. k .. ".json", Method = "DELETE"})
+                    end)
+                end
                 table.insert(messageQueue, {text="[ZAYN_DJ_STOP] ||" .. myUserId, timestamp=os.time()})
                 processQueue()
                 return
@@ -2120,7 +2078,8 @@ local function startMainChat()
         local ts = os.time()
         local out = cleanMyName .. ": " .. txt .. " ||" .. myUserId .. "::" .. generateMessageHash(myUserId, txt, ts) .. "::" .. ts
 
-        -- Message Firebase mein bhejo aur key get karo for unsend
+        local masterContainer = addMessageToChat(cleanMyName, txt, false, myUserId, "Server")
+
         task.spawn(function()
             local s, r = pcall(function()
                 return reqFunc({
@@ -2134,15 +2093,14 @@ local function startMainChat()
                 pcall(function()
                     local res = HttpService:JSONDecode(r.Body)
                     if res and res.name then
-                        -- Firebase key ko latest message bubble mein store karo
-                        -- Hum messageFirebaseKeys mein store karte hain for later use
-                        messageFirebaseKeys[out] = res.name
+                        if masterContainer then
+                            masterContainer:SetAttribute("FBKey", res.name)
+                        end
                     end
                 end)
             end
         end)
 
-        pcall(function() addMessageToChat(cleanMyName, txt, false, myUserId, "Server") end)
         createBubble(cleanMyName, txt, LocalPlayer)
     end
 
@@ -2179,51 +2137,12 @@ local function startMainChat()
         end)
     end
 
-    function sendGcMsg(txt, gcId)
-        if isBlacklisted then return end
-        txt = tostring(txt):gsub("^%s+", ""):gsub("%s+$", "")
-        if txt == "" then return end
-
-        if txt:lower() == "/help" or txt:lower():sub(1,9) == "/setlang " or txt:lower():sub(1,5) == "/afk " then sendMsg(txt); return end
-
-        if txt:lower():sub(1,4) == "/tr " then
-            local lang, tmsg = txt:sub(5):match("^(%S+)%s+(.+)$")
-            if lang and tmsg then txt = translateText(tmsg, lang) end
-        end
-
-        if txt:lower():sub(1,5) == "/img " then local url = txt:sub(6):gsub("%s+", ""); if url:find("http") then txt = "[PHOTO:" .. url .. "]" else return end end
-        if txt:lower():sub(1,7) == "/voice " then local aid = txt:sub(8):gsub("%s+", ""); if tonumber(aid) then txt = "[VOICE:" .. aid .. "]" else return end end
-        if txt:lower():sub(1,6) == "/snap " then txt = "[SNAP] " .. txt:sub(7) end
-
-        if dmReplyContext and not txt:find("%[STICKER:") and not txt:find("%[PHOTO:") and not txt:find("%[VOICE:") then
-            txt = "↪️ [Replying to " .. dmReplyContext .. "]\n" .. txt
-            updateDmReplyState(nil, nil)
-        end
-
-        addMessageToChat(cleanMyName, txt, false, myUserId, "DM")
-
-        local mData = { senderId = myUserId, senderName = cleanMyName, text = txt, timestamp = os.time() }
-        task.spawn(function()
-            reqFunc({
-                Url = FIREBASE_URL .. "global_gcs/" .. gcId .. "/messages.json",
-                Method = "POST",
-                Headers = {["Content-Type"] = "application/json"},
-                Body = game:GetService("HttpService"):JSONEncode(mData)
-            })
-        end)
-    end
-
     sendBtn.MouseButton1Click:Connect(function() sendMsg(txtInput.Text); txtInput.Text = ""; mentionMenu.Visible = false end)
     txtInput.FocusLost:Connect(function(ent) if ent then sendMsg(txtInput.Text); txtInput.Text = ""; mentionMenu.Visible = false end end)
 
     if dmSendBtn then
         dmSendBtn.MouseButton1Click:Connect(function()
-            if currentTab == "GCChat" and activeGcId then
-                if dmInputBox.Text and dmInputBox.Text:match("%S") then
-                    sendGcMsg(dmInputBox.Text, activeGcId)
-                    dmInputBox.Text = ""; mentionMenu.Visible = false
-                end
-            elseif currentTab == "DMChat" and activeDmUserId then
+            if currentTab == "DMChat" and activeDmUserId then
                 if dmInputBox.Text and dmInputBox.Text:match("%S") then
                     sendDmMsg(dmInputBox.Text, activeDmUserId); dmInputBox.Text = ""; mentionMenu.Visible = false
                 end
@@ -2233,12 +2152,7 @@ local function startMainChat()
 
     dmInputBox.FocusLost:Connect(function(ent)
         if ent then
-            if currentTab == "GCChat" and activeGcId then
-                if dmInputBox.Text:match("%S") then
-                    sendGcMsg(dmInputBox.Text, activeGcId)
-                    dmInputBox.Text = ""; mentionMenu.Visible = false
-                end
-            elseif currentTab == "DMChat" and activeDmUserId then
+            if currentTab == "DMChat" and activeDmUserId then
                 if dmInputBox.Text:match("%S") then
                     sendDmMsg(dmInputBox.Text, activeDmUserId); dmInputBox.Text = ""; mentionMenu.Visible = false
                 end
@@ -2255,7 +2169,6 @@ local function startMainChat()
     end)
 
     local processedIds = {}
-    local processedGcIds = {}
     local isFirstLoad = true
     task.spawn(function()
         task.wait(2)
@@ -2280,7 +2193,24 @@ local function startMainChat()
 
                             local mtext = msgData.text
 
-                            -- DJ SYNC LISTENER
+                            -- GLOBAL UNSEND SYNC
+                            if mtext:find("%[ZAYN_UNSEND%]") then
+                                local targetKey = mtext:match("%[ZAYN_UNSEND%]%s*([^%s|]+)")
+                                if targetKey then
+                                    for _, frame in ipairs(chatFrame:GetChildren()) do
+                                        if frame:IsA("Frame") and frame:GetAttribute("FBKey") == targetKey then
+                                            safeTween(frame, {BackgroundTransparency = 1}, 0.2)
+                                            for _, v in ipairs(frame:GetDescendants()) do
+                                                if v:IsA("TextLabel") or v:IsA("TextButton") then safeTween(v, {TextTransparency = 1}, 0.2)
+                                                elseif v:IsA("ImageLabel") then safeTween(v, {ImageTransparency = 1}, 0.2) end
+                                            end
+                                            task.delay(0.2, function() pcall(function() frame:Destroy() end) end)
+                                        end
+                                    end
+                                end
+                                continue
+                            end
+
                             if mtext:find("%[ZAYN_DJ_GRANT:") then
                                 local grantUid = mtext:match("%[ZAYN_DJ_GRANT:([%w_]+)%]")
                                 if grantUid then djPermittedUsers[grantUid] = true end
@@ -2297,7 +2227,15 @@ local function startMainChat()
                                 local ytId = mtext:match("%[ZAYN_DJ_PLAY:([%w_-]+)%]")
                                 if ytId then
                                     local sName, _, sUID, cleanName = parseMessage(mtext)
-                                    DownloadAndPlayYTAudio(ytId, cleanName or "A DJ")
+                                    -- Protect against re-executing old 5min+ songs
+                                    if (os.time() - (tonumber(msgData.timestamp) or 0)) < 300 then
+                                        currentDjHost = tostring(sUID)
+                                        currentDjFirebaseKey = key
+                                        DownloadAndPlayYTAudio(ytId, cleanName or "A DJ")
+                                    else
+                                        -- Clean up old stray DB commands
+                                        reqFunc({Url = FIREBASE_URL .. DB_PATH .. "/" .. key .. ".json", Method = "DELETE"})
+                                    end
                                 end
                                 continue
                             end
@@ -2305,6 +2243,8 @@ local function startMainChat()
                             if mtext:find("%[ZAYN_DJ_STOP%]") then
                                 local sName, _, sUID, cleanName = parseMessage(mtext)
                                 StopZaynDJ()
+                                currentDjHost = nil
+                                currentDjFirebaseKey = nil
                                 addMessageToChat("System", "🛑 " .. (cleanName or "A DJ") .. " stopped the music.", true, nil, "Server")
                                 continue
                             end
@@ -2356,20 +2296,6 @@ local function startMainChat()
                                 continue
                             end
 
-                            if mtext:find("%[ZAYN_GC_MSG%]") then
-                                local gcId, gcSenderId, gcSenderName, gcMsg = mtext:match("%[ZAYN_GC_MSG%] ([%w_]+)::([%w_]+)::(.-)::(.*)")
-                                if gcId and gcSenderName and gcMsg and myJoinedGCs[gcId] then
-                                    if currentTab == "GCChat" and activeGcId == gcId then
-                                        addMessageToChat(gcSenderName, gcMsg, false, tonumber(gcSenderId), "DM")
-                                    else
-                                        local gn = tostring(myJoinedGCs[gcId])
-                                        if gn == "true" then gn = "GC" end
-                                        showNotif("👥 " .. gn .. " | " .. gcSenderName, gcMsg, true, tonumber(gcSenderId), "GC", gcId, gn)
-                                    end
-                                end
-                                continue
-                            end
-
                             if isFirstLoad then continue end
                             if mtext:find("%[SYSTEM%]") then addMessageToChat("System", mtext:match("%[SYSTEM%]%s*:%s*(.*)"), true, nil, "Server") continue end
                             if mtext:find("%[SNAP%]") then local _, _, msgTs = mtext:match("||%s*([%w_]+)::([%w_]+)::(%d+)%s*$"); if msgTs and (os.time() - tonumber(msgTs)) > 10 then task.spawn(function() reqFunc({Url = FIREBASE_URL .. DB_PATH .. "/" .. key .. ".json", Method = "DELETE"}) end) continue end end
@@ -2410,7 +2336,6 @@ local function startMainChat()
                                         end
                                     end
                                 else
-                                    -- Firebase key pass karo taaki unsend kaam kare (dusre ke message nahi hote unsend)
                                     addMessageToChat(cleanName, sMsg, false, tonumber(sUID), "Server", key)
                                     showNotif(cleanName, sMsg, false, tonumber(sUID), "Server", nil)
                                     local targetP = tonumber(sUID) and Players:GetPlayerByUserId(tonumber(sUID)); if targetP then createBubble(cleanName, sMsg, targetP) end
@@ -2418,57 +2343,6 @@ local function startMainChat()
                             end
                         end
                     end
-                end
-
-                for gId, gcName in pairs(myJoinedGCs) do
-                    task.spawn(function()
-                        local gcRes = reqFunc({ Url = FIREBASE_URL .. "global_gcs/" .. gId .. '/messages.json?orderBy="$key"&limitToLast=15', Method = "GET" })
-                        if gcRes.Success and gcRes.Body ~= "null" then
-                            local gData = game:GetService("HttpService"):JSONDecode(gcRes.Body)
-                            for mKey, mVal in pairs(gData) do
-                                if not processedGcIds[mKey] then
-                                    processedGcIds[mKey] = true
-
-                                    if mVal.text:find("%[ZAYN_GC_KICK%]") then
-                                        local kickedUid = mVal.text:match("%[ZAYN_GC_KICK%] ([%w_]+)")
-                                        if kickedUid == myUserId then
-                                            myJoinedGCs[gId] = nil
-                                            if activeGcId == gId then
-                                                contentFrame.Visible = true; dmChatContainer.Visible = false; currentTab = "Server"
-                                                activeGcId = nil
-                                                addMessageToChat("System", "⚠️ You were instantly kicked from " .. tostring(gcName) .. ".", true, nil, "Server")
-                                            end
-                                            refreshDiscover()
-                                        end
-                                        continue
-                                    end
-
-                                    if tostring(mVal.senderId) ~= myUserId and not isFirstLoad then
-                                        if currentTab == "GCChat" and activeGcId == gId then
-                                            addMessageToChat(mVal.senderName, mVal.text, false, tonumber(mVal.senderId), "DM")
-                                        else
-                                            if mVal.timestamp and (os.time() - tonumber(mVal.timestamp) <= 15) then
-                                                local cleanGcName = tostring(gcName)
-                                                if cleanGcName == "true" then cleanGcName = "GC" end
-                                                showNotif("👥 " .. cleanGcName .. " | " .. mVal.senderName, mVal.text, true, tonumber(mVal.senderId), "GC", gId, cleanGcName)
-                                            end
-                                        end
-                                    end
-                                end
-                            end
-                        end
-
-                        local memRes = reqFunc({ Url = FIREBASE_URL .. "global_gcs/" .. gId .. '/members/' .. myUserId .. '.json', Method = "GET" })
-                        if memRes.Success and memRes.Body == "null" then
-                            myJoinedGCs[gId] = nil
-                            if activeGcId == gId then
-                                contentFrame.Visible = true; dmChatContainer.Visible = false; currentTab = "Server"
-                                activeGcId = nil
-                                addMessageToChat("System", "⚠️ You were kicked from " .. tostring(gcName) .. ".", true, nil, "Server")
-                            end
-                            refreshDiscover()
-                        end
-                    end)
                 end
 
                 isFirstLoad = false
@@ -2490,287 +2364,6 @@ local function startMainChat()
         task.wait(0.3)
         addMessageToChat("System", "💬 Support: Discord: mickeyyy009", true, nil, "Server")
     end)
-
-    -- ================================================================= --
-    -- [STAGE 4] : ZAYN GC SYSTEM (CREATE, REQUEST, DISCOVER, MANAGE)
-    -- ================================================================= --
-    local gcTabBtn = Instance.new("TextButton", titleBar)
-    gcTabBtn.Size = UDim2.new(0, 45, 0, 20)
-    gcTabBtn.Position = UDim2.new(0, 290, 0.5, 0)
-    gcTabBtn.AnchorPoint = Vector2.new(0, 0.5)
-    gcTabBtn.Text = "👥 GC"
-    gcTabBtn.Font = Enum.Font.GothamBold
-    gcTabBtn.TextSize = 10
-    gcTabBtn.TextColor3 = Colors.Glow
-    gcTabBtn.BackgroundColor3 = Colors.Dark
-    gcTabBtn.BackgroundTransparency = 0.5
-    Instance.new("UICorner", gcTabBtn).CornerRadius = UDim.new(0, 6)
-
-    local gcContainer = Instance.new("Frame", main)
-    gcContainer.Name = "ZaynGcContainer"
-    gcContainer.Size = UDim2.new(1, 0, 1, -42)
-    gcContainer.Position = UDim2.new(0, 0, 0, 42)
-    gcContainer.BackgroundTransparency = 1
-    gcContainer.Visible = false
-
-    local gcTopBar = Instance.new("Frame", gcContainer)
-    gcTopBar.Size = UDim2.new(1, -22, 0, 30)
-    gcTopBar.Position = UDim2.new(0, 11, 0, 5)
-    gcTopBar.BackgroundColor3 = Colors.Darker
-    gcTopBar.BackgroundTransparency = 1
-    gcTopBar.BorderSizePixel = 0
-
-    local function createGcMenuBtn(name, posScale)
-        local btn = Instance.new("TextButton", gcTopBar)
-        btn.Size = UDim2.new(0.25, -4, 1, -6)
-        btn.Position = UDim2.new(posScale, 2, 0, 3)
-        btn.Text = name
-        btn.TextColor3 = Colors.Light
-        btn.Font = Enum.Font.GothamBold
-        btn.TextSize = 11
-        btn.BackgroundColor3 = Colors.Dark
-        btn.BackgroundTransparency = 0.2
-        Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
-        local stroke = Instance.new("UIStroke", btn)
-        stroke.Color = Colors.Primary
-        stroke.Transparency = 0.5
-        stroke.Thickness = 1
-        return btn, stroke
-    end
-
-    local btnMyGC, strMyGC = createGcMenuBtn("My GCs", 0)
-    local btnDiscover, strDiscover = createGcMenuBtn("Discover", 0.25)
-    local btnRequests, strRequests = createGcMenuBtn("Requests", 0.5)
-    local btnCreate, strCreate = createGcMenuBtn("Create", 0.75)
-
-    local myGcsFrame = Instance.new("ScrollingFrame", gcContainer); myGcsFrame.Size = UDim2.new(1, -22, 1, -45); myGcsFrame.Position = UDim2.new(0, 11, 0, 40); myGcsFrame.BackgroundTransparency = 1; myGcsFrame.ScrollBarThickness = 2; myGcsFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
-    local discoverFrame = Instance.new("Frame", gcContainer); discoverFrame.Size = UDim2.new(1, -22, 1, -45); discoverFrame.Position = UDim2.new(0, 11, 0, 40); discoverFrame.BackgroundTransparency = 1; discoverFrame.Visible = false
-    local reqFrame = Instance.new("ScrollingFrame", gcContainer); reqFrame.Size = UDim2.new(1, -22, 1, -45); reqFrame.Position = UDim2.new(0, 11, 0, 40); reqFrame.BackgroundTransparency = 1; reqFrame.ScrollBarThickness = 2; reqFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y; reqFrame.Visible = false
-    local createFrame = Instance.new("Frame", gcContainer); createFrame.Size = UDim2.new(1, -22, 1, -45); createFrame.Position = UDim2.new(0, 11, 0, 40); createFrame.BackgroundTransparency = 1; createFrame.Visible = false
-    local manageFrame = Instance.new("Frame", gcContainer); manageFrame.Size = UDim2.new(1, -22, 1, -45); manageFrame.Position = UDim2.new(0, 11, 0, 40); manageFrame.BackgroundTransparency = 1; manageFrame.Visible = false
-
-    Instance.new("UIListLayout", myGcsFrame).Padding = UDim.new(0, 5)
-    Instance.new("UIListLayout", reqFrame).Padding = UDim.new(0, 5)
-
-    local createInput = Instance.new("TextBox", createFrame); createInput.Size = UDim2.new(1, 0, 0, 40); createInput.Position = UDim2.new(0, 0, 0, 20); createInput.PlaceholderText = "Enter GC Name (e.g., Boss Gang)"; createInput.BackgroundColor3 = Colors.Dark; createInput.TextColor3 = Colors.Text; createInput.Font = Enum.Font.Gotham; createInput.TextSize = 12; Instance.new("UICorner", createInput).CornerRadius = UDim.new(0, 8)
-    local createSubmit = Instance.new("TextButton", createFrame); createSubmit.Size = UDim2.new(1, 0, 0, 40); createSubmit.Position = UDim2.new(0, 0, 0, 70); createSubmit.Text = "CREATE GC"; createSubmit.BackgroundColor3 = Colors.Accent; createSubmit.TextColor3 = Colors.Dark; createSubmit.Font = Enum.Font.GothamBlack; createSubmit.TextSize = 14; Instance.new("UICorner", createSubmit).CornerRadius = UDim.new(0, 8)
-
-    local searchInput = Instance.new("TextBox", discoverFrame); searchInput.Size = UDim2.new(1, 0, 0, 30); searchInput.PlaceholderText = "🔍 Search GC..."; searchInput.BackgroundColor3 = Colors.Darker; searchInput.TextColor3 = Colors.Text; searchInput.Font = Enum.Font.Gotham; searchInput.TextSize = 11; Instance.new("UICorner", searchInput).CornerRadius = UDim.new(0, 8)
-    local discoverList = Instance.new("ScrollingFrame", discoverFrame); discoverList.Size = UDim2.new(1, 0, 1, -35); discoverList.Position = UDim2.new(0, 0, 0, 35); discoverList.BackgroundTransparency = 1; discoverList.ScrollBarThickness = 2; discoverList.AutomaticCanvasSize = Enum.AutomaticSize.Y
-    Instance.new("UIListLayout", discoverList).Padding = UDim.new(0, 5)
-
-    local manageBackBtn = Instance.new("TextButton", manageFrame); manageBackBtn.Size = UDim2.new(0, 60, 0, 25); manageBackBtn.Text = "< Back"; manageBackBtn.Font = Enum.Font.GothamBold; manageBackBtn.TextColor3 = Colors.Primary; manageBackBtn.BackgroundTransparency = 1; manageBackBtn.TextXAlignment = Enum.TextXAlignment.Left
-    local manageInviteInput = Instance.new("TextBox", manageFrame); manageInviteInput.Size = UDim2.new(1, -70, 0, 30); manageInviteInput.Position = UDim2.new(0, 0, 0, 30); manageInviteInput.PlaceholderText = "Type User to Invite..."; manageInviteInput.BackgroundColor3 = Colors.Dark; manageInviteInput.TextColor3 = Colors.Text; manageInviteInput.Font = Enum.Font.Gotham; manageInviteInput.TextSize = 11; Instance.new("UICorner", manageInviteInput).CornerRadius = UDim.new(0, 6)
-    local manageInviteBtn = Instance.new("TextButton", manageFrame); manageInviteBtn.Size = UDim2.new(0, 60, 0, 30); manageInviteBtn.Position = UDim2.new(1, -60, 0, 30); manageInviteBtn.Text = "INVITE"; manageInviteBtn.BackgroundColor3 = Colors.Accent; manageInviteBtn.TextColor3 = Colors.Dark; manageInviteBtn.Font = Enum.Font.GothamBold; manageInviteBtn.TextSize = 11; Instance.new("UICorner", manageInviteBtn).CornerRadius = UDim.new(0, 6)
-    local manageMembersList = Instance.new("ScrollingFrame", manageFrame); manageMembersList.BackgroundTransparency = 1; manageMembersList.ScrollBarThickness = 2; manageMembersList.AutomaticCanvasSize = Enum.AutomaticSize.Y
-    Instance.new("UIListLayout", manageMembersList).Padding = UDim.new(0, 5)
-
-    gcTabBtn.MouseButton1Click:Connect(function()
-        contentFrame.Visible = false; galleryContainer.Visible = false; voiceContainer.Visible = false; dmChatContainer.Visible = false
-        gcContainer.Visible = true; currentTab = "GC"
-    end)
-    serverTabBtn.MouseButton1Click:Connect(function() gcContainer.Visible = false end)
-    galleryTabBtn.MouseButton1Click:Connect(function() gcContainer.Visible = false end)
-    profileTabBtn.MouseButton1Click:Connect(function() gcContainer.Visible = false end)
-    voiceTabBtn.MouseButton1Click:Connect(function() gcContainer.Visible = false end)
-
-    local function switchGcTab(tab)
-        myGcsFrame.Visible = (tab == "My"); discoverFrame.Visible = (tab == "Discover")
-        reqFrame.Visible = (tab == "Req"); createFrame.Visible = (tab == "Create")
-        manageFrame.Visible = (tab == "Manage")
-        btnMyGC.BackgroundColor3 = (tab == "My") and Colors.Primary or Colors.Dark
-        btnDiscover.BackgroundColor3 = (tab == "Discover") and Colors.Primary or Colors.Dark
-        btnRequests.BackgroundColor3 = (tab == "Req") and Colors.Primary or Colors.Dark
-        btnCreate.BackgroundColor3 = (tab == "Create") and Colors.Primary or Colors.Dark
-        btnMyGC.TextColor3 = (tab == "My") and Colors.Dark or Colors.Light
-        btnDiscover.TextColor3 = (tab == "Discover") and Colors.Dark or Colors.Light
-        btnRequests.TextColor3 = (tab == "Req") and Colors.Dark or Colors.Light
-        btnCreate.TextColor3 = (tab == "Create") and Colors.Dark or Colors.Light
-    end
-    btnMyGC.MouseButton1Click:Connect(function() switchGcTab("My") end)
-    btnDiscover.MouseButton1Click:Connect(function() switchGcTab("Discover") end)
-    btnRequests.MouseButton1Click:Connect(function() switchGcTab("Req") end)
-    btnCreate.MouseButton1Click:Connect(function() switchGcTab("Create") end)
-    manageBackBtn.MouseButton1Click:Connect(function() switchGcTab("My") end)
-
-    local refreshDiscover
-    local currentManageGcId = nil
-    local currentManageGcName = nil
-
-    createSubmit.MouseButton1Click:Connect(function()
-        if createInput.Text == "" then return end
-        createSubmit.Text = "CHECKING..."
-        local desiredName = createInput.Text:lower()
-        task.spawn(function()
-            local res = reqFunc({Url = FIREBASE_URL .. "global_gcs.json", Method = "GET"})
-            if res.Success and res.Body ~= "null" then
-                local data = game:GetService("HttpService"):JSONDecode(res.Body)
-                for _, gData in pairs(data) do
-                    if gData.name and gData.name:lower() == desiredName then
-                        createSubmit.Text = "NAME ALREADY EXISTS!"
-                        task.wait(2)
-                        createSubmit.Text = "CREATE GC"
-                        return
-                    end
-                end
-            end
-            local gcId = "GC_" .. myUserId .. "_" .. tostring(os.time())
-            local newGc = { name = createInput.Text, ownerId = myUserId, ownerName = cleanMyName, members = {[myUserId] = cleanMyName}, requests = {} }
-            reqFunc({Url = FIREBASE_URL .. "global_gcs/" .. gcId .. ".json", Method = "PUT", Body = game:GetService("HttpService"):JSONEncode(newGc)})
-            createSubmit.Text = "CREATED!"
-            task.wait(1)
-            createSubmit.Text = "CREATE GC"
-            createInput.Text = ""
-            refreshDiscover()
-        end)
-    end)
-
-    searchInput:GetPropertyChangedSignal("Text"):Connect(function()
-        local query = searchInput.Text:lower()
-        for _, item in ipairs(discoverList:GetChildren()) do
-            if item:IsA("Frame") and item:FindFirstChild("GCNAME") then
-                if query == "" or item.GCNAME.Text:lower():find(query) then item.Visible = true else item.Visible = false end
-            end
-        end
-    end)
-
-    manageInviteBtn.MouseButton1Click:Connect(function()
-        local targetName = manageInviteInput.Text:lower()
-        if targetName == "" or not currentManageGcId then return end
-        local targetUid = nil; local exactDisplay = targetName
-        for u, d in pairs(activeScriptUsers) do if d.name:lower() == targetName or d.displayName:lower() == targetName then targetUid = u; exactDisplay = d.displayName; break end end
-        if not targetUid then for _, p in ipairs(Players:GetPlayers()) do if p.Name:lower() == targetName or p.DisplayName:lower() == targetName then targetUid = tostring(p.UserId); exactDisplay = p.DisplayName; break end end end
-        if targetUid then
-            reqFunc({Url = FIREBASE_URL .. "global_user_invites/" .. targetUid .. "/" .. currentManageGcId .. ".json", Method = "PUT", Body = '"' .. currentManageGcName .. '"'})
-            manageInviteInput.Text = ""; manageInviteBtn.Text = "SENT!"; task.wait(1); manageInviteBtn.Text = "INVITE"
-        else manageInviteBtn.Text = "NOT FOUND"; task.wait(1); manageInviteBtn.Text = "INVITE" end
-    end)
-
-    local function openGcManager(gcId, gcData)
-        currentManageGcId = gcId; currentManageGcName = gcData.name
-        switchGcTab("Manage")
-        for _, c in ipairs(manageMembersList:GetChildren()) do if c:IsA("Frame") then c:Destroy() end end
-        local isOwnerGc = (gcData.ownerId == myUserId)
-        manageInviteInput.Visible = isOwnerGc; manageInviteBtn.Visible = isOwnerGc
-        if isOwnerGc then manageMembersList.Size = UDim2.new(1, 0, 1, -70); manageMembersList.Position = UDim2.new(0, 0, 0, 70)
-        else manageMembersList.Size = UDim2.new(1, 0, 1, -30); manageMembersList.Position = UDim2.new(0, 0, 0, 30) end
-        local memberUids = {}
-        for mUid, _ in pairs(gcData.members or {}) do table.insert(memberUids, tonumber(mUid)) end
-        local presenceCache = {}
-        for _, uid in ipairs(memberUids) do
-            local sUid = tostring(uid)
-            if sUid == myUserId or Players:GetPlayerByUserId(uid) or (activeScriptUsers[sUid] and (os.time() - (activeScriptUsers[sUid].lastSeen or 0)) < 120) then presenceCache[sUid] = true
-            else presenceCache[sUid] = false end
-        end
-        for mUid, mName in pairs(gcData.members or {}) do
-            local strUid = tostring(mUid)
-            local displayN = type(mName) == "string" and mName:gsub('"', '') or "User_"..string.sub(strUid, 1, 4)
-            local memItem = Instance.new("Frame", manageMembersList); memItem.Name = "MEM_" .. strUid; memItem.Size = UDim2.new(1, 0, 0, 50); memItem.BackgroundColor3 = Colors.Dark; Instance.new("UICorner", memItem).CornerRadius = UDim.new(0, 6)
-            local avatar = Instance.new("ImageLabel", memItem); avatar.Size = UDim2.new(0, 40, 0, 40); avatar.Position = UDim2.new(0, 5, 0, 5); avatar.BackgroundTransparency = 1; avatar.ScaleType = Enum.ScaleType.Crop; Instance.new("UICorner", avatar).CornerRadius = UDim.new(1, 0); local avStroke = Instance.new("UIStroke", avatar); avStroke.Color = Colors.Primary; avStroke.Thickness = 1
-            local customDpUrl = (customProfiles[strUid] and customProfiles[strUid].dp)
-            if customDpUrl and customDpUrl:find("http") then avatar.ImageTransparency = 1; task.spawn(function() if _rawReq and writefile and getcustomasset then local s, r = pcall(_rawReq, {Url = customDpUrl, Method = "GET"}); if s and r.StatusCode == 200 then local fN = "z_gc_dp_"..strUid..".png"; writefile(fN, r.Body); avatar.Image = getcustomasset(fN); safeTween(avatar, {ImageTransparency = 0}, 0.3) else avatar.Image = "rbxthumb://type=AvatarHeadShot&id=" .. strUid .. "&w=150&h=150"; safeTween(avatar, {ImageTransparency = 0}, 0.3) end end end)
-            else avatar.Image = "rbxthumb://type=AvatarHeadShot&id=" .. strUid .. "&w=150&h=150" end
-            local statusDot = Instance.new("Frame", memItem); statusDot.Name = "StatusDot"; statusDot.Size = UDim2.new(0, 12, 0, 12); statusDot.Position = UDim2.new(0, 33, 0, 33); Instance.new("UICorner", statusDot).CornerRadius = UDim.new(1, 0); statusDot.BackgroundColor3 = (presenceCache[strUid]) and Color3.fromRGB(50, 255, 100) or Color3.fromRGB(255, 50, 50); local statusStroke = Instance.new("UIStroke", statusDot); statusStroke.Color = Colors.Darker; statusStroke.Thickness = 2
-            local nameLbl = Instance.new("TextLabel", memItem); nameLbl.Size = UDim2.new(1, -180, 0, 20); nameLbl.Position = UDim2.new(0, 55, 0, 5); nameLbl.Text = displayN .. (mUid == gcData.ownerId and " 👑" or ""); nameLbl.TextColor3 = Colors.Light; nameLbl.Font = Enum.Font.GothamBold; nameLbl.TextSize = 12; nameLbl.BackgroundTransparency = 1; nameLbl.TextXAlignment = Enum.TextXAlignment.Left; nameLbl.TextTruncate = Enum.TextTruncate.AtEnd
-            local userLbl = Instance.new("TextLabel", memItem); userLbl.Name = "UserLbl"; userLbl.Size = UDim2.new(1, -180, 0, 15); userLbl.Position = UDim2.new(0, 55, 0, 25); userLbl.Text = "@Fetching..." .. (presenceCache[strUid] and " - Online" or " - Offline"); userLbl.TextColor3 = presenceCache[strUid] and Colors.Accent or Colors.TextDim; userLbl.Font = Enum.Font.Gotham; userLbl.TextSize = 10; userLbl.BackgroundTransparency = 1; userLbl.TextXAlignment = Enum.TextXAlignment.Left; userLbl.TextTruncate = Enum.TextTruncate.AtEnd
-            task.spawn(function() local rDN, rUN = getStrictIdentity(strUid); if rDN ~= "Unknown" then nameLbl.Text = rDN .. (mUid == gcData.ownerId and " 👑" or ""); userLbl.Text = "@" .. rUN .. (presenceCache[strUid] and " - Online" or " - Offline"); userLbl:SetAttribute("RealUser", rUN) end end)
-            local profileBtn = Instance.new("TextButton", memItem); profileBtn.Size = UDim2.new(0, 60, 0, 25); profileBtn.Position = UDim2.new(1, (isOwnerGc and mUid ~= myUserId) and -120 or -65, 0.5, -12.5); profileBtn.Text = "PROFILE"; profileBtn.BackgroundColor3 = Colors.SystemYellow; profileBtn.TextColor3 = Colors.Dark; profileBtn.Font = Enum.Font.GothamBold; profileBtn.TextSize = 10; Instance.new("UICorner", profileBtn).CornerRadius = UDim.new(0, 4)
-            profileBtn.MouseButton1Click:Connect(function() local tData = getPlayerTitle(strUid, displayN); openMiniProfile(strUid, displayN, tData) end)
-            if isOwnerGc and mUid ~= myUserId then
-                local kickBtn = Instance.new("TextButton", memItem); kickBtn.Size = UDim2.new(0, 50, 0, 25); kickBtn.Position = UDim2.new(1, -55, 0.5, -12.5); kickBtn.Text = "KICK"; kickBtn.BackgroundColor3 = Colors.NeonPink; kickBtn.TextColor3 = Colors.Dark; kickBtn.Font = Enum.Font.GothamBold; Instance.new("UICorner", kickBtn).CornerRadius = UDim.new(0, 4)
-                kickBtn.MouseButton1Click:Connect(function()
-                    reqFunc({Url = FIREBASE_URL .. "global_gcs/" .. gcId .. "/members/" .. mUid .. ".json", Method = "DELETE"})
-                    local kickMsgData = { senderId = myUserId, senderName = "SYSTEM", text = "[ZAYN_GC_KICK] " .. mUid, timestamp = os.time() }
-                    task.spawn(function() reqFunc({Url = FIREBASE_URL .. "global_gcs/" .. gcId .. "/messages.json", Method = "POST", Headers = {["Content-Type"] = "application/json"}, Body = game:GetService("HttpService"):JSONEncode(kickMsgData)}) end)
-                    memItem:Destroy()
-                end)
-            end
-        end
-    end
-
-    local isRefreshingGCs = false
-    refreshDiscover = function()
-        if isRefreshingGCs then return end; isRefreshingGCs = true
-        for _, c in ipairs(discoverList:GetChildren()) do if c:IsA("Frame") then c:Destroy() end end
-        for _, c in ipairs(myGcsFrame:GetChildren()) do if c:IsA("Frame") then c:Destroy() end end
-        for _, c in ipairs(reqFrame:GetChildren()) do if c:IsA("Frame") then c:Destroy() end end
-        task.spawn(function()
-            local res = reqFunc({Url = FIREBASE_URL .. "global_gcs.json", Method = "GET"})
-            local invRes = reqFunc({Url = FIREBASE_URL .. "global_user_invites/" .. myUserId .. ".json", Method = "GET"})
-            if res.Success and res.Body ~= "null" then
-                local data = game:GetService("HttpService"):JSONDecode(res.Body)
-                for gId, gData in pairs(data) do
-                    local memCount = 0; for _ in pairs(gData.members or {}) do memCount = memCount + 1 end
-                    if memCount == 0 then reqFunc({Url = FIREBASE_URL .. "global_gcs/" .. gId .. ".json", Method = "DELETE"}); continue end
-                    local dItem = Instance.new("Frame", discoverList); dItem.Size = UDim2.new(1, 0, 0, 45); dItem.BackgroundColor3 = Colors.Dark; Instance.new("UICorner", dItem).CornerRadius = UDim.new(0, 6)
-                    local nameL = Instance.new("TextLabel", dItem); nameL.Name = "GCNAME"; nameL.Size = UDim2.new(1, -70, 0, 20); nameL.Position = UDim2.new(0, 10, 0, 5); nameL.Text = gData.name; nameL.TextColor3 = Colors.Light; nameL.Font = Enum.Font.GothamBlack; nameL.TextSize = 13; nameL.BackgroundTransparency = 1; nameL.TextXAlignment = Enum.TextXAlignment.Left
-                    local infoL = Instance.new("TextLabel", dItem); infoL.Size = UDim2.new(1, -70, 0, 15); infoL.Position = UDim2.new(0, 10, 0, 25); infoL.Text = "Owner: " .. gData.ownerName .. " | Members: " .. memCount; infoL.TextColor3 = Colors.TextDim; infoL.Font = Enum.Font.Gotham; infoL.TextSize = 10; infoL.BackgroundTransparency = 1; infoL.TextXAlignment = Enum.TextXAlignment.Left
-                    local joinBtn = Instance.new("TextButton", dItem); joinBtn.Size = UDim2.new(0, 50, 0, 25); joinBtn.Position = UDim2.new(1, -60, 0.5, -12.5); joinBtn.Text = "JOIN"; joinBtn.BackgroundColor3 = Colors.SystemYellow; joinBtn.TextColor3 = Colors.Dark; joinBtn.Font = Enum.Font.GothamBold; Instance.new("UICorner", joinBtn).CornerRadius = UDim.new(0, 6)
-                    if gData.members and gData.members[myUserId] then
-                        joinBtn.Text = "JOINED"; joinBtn.BackgroundColor3 = Colors.Darker; joinBtn.TextColor3 = Colors.TextDim
-                        myJoinedGCs[gId] = gData.name
-                        local mItem = dItem:Clone(); mItem.Parent = myGcsFrame
-                        local chatBtn = mItem:FindFirstChildWhichIsA("TextButton"); chatBtn.Text = "CHAT"; chatBtn.BackgroundColor3 = Colors.Accent; chatBtn.TextColor3 = Colors.Dark
-                        chatBtn.MouseButton1Click:Connect(function()
-                            activeGcId = gId; dmChatTitle.Text = "GC: " .. gData.name
-                            for _, c in ipairs(dmChatFrame:GetChildren()) do if c:IsA("Frame") then c:Destroy() end end
-                            contentFrame.Visible = false; gcContainer.Visible = false; dmChatContainer.Visible = true; currentTab = "GCChat"
-                            task.spawn(function()
-                                local histRes = reqFunc({Url = FIREBASE_URL .. "global_gcs/" .. gId .. "/messages.json", Method = "GET"})
-                                if histRes.Success and histRes.Body ~= "null" then
-                                    local hData = game:GetService("HttpService"):JSONDecode(histRes.Body)
-                                    local oneWeekAgo = os.time() - 604800; local sortedMsgs = {}
-                                    for mKey, mVal in pairs(hData) do
-                                        if mVal.timestamp and mVal.timestamp < oneWeekAgo then reqFunc({Url = FIREBASE_URL .. "global_gcs/" .. gId .. "/messages/" .. mKey .. ".json", Method = "DELETE"})
-                                        else if not string.find(mVal.text or "", "%[ZAYN_GC_KICK%]") then mVal.key = mKey; table.insert(sortedMsgs, mVal) end end
-                                    end
-                                    table.sort(sortedMsgs, function(a, b) return (a.timestamp or 0) < (b.timestamp or 0) end)
-                                    for _, msg in ipairs(sortedMsgs) do processedGcIds[msg.key] = true; addMessageToChat(msg.senderName, msg.text, false, tonumber(msg.senderId), "DM") end
-                                    task.wait(0.2); local maxScroll = dmChatLayout.AbsoluteContentSize.Y - dmChatFrame.AbsoluteSize.Y + 20; if maxScroll > 0 then safeTween(dmChatFrame, {CanvasPosition = Vector2.new(0, maxScroll)}, 0.3) end
-                                end
-                            end)
-                        end)
-                        local leaveBtn = chatBtn:Clone(); leaveBtn.Parent = mItem; leaveBtn.Text = "LEAVE"; leaveBtn.BackgroundColor3 = Colors.NeonPink
-                        leaveBtn.MouseButton1Click:Connect(function() reqFunc({Url = FIREBASE_URL .. "global_gcs/" .. gId .. "/members/" .. myUserId .. ".json", Method = "DELETE"}); myJoinedGCs[gId] = nil; mItem:Destroy() end)
-                        local manageBtn = Instance.new("TextButton", mItem); manageBtn.Text = (gData.ownerId == myUserId) and "⚙️ MANAGE" or "👥 MEMBERS"; manageBtn.BackgroundColor3 = Colors.SystemYellow; manageBtn.TextColor3 = Colors.Dark; manageBtn.Font = Enum.Font.GothamBold; manageBtn.TextSize = 9; Instance.new("UICorner", manageBtn).CornerRadius = UDim.new(0, 6)
-                        manageBtn.MouseButton1Click:Connect(function() openGcManager(gId, gData) end)
-                        if gData.ownerId == myUserId then chatBtn.Size = UDim2.new(0, 45, 0, 25); chatBtn.Position = UDim2.new(1, -155, 0.5, -12.5); leaveBtn.Size = UDim2.new(0, 45, 0, 25); leaveBtn.Position = UDim2.new(1, -105, 0.5, -12.5); manageBtn.Size = UDim2.new(0, 50, 0, 25); manageBtn.Position = UDim2.new(1, -55, 0.5, -12.5)
-                        else chatBtn.Size = UDim2.new(0, 45, 0, 25); chatBtn.Position = UDim2.new(1, -165, 0.5, -12.5); leaveBtn.Size = UDim2.new(0, 45, 0, 25); leaveBtn.Position = UDim2.new(1, -115, 0.5, -12.5); manageBtn.Size = UDim2.new(0, 60, 0, 25); manageBtn.Position = UDim2.new(1, -65, 0.5, -12.5) end
-                    else
-                        joinBtn.MouseButton1Click:Connect(function() reqFunc({Url = FIREBASE_URL .. "global_gcs/" .. gId .. "/requests/" .. myUserId .. ".json", Method = "PUT", Body = '"'..cleanMyName..'"'}); joinBtn.Text = "SENT"; joinBtn.BackgroundColor3 = Colors.Primary end)
-                    end
-                    if gData.ownerId == myUserId and gData.requests then
-                        for reqUid, reqName in pairs(gData.requests) do
-                            local rItem = Instance.new("Frame", reqFrame); rItem.Size = UDim2.new(1, 0, 0, 35); rItem.BackgroundColor3 = Colors.Dark; Instance.new("UICorner", rItem).CornerRadius = UDim.new(0, 6)
-                            local rNameLabel = Instance.new("TextLabel", rItem); rNameLabel.Size = UDim2.new(1, -130, 1, 0); rNameLabel.Position = UDim2.new(0, 10, 0, 0); rNameLabel.Text = reqName:gsub('"', '') .. " wants to join " .. gData.name; rNameLabel.TextColor3 = Colors.Light; rNameLabel.Font = Enum.Font.Gotham; rNameLabel.TextSize = 11; rNameLabel.BackgroundTransparency = 1; rNameLabel.TextXAlignment = Enum.TextXAlignment.Left; rNameLabel.TextTruncate = Enum.TextTruncate.AtEnd
-                            local acceptBtn = Instance.new("TextButton", rItem); acceptBtn.Size = UDim2.new(0, 55, 0, 25); acceptBtn.Position = UDim2.new(1, -60, 0.5, -12.5); acceptBtn.Text = "ACCEPT"; acceptBtn.BackgroundColor3 = Colors.Accent; acceptBtn.TextColor3 = Colors.Dark; acceptBtn.Font = Enum.Font.GothamBold; Instance.new("UICorner", acceptBtn).CornerRadius = UDim.new(0, 4)
-                            local denyBtn = Instance.new("TextButton", rItem); denyBtn.Size = UDim2.new(0, 55, 0, 25); denyBtn.Position = UDim2.new(1, -120, 0.5, -12.5); denyBtn.Text = "DENY"; denyBtn.BackgroundColor3 = Colors.NeonPink; denyBtn.TextColor3 = Colors.Dark; denyBtn.Font = Enum.Font.GothamBold; Instance.new("UICorner", denyBtn).CornerRadius = UDim.new(0, 4)
-                            acceptBtn.MouseButton1Click:Connect(function() reqFunc({Url = FIREBASE_URL .. "global_gcs/" .. gId .. "/members/" .. reqUid .. ".json", Method = "PUT", Body = '"' .. reqName:gsub('"', '') .. '"'}); reqFunc({Url = FIREBASE_URL .. "global_gcs/" .. gId .. "/requests/" .. reqUid .. ".json", Method = "DELETE"}); rItem:Destroy() end)
-                            denyBtn.MouseButton1Click:Connect(function() reqFunc({Url = FIREBASE_URL .. "global_gcs/" .. gId .. "/requests/" .. reqUid .. ".json", Method = "DELETE"}); rItem:Destroy() end)
-                        end
-                    end
-                end
-                if currentManageGcId and data[currentManageGcId] and manageFrame.Visible then openGcManager(currentManageGcId, data[currentManageGcId]) end
-            end
-            if invRes.Success and invRes.Body ~= "null" then
-                local invData = game:GetService("HttpService"):JSONDecode(invRes.Body)
-                for invGcId, invGcName in pairs(invData) do
-                    local rItem = Instance.new("Frame", reqFrame); rItem.Size = UDim2.new(1, 0, 0, 35); rItem.BackgroundColor3 = Colors.Dark; Instance.new("UICorner", rItem).CornerRadius = UDim.new(0, 6)
-                    local rName = Instance.new("TextLabel", rItem); rName.Size = UDim2.new(1, -130, 1, 0); rName.Position = UDim2.new(0, 10, 0, 0); rName.Text = "Invite: " .. invGcName:gsub('"', ''); rName.TextColor3 = Colors.SystemYellow; rName.Font = Enum.Font.Gotham; rName.TextSize = 11; rName.BackgroundTransparency = 1; rName.TextXAlignment = Enum.TextXAlignment.Left; rName.TextTruncate = Enum.TextTruncate.AtEnd
-                    local acceptBtn = Instance.new("TextButton", rItem); acceptBtn.Size = UDim2.new(0, 55, 0, 25); acceptBtn.Position = UDim2.new(1, -60, 0.5, -12.5); acceptBtn.Text = "ACCEPT"; acceptBtn.BackgroundColor3 = Colors.Accent; acceptBtn.TextColor3 = Colors.Dark; acceptBtn.Font = Enum.Font.GothamBold; Instance.new("UICorner", acceptBtn).CornerRadius = UDim.new(0, 4)
-                    local denyBtn = Instance.new("TextButton", rItem); denyBtn.Size = UDim2.new(0, 55, 0, 25); denyBtn.Position = UDim2.new(1, -120, 0.5, -12.5); denyBtn.Text = "DENY"; denyBtn.BackgroundColor3 = Colors.NeonPink; denyBtn.TextColor3 = Colors.Dark; denyBtn.Font = Enum.Font.GothamBold; Instance.new("UICorner", denyBtn).CornerRadius = UDim.new(0, 4)
-                    acceptBtn.MouseButton1Click:Connect(function() reqFunc({Url = FIREBASE_URL .. "global_gcs/" .. invGcId .. "/members/" .. myUserId .. ".json", Method = "PUT", Body = '"' .. cleanMyName .. '"'}); reqFunc({Url = FIREBASE_URL .. "global_user_invites/" .. myUserId .. "/" .. invGcId .. ".json", Method = "DELETE"}); rItem:Destroy(); refreshDiscover() end)
-                    denyBtn.MouseButton1Click:Connect(function() reqFunc({Url = FIREBASE_URL .. "global_user_invites/" .. myUserId .. "/" .. invGcId .. ".json", Method = "DELETE"}); rItem:Destroy() end)
-                end
-            end
-            isRefreshingGCs = false
-        end)
-    end
-    btnDiscover.MouseButton1Click:Connect(refreshDiscover)
-    btnRequests.MouseButton1Click:Connect(refreshDiscover)
-    btnMyGC.MouseButton1Click:Connect(refreshDiscover)
-
-    task.spawn(function() while task.wait(15) do if gcContainer.Visible then refreshDiscover() end end end)
 
     local toggleBtn = Instance.new("TextButton", sg)
     toggleBtn.Size = UDim2.new(0, 50, 0, 50)
