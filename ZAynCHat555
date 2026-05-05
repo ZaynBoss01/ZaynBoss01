@@ -1,21 +1,17 @@
 -- ========================================================== --
--- ZAYN UI LAB - SERVER & GALLERY EDITION (V46.1 TITAN)       --
+-- ZAYN UI LAB - SERVER & GALLERY EDITION (V46.3 TITAN)       --
 -- THEME: OBSIDIAN DARK & SOFT RELAXING PASTEL                --
 -- SECURITY: TITANGUARD V10.1 (ANTI-SPOOF + WATCHDOG)         --
--- FIX: JOIN SPAM REMOVED (ONLY EXECUTION DETECTED)           --
--- NEW: ZAYN DJ SYSTEM WITH GLOBAL SYNC & PERMISSIONS         --
--- FIX: UNSEND SYSTEM + PREMIUM MUSIC BUBBLE + DJ BUG FIX     --
--- NEW: DJ MUTE COMMAND + LEAVE AUTO-STOP FIX                 --
--- HOTFIX: DJ STOP DATABASE & HARD FILE DELETION FIX          --
--- NEW FIX: DIRECT MESSAGES (DM) FULLY REAL-TIME & CRASH FIX  --
--- MEGA FIX: NO OLD CHAT HISTORY ON RE-EXECUTE                --
--- MEGA FIX: DJ PLAY RATE LIMIT BUG SOLVED + ROBLOX ID SUPPORT--
--- MEGA FIX: PERFECT GLOBAL UNSEND (SYNCED UI DELETION)       --
+-- FIX: DJ LOCAL MUTE BUG SOLVED (SOUNDSERVICE INTEGRATED)    --
+-- FIX: GC & DM FULL UNSEND FEATURE SYNCHRONIZED              --
+-- NEW: UNIQUE MSG ID SYSTEM FOR PRECISE MESSAGE DELETION     --
+-- MEGA FIX: ROBUST BUBBLE CHAT FALLBACK ADDED                --
 -- ========================================================== --
 
 local TweenService = game:GetService("TweenService")
 local CoreGui = game:GetService("CoreGui")
 local Players = game:GetService("Players")
+local SoundService = game:GetService("SoundService")
 local LocalPlayer = Players.LocalPlayer
 
 local UI_PARENT = (gethui and gethui()) or CoreGui
@@ -49,17 +45,10 @@ end
 
 -- Completely wipe out any previous DJ Folders or leftover sounds
 for _, child in ipairs(UI_PARENT:GetChildren()) do
-    if child.Name == "ZaynDJ_Folder" then
-        pcall(function()
-            for _, s in ipairs(child:GetChildren()) do
-                if s:IsA("Sound") then s:Stop() end
-            end
-            child:Destroy()
-        end)
-    end
-    if child:IsA("Sound") and child.Name == "ZaynDJ_Audio" then
-        pcall(function() child:Stop(); child:Destroy() end)
-    end
+    if child.Name == "ZaynDJ_Folder" then pcall(function() child:Destroy() end) end
+end
+for _, child in ipairs(SoundService:GetChildren()) do
+    if child.Name == "ZaynDJ_Folder" then pcall(function() child:Destroy() end) end
 end
 
 -- ================================================================= --
@@ -699,7 +688,7 @@ local function startMainChat()
             end
         end
 
-        task.spawn(function() pcall(function() local sfx = Instance.new("Sound"); sfx.SoundId = "rbxassetid://4590662766"; sfx.Volume = 1; sfx.Parent = UI_PARENT; sfx:Play(); task.wait(2); sfx:Destroy() end) end)
+        task.spawn(function() pcall(function() local sfx = Instance.new("Sound"); sfx.SoundId = "rbxassetid://4590662766"; sfx.Volume = 1; sfx.Parent = SoundService; sfx:Play(); task.wait(2); sfx:Destroy() end) end)
         safeTween(n, {Position = UDim2.new(1, -300, 1, targetY)}, 0.45)
 
         n.MouseButton1Click:Connect(function()
@@ -715,10 +704,7 @@ local function startMainChat()
                 
                 if dmHistories[activeDmUserId] then
                     for _, h in ipairs(dmHistories[activeDmUserId]) do
-                        -- Render directly, no DB push
-                        local msgFrame = Instance.new("Frame", dmChatFrame)
-                        -- Logic simplified below via standard call, but using proper parameters:
-                        addMessageToChat(h.name, h.msg, h.isSystem, h.uid, "DM")
+                        addMessageToChat(h.name, h.msg, h.isSystem, h.uid, "DM", h.msgId)
                     end
                     task.spawn(function()
                         task.wait(0.15)
@@ -746,7 +732,7 @@ local function startMainChat()
                         end
                         table.sort(sortedMsgs, function(a, b) return (a.timestamp or 0) < (b.timestamp or 0) end)
                         for _, msgg in ipairs(sortedMsgs) do
-                            addMessageToChat(msgg.senderName, msgg.text, false, tonumber(msgg.senderId), "DM")
+                            addMessageToChat(msgg.senderName, msgg.text, false, tonumber(msgg.senderId), "DM", msgg.msgId or msgg.key)
                         end
                         task.wait(0.2)
                         local maxScroll = dmChatLayout.AbsoluteContentSize.Y - dmChatFrame.AbsoluteSize.Y + 20
@@ -778,15 +764,40 @@ local function startMainChat()
                 if res.Success and res.Body ~= "null" then
                     local dms = game:GetService("HttpService"):JSONDecode(res.Body)
                     for mKey, mVal in pairs(dms) do
+                        if mVal.text:find("%[ZAYN_UNSEND:") then
+                            local unsendKey = mVal.text:match("%[ZAYN_UNSEND:([%w_%-]+)%]")
+                            if unsendKey then
+                                for _, c in ipairs(dmChatFrame:GetChildren()) do
+                                    if c:IsA("Frame") and c:GetAttribute("FBKey") == unsendKey then
+                                        safeTween(c, {BackgroundTransparency = 1}, 0.2)
+                                        for _, v in ipairs(c:GetDescendants()) do
+                                            if v:IsA("TextLabel") or v:IsA("TextButton") then pcall(function() safeTween(v, {TextTransparency = 1}, 0.2) end)
+                                            elseif v:IsA("ImageLabel") or v:IsA("ImageButton") then pcall(function() safeTween(v, {ImageTransparency = 1}, 0.2) end)
+                                            elseif v:IsA("Frame") then pcall(function() safeTween(v, {BackgroundTransparency = 1}, 0.2) end) end
+                                        end
+                                        task.delay(0.3, function() pcall(function() c:Destroy() end) end)
+                                    end
+                                end
+                                local sUid = tonumber(mVal.senderId)
+                                if dmHistories[sUid] then
+                                    for i, hist in ipairs(dmHistories[sUid]) do
+                                        if hist.msgId == unsendKey then table.remove(dmHistories[sUid], i); break end
+                                    end
+                                end
+                            end
+                            reqFunc({Url = FIREBASE_URL .. "global_dms/" .. myUserId .. "/" .. mKey .. ".json", Method = "DELETE"})
+                            continue
+                        end
+
                         if not processedDMs[mKey] then
                             processedDMs[mKey] = true
 
                             local sUid = tonumber(mVal.senderId)
                             if not dmHistories[sUid] then dmHistories[sUid] = {} end
-                            table.insert(dmHistories[sUid], {name = mVal.senderName, msg = mVal.text, isSystem = false, uid = sUid})
+                            table.insert(dmHistories[sUid], {name = mVal.senderName, msg = mVal.text, isSystem = false, uid = sUid, msgId = mVal.msgId})
 
                             if currentTab == "DMChat" and activeDmUserId == sUid then
-                                addMessageToChat(mVal.senderName, mVal.text, false, sUid, "DM")
+                                addMessageToChat(mVal.senderName, mVal.text, false, sUid, "DM", mVal.msgId)
                             else
                                 showNotif("🔒 DM: " .. mVal.senderName, mVal.text, true, sUid, "DM", sUid)
                             end
@@ -1188,7 +1199,7 @@ local function startMainChat()
             
             if dmHistories[activeDmUserId] then
                 for _, h in ipairs(dmHistories[activeDmUserId]) do
-                    addMessageToChat(h.name, h.msg, h.isSystem, h.uid, "DM")
+                    addMessageToChat(h.name, h.msg, h.isSystem, h.uid, "DM", h.msgId)
                 end
                 task.spawn(function()
                     task.wait(0.15)
@@ -1198,13 +1209,22 @@ local function startMainChat()
             end
         end)
     end
-
     local function createBubble(displayName, msg, targetPlayer)
         if not targetPlayer or not targetPlayer.Character then return end
         local head = targetPlayer.Character:FindFirstChild("Head") or targetPlayer.Character.PrimaryPart; if not head then return end
         local cleanMsg = msg; local repMatch, restMsg = msg:match("^↪️ %[Replying to (.-)%]\n(.*)")
         if repMatch then cleanMsg = restMsg end; if tostring(cleanMsg):match("^%[STICKER:(%d+)%]$") then cleanMsg = "[Sticker 🌸]" elseif tostring(cleanMsg):match("^%[PHOTO:(.-)%]$") then cleanMsg = "[Photo 📸]" elseif tostring(cleanMsg):match("^%[SNAP%]") then cleanMsg = "[Snap 🔥]" elseif tostring(cleanMsg):match("^%[VOICE:(.-)%]$") then cleanMsg = "[Voice Audio 🎵]" end
-        pcall(function() game:GetService("TextChatService"):DisplayBubble(targetPlayer.Character, cleanMsg) end)
+        
+        -- [MEGA FIX] Robust Bubble Fallback (Modern TextChatService + Legacy Chat)
+        local success = pcall(function() 
+            game:GetService("TextChatService"):DisplayBubble(targetPlayer.Character, cleanMsg) 
+        end)
+        
+        if not success then
+            pcall(function() 
+                game:GetService("Chat"):Chat(head, cleanMsg, Enum.ChatColor.White) 
+            end)
+        end
     end
 
     -- ================================================================= --
@@ -1311,18 +1331,37 @@ local function startMainChat()
                 if firebaseKey and firebaseKey ~= "" then
                     task.spawn(function()
                         pcall(function()
-                            reqFunc({
-                                Url = FIREBASE_URL .. DB_PATH .. "/" .. firebaseKey .. ".json",
-                                Method = "DELETE"
-                            })
-                            
-                            -- [MEGA FIX] SEND UNSEND SIGNAL TO EVERYONE ELSE
-                            reqFunc({
-                                Url = FIREBASE_URL .. DB_PATH .. ".json",
-                                Method = "POST",
-                                Headers = {["Content-Type"] = "application/json"},
-                                Body = HttpService:JSONEncode({text = "[ZAYN_UNSEND:" .. firebaseKey .. "]", timestamp = os.time()})
-                            })
+                            if currentTab == "DMChat" and activeDmUserId then
+                                reqFunc({
+                                    Url = FIREBASE_URL .. "global_dms/" .. activeDmUserId .. ".json",
+                                    Method = "POST",
+                                    Headers = {["Content-Type"] = "application/json"},
+                                    Body = HttpService:JSONEncode({senderId = myUserId, senderName = "SYSTEM", text = "[ZAYN_UNSEND:" .. firebaseKey .. "]", timestamp = os.time()})
+                                })
+                                if dmHistories[activeDmUserId] then
+                                    for i, hist in ipairs(dmHistories[activeDmUserId]) do
+                                        if hist.msgId == firebaseKey then table.remove(dmHistories[activeDmUserId], i); break end
+                                    end
+                                end
+                            elseif currentTab == "GCChat" and activeGcId then
+                                reqFunc({
+                                    Url = FIREBASE_URL .. "global_gcs/" .. activeGcId .. "/messages.json",
+                                    Method = "POST",
+                                    Headers = {["Content-Type"] = "application/json"},
+                                    Body = HttpService:JSONEncode({senderId = myUserId, senderName = "SYSTEM", text = "[ZAYN_UNSEND:" .. firebaseKey .. "]", timestamp = os.time()})
+                                })
+                            else
+                                reqFunc({
+                                    Url = FIREBASE_URL .. DB_PATH .. "/" .. firebaseKey .. ".json",
+                                    Method = "DELETE"
+                                })
+                                reqFunc({
+                                    Url = FIREBASE_URL .. DB_PATH .. ".json",
+                                    Method = "POST",
+                                    Headers = {["Content-Type"] = "application/json"},
+                                    Body = HttpService:JSONEncode({text = "[ZAYN_UNSEND:" .. firebaseKey .. "]", timestamp = os.time()})
+                                })
+                            end
                         end)
                     end)
                 end
@@ -1490,7 +1529,6 @@ local function startMainChat()
 
     local messageCount = 0
     local MAX_MESSAGES_ON_SCREEN = 150
-    local messageFirebaseKeys = {}
 
     addMessageToChat = function(name, message, isSystem, userId, chatType, fbKey)
         pcall(function()
@@ -1696,7 +1734,7 @@ local function startMainChat()
                     msgTextLabel.LayoutOrder = 4
                     local msgCon = Instance.new("UISizeConstraint", msgTextLabel)
                     msgCon.MaxSize = Vector2.new(240, 99999)
-                    if isMentioned then task.spawn(function() local sfx = Instance.new("Sound"); sfx.SoundId = "rbxassetid://4590662766"; sfx.Volume = 1.5; sfx.Parent = UI_PARENT; sfx:Play(); task.wait(2); pcall(function() sfx:Destroy() end) end) end
+                    if isMentioned then task.spawn(function() local sfx = Instance.new("Sound"); sfx.SoundId = "rbxassetid://4590662766"; sfx.Volume = 1.5; sfx.Parent = SoundService; sfx:Play(); task.wait(2); pcall(function() sfx:Destroy() end) end) end
                 end
 
                 local function makeSwipeable(frame, senderName2, messageText2, contextType2)
@@ -1737,7 +1775,7 @@ local function startMainChat()
                                     isHolding = false
                                     if holdConn then holdConn:Disconnect() end
                                     pcall(function()
-                                        local sfx = Instance.new("Sound", UI_PARENT)
+                                        local sfx = Instance.new("Sound", SoundService)
                                         sfx.SoundId = "rbxassetid://6895088918"
                                         sfx.Volume = 0.5
                                         sfx.PlayOnRemove = true
@@ -1797,7 +1835,7 @@ local function startMainChat()
     end
 
     -- ================================================================= --
-    -- [IMPROVED] ZAYN DJ SYSTEM WITH ASYNC RACE CONDITION FIX & WIPE
+    -- [IMPROVED] ZAYN CHAT DJ SYSTEM WITH ASYNC RACE CONDITION FIX & WIPE
     -- ================================================================= --
     local RAPID_API_KEY  = "097446f512mshd8abf5f58ef31b1p10a0d0jsn08925256e226"
     local RAPID_API_HOST = "youtube-mp36.p.rapidapi.com"
@@ -1808,7 +1846,7 @@ local function startMainChat()
 
     local djFolder = Instance.new("Folder")
     djFolder.Name = "ZaynDJ_Folder"
-    djFolder.Parent = UI_PARENT
+    djFolder.Parent = SoundService -- [FIXED] Parented to SoundService for local mute bug fix
 
     local function StopZaynDJ()
         globalDjSequence = globalDjSequence + 1
@@ -2123,7 +2161,6 @@ local function startMainChat()
         if serverReplyContext and not txt:find("%[STICKER:") and not txt:find("%[PHOTO:") and not txt:find("%[VOICE:") then txt = "↪️ [Replying to " .. serverReplyContext .. "]\n" .. txt; updateServerReplyState(nil, nil) end
 
         local ts = os.time()
-        -- Hamesha unique fbKey milega database me save hone ke baad
         local out = cleanMyName .. ": " .. txt .. " ||" .. myUserId .. "::" .. generateMessageHash(myUserId, txt, ts) .. "::" .. ts
 
         task.spawn(function()
@@ -2156,11 +2193,13 @@ local function startMainChat()
 
         if dmReplyContext and not txt:find("%[STICKER:") and not txt:find("%[PHOTO:") and not txt:find("%[VOICE:") then txt = "↪️ [Replying to " .. dmReplyContext .. "]\n" .. txt; updateDmReplyState(nil, nil) end
 
-        if not dmHistories[tonumber(targetUid)] then dmHistories[tonumber(targetUid)] = {} end
-        table.insert(dmHistories[tonumber(targetUid)], {name = cleanMyName, msg = txt, isSystem = false, uid = tonumber(myUserId)})
-        addMessageToChat(cleanMyName, txt, false, tonumber(myUserId), "DM")
+        local dmMsgId = "DM_" .. myUserId .. "_" .. game:GetService("HttpService"):GenerateGUID(false):gsub("-", "")
 
-        local mData = { senderId = myUserId, senderName = cleanMyName, text = txt, timestamp = os.time() }
+        if not dmHistories[tonumber(targetUid)] then dmHistories[tonumber(targetUid)] = {} end
+        table.insert(dmHistories[tonumber(targetUid)], {name = cleanMyName, msg = txt, isSystem = false, uid = tonumber(myUserId), msgId = dmMsgId})
+        addMessageToChat(cleanMyName, txt, false, tonumber(myUserId), "DM", dmMsgId)
+
+        local mData = { senderId = myUserId, senderName = cleanMyName, text = txt, timestamp = os.time(), msgId = dmMsgId }
         task.spawn(function()
             reqFunc({
                 Url = FIREBASE_URL .. "global_dms/" .. targetUid .. ".json",
@@ -2192,9 +2231,11 @@ local function startMainChat()
             updateDmReplyState(nil, nil)
         end
 
-        addMessageToChat(cleanMyName, txt, false, myUserId, "DM")
+        local gcMsgId = "GC_" .. myUserId .. "_" .. game:GetService("HttpService"):GenerateGUID(false):gsub("-", "")
 
-        local mData = { senderId = myUserId, senderName = cleanMyName, text = txt, timestamp = os.time() }
+        addMessageToChat(cleanMyName, txt, false, myUserId, "DM", gcMsgId)
+
+        local mData = { senderId = myUserId, senderName = cleanMyName, text = txt, timestamp = os.time(), msgId = gcMsgId }
         task.spawn(function()
             reqFunc({
                 Url = FIREBASE_URL .. "global_gcs/" .. gcId .. "/messages.json",
@@ -2269,14 +2310,12 @@ local function startMainChat()
                         if not processedIds[key] then
                             processedIds[key] = true
                             
-                            -- Sirf naye messages read karega (Old history skip karega)
                             if msgData.timestamp and tonumber(msgData.timestamp) < scriptStartTime then
                                 continue
                             end
 
                             local mtext = msgData.text
                             
-                            -- [MEGA FIX: GLOBAL UNSEND]
                             if mtext:find("%[ZAYN_UNSEND:") then
                                 local unsendKey = mtext:match("%[ZAYN_UNSEND:([%w_%-]+)%]")
                                 if unsendKey then
@@ -2450,7 +2489,6 @@ local function startMainChat()
                                         end
                                     end
                                 else
-                                    -- Ye render karega sabki screen par real-time bina PC time conflict ke, chahe khud ka message ho ya dusre ka.
                                     addMessageToChat(cleanName, sMsg, false, tonumber(sUID), "Server", key)
                                     if tostring(sUID) ~= myUserId then
                                         showNotif(cleanName, sMsg, false, tonumber(sUID), "Server", nil)
@@ -2485,9 +2523,28 @@ local function startMainChat()
                                         continue
                                     end
 
+                                    if mVal.text:find("%[ZAYN_UNSEND:") then
+                                        local unsendKey = mVal.text:match("%[ZAYN_UNSEND:([%w_%-]+)%]")
+                                        if unsendKey then
+                                            for _, c in ipairs(dmChatFrame:GetChildren()) do
+                                                if c:IsA("Frame") and c:GetAttribute("FBKey") == unsendKey then
+                                                    safeTween(c, {BackgroundTransparency = 1}, 0.2)
+                                                    for _, v in ipairs(c:GetDescendants()) do
+                                                        if v:IsA("TextLabel") or v:IsA("TextButton") then pcall(function() safeTween(v, {TextTransparency = 1}, 0.2) end)
+                                                        elseif v:IsA("ImageLabel") or v:IsA("ImageButton") then pcall(function() safeTween(v, {ImageTransparency = 1}, 0.2) end)
+                                                        elseif v:IsA("Frame") then pcall(function() safeTween(v, {BackgroundTransparency = 1}, 0.2) end) end
+                                                    end
+                                                    task.delay(0.3, function() pcall(function() c:Destroy() end) end)
+                                                end
+                                            end
+                                        end
+                                        reqFunc({Url = FIREBASE_URL .. "global_gcs/" .. gId .. "/messages/" .. mKey .. ".json", Method = "DELETE"})
+                                        continue
+                                    end
+
                                     if tostring(mVal.senderId) ~= myUserId and not isFirstLoad then
                                         if currentTab == "GCChat" and activeGcId == gId then
-                                            addMessageToChat(mVal.senderName, mVal.text, false, tonumber(mVal.senderId), "DM")
+                                            addMessageToChat(mVal.senderName, mVal.text, false, tonumber(mVal.senderId), "DM", mVal.msgId)
                                         else
                                             if mVal.timestamp and (os.time() - tonumber(mVal.timestamp) <= 15) then
                                                 local cleanGcName = tostring(gcName)
@@ -2534,7 +2591,7 @@ local function startMainChat()
     end)
 
     -- ================================================================= --
-    -- [STAGE 4] : ZAYN GC SYSTEM (CREATE, REQUEST, DISCOVER, MANAGE)
+    -- [STAGE 4] : ZAYN CHAT GC SYSTEM (CREATE, REQUEST, DISCOVER, MANAGE)
     -- ================================================================= --
     local gcTabBtn = Instance.new("TextButton", titleBar)
     gcTabBtn.Size = UDim2.new(0, 45, 0, 20)
@@ -2767,7 +2824,7 @@ local function startMainChat()
                                         else if not string.find(mVal.text or "", "%[ZAYN_GC_KICK%]") then mVal.key = mKey; table.insert(sortedMsgs, mVal) end end
                                     end
                                     table.sort(sortedMsgs, function(a, b) return (a.timestamp or 0) < (b.timestamp or 0) end)
-                                    for _, msg in ipairs(sortedMsgs) do processedGcIds[msg.key] = true; addMessageToChat(msg.senderName, msg.text, false, tonumber(msg.senderId), "DM") end
+                                    for _, msg in ipairs(sortedMsgs) do processedGcIds[msg.key] = true; addMessageToChat(msg.senderName, msg.text, false, tonumber(msg.senderId), "DM", msg.msgId or msg.key) end
                                     task.wait(0.2); local maxScroll = dmChatLayout.AbsoluteContentSize.Y - dmChatFrame.AbsoluteSize.Y + 20; if maxScroll > 0 then safeTween(dmChatFrame, {CanvasPosition = Vector2.new(0, maxScroll)}, 0.3) end
                                 end
                             end)
