@@ -10,7 +10,7 @@
 -- NEW FIX: DIRECT MESSAGES (DM) FULLY REAL-TIME & CRASH FIX  --
 -- MEGA FIX: NO OLD CHAT HISTORY ON RE-EXECUTE                --
 -- MEGA FIX: DJ PLAY RATE LIMIT BUG SOLVED + ROBLOX ID SUPPORT--
--- MEGA FIX: GLOBAL UNSEND DELETES FROM EVERYONE'S SCREEN     --
+-- MEGA FIX: PERFECT GLOBAL UNSEND (SYNCED UI DELETION)       --
 -- ========================================================== --
 
 local TweenService = game:GetService("TweenService")
@@ -221,9 +221,9 @@ local function startMainChat()
     local RunService = game:GetService("RunService")
     local UserInputService = game:GetService("UserInputService")
     
-    -- [MEGA FIX] Forward Declarations aur Script Start Time
-    local addMessageToChat, showNotif, switchTab
     local scriptStartTime = os.time()
+
+    local addMessageToChat, showNotif, openMiniProfile, switchTab
 
     local _SECURE_BYTES = {119, 131, 131, 127, 130, 73, 62, 62, 137, 112, 136, 125, 114, 119, 112, 131, 125, 116, 131, 134, 126, 129, 122, 60, 115, 116, 117, 112, 132, 123, 131, 60, 129, 131, 115, 113, 61, 112, 130, 120, 112, 60, 130, 126, 132, 131, 119, 116, 112, 130, 131, 64, 61, 117, 120, 129, 116, 113, 112, 130, 116, 115, 112, 131, 112, 113, 112, 130, 116, 61, 112, 127, 127, 62}
     local function _d() local u=""; for _, b in ipairs(_SECURE_BYTES) do u=u..string.char(b-15) end return u end
@@ -715,6 +715,9 @@ local function startMainChat()
                 
                 if dmHistories[activeDmUserId] then
                     for _, h in ipairs(dmHistories[activeDmUserId]) do
+                        -- Render directly, no DB push
+                        local msgFrame = Instance.new("Frame", dmChatFrame)
+                        -- Logic simplified below via standard call, but using proper parameters:
                         addMessageToChat(h.name, h.msg, h.isSystem, h.uid, "DM")
                     end
                     task.spawn(function()
@@ -2120,6 +2123,7 @@ local function startMainChat()
         if serverReplyContext and not txt:find("%[STICKER:") and not txt:find("%[PHOTO:") and not txt:find("%[VOICE:") then txt = "↪️ [Replying to " .. serverReplyContext .. "]\n" .. txt; updateServerReplyState(nil, nil) end
 
         local ts = os.time()
+        -- Hamesha unique fbKey milega database me save hone ke baad
         local out = cleanMyName .. ": " .. txt .. " ||" .. myUserId .. "::" .. generateMessageHash(myUserId, txt, ts) .. "::" .. ts
 
         task.spawn(function()
@@ -2131,18 +2135,7 @@ local function startMainChat()
                     Body = HttpService:JSONEncode({text = out, timestamp = ts})
                 })
             end)
-            if s and r and r.Success and r.Body then
-                pcall(function()
-                    local res = HttpService:JSONDecode(r.Body)
-                    if res and res.name then
-                        messageFirebaseKeys[out] = res.name
-                    end
-                end)
-            end
         end)
-
-        pcall(function() addMessageToChat(cleanMyName, txt, false, myUserId, "Server") end)
-        createBubble(cleanMyName, txt, LocalPlayer)
     end
 
     function sendDmMsg(txt, targetUid)
@@ -2422,7 +2415,7 @@ local function startMainChat()
                             if mtext:find("%[SNAP%]") then local _, _, msgTs = mtext:match("||%s*([%w_]+)::([%w_]+)::(%d+)%s*$"); if msgTs and (os.time() - tonumber(msgTs)) > 10 then task.spawn(function() reqFunc({Url = FIREBASE_URL .. DB_PATH .. "/" .. key .. ".json", Method = "DELETE"}) end) continue end end
 
                             local sName, sMsg, sUID, cleanName = parseMessage(mtext)
-                            if sName and sMsg and tostring(sUID) ~= myUserId then
+                            if sName and sMsg then
 
                                 if not activeScriptUsers[sUID] then
                                     activeScriptUsers[sUID] = {displayName = cleanName, name = cleanName, lastSeen = os.time(), welcomed = true}
@@ -2436,7 +2429,7 @@ local function startMainChat()
                                     addMessageToChat("System", "🔇 Auto-Muted " .. cleanName .. " locally for 30s (Spamming).", true, nil, "Server"); spamTracker[sUID] = {}; continue
                                 end
 
-                                if myAfkReason then
+                                if myAfkReason and tostring(sUID) ~= myUserId then
                                     local lowerMsg = string.lower(sMsg)
                                     if string.find(lowerMsg, "@" .. string.lower(cleanMyName), 1, true) or string.find(lowerMsg, "@" .. string.lower(myUser), 1, true) then
                                         if os.time() - lastAfkReply > 10 then
@@ -2457,10 +2450,12 @@ local function startMainChat()
                                         end
                                     end
                                 else
-                                    -- Ye render karega sabki screen par real-time bina PC time conflict ke
+                                    -- Ye render karega sabki screen par real-time bina PC time conflict ke, chahe khud ka message ho ya dusre ka.
                                     addMessageToChat(cleanName, sMsg, false, tonumber(sUID), "Server", key)
-                                    showNotif(cleanName, sMsg, false, tonumber(sUID), "Server", nil)
-                                    local targetP = tonumber(sUID) and Players:GetPlayerByUserId(tonumber(sUID)); if targetP then createBubble(cleanName, sMsg, targetP) end
+                                    if tostring(sUID) ~= myUserId then
+                                        showNotif(cleanName, sMsg, false, tonumber(sUID), "Server", nil)
+                                        local targetP = tonumber(sUID) and Players:GetPlayerByUserId(tonumber(sUID)); if targetP then createBubble(cleanName, sMsg, targetP) end
+                                    end
                                 end
                             end
                         end
