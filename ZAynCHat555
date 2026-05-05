@@ -1011,7 +1011,7 @@ local function startMainChat()
                     if _rawReq and writefile and getcustomasset then
                         local s, r = pcall(_rawReq, {Url = url, Method = "GET"})
                         if s and r.StatusCode == 200 then
-                            local fN = "z_dp_preview_"..math.random(1000,9999).png"
+                            local fN = "z_dp_preview_"..math.random(1000,9999)..".png"
                             writefile(fN, r.Body)
                             avatarPreview.Image = getcustomasset(fN)
                         end
