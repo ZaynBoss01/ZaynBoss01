@@ -1,17 +1,16 @@
 -- ========================================================== --
--- ZAYN UI LAB - SERVER & GALLERY EDITION (V46.3 TITAN)       --
+-- ZAYN UI LAB - SERVER & GALLERY EDITION (V46.4 TITAN)       --
 -- THEME: OBSIDIAN DARK & SOFT RELAXING PASTEL                --
 -- SECURITY: TITANGUARD V10.1 (ANTI-SPOOF + WATCHDOG)         --
--- FIX: DJ LOCAL MUTE BUG SOLVED (SOUNDSERVICE INTEGRATED)    --
--- FIX: GC & DM FULL UNSEND FEATURE SYNCHRONIZED              --
--- NEW: UNIQUE MSG ID SYSTEM FOR PRECISE MESSAGE DELETION     --
--- MEGA FIX: ROBUST BUBBLE CHAT FALLBACK ADDED                --
+-- FIX: DJ LOCAL AUDIO SOLVED (PARENTED TO WORKSPACE)         --
+-- FIX: LOCAL PLAYER BUBBLE CHAT VISIBILITY FIXED             --
+-- MEGA FIX: GC & DM FULL UNSEND FEATURE SYNCHRONIZED         --
 -- ========================================================== --
 
 local TweenService = game:GetService("TweenService")
 local CoreGui = game:GetService("CoreGui")
 local Players = game:GetService("Players")
-local SoundService = game:GetService("SoundService")
+local Workspace = game:GetService("Workspace")
 local LocalPlayer = Players.LocalPlayer
 
 local UI_PARENT = (gethui and gethui()) or CoreGui
@@ -47,7 +46,7 @@ end
 for _, child in ipairs(UI_PARENT:GetChildren()) do
     if child.Name == "ZaynDJ_Folder" then pcall(function() child:Destroy() end) end
 end
-for _, child in ipairs(SoundService:GetChildren()) do
+for _, child in ipairs(Workspace:GetChildren()) do
     if child.Name == "ZaynDJ_Folder" then pcall(function() child:Destroy() end) end
 end
 
@@ -688,7 +687,7 @@ local function startMainChat()
             end
         end
 
-        task.spawn(function() pcall(function() local sfx = Instance.new("Sound"); sfx.SoundId = "rbxassetid://4590662766"; sfx.Volume = 1; sfx.Parent = SoundService; sfx:Play(); task.wait(2); sfx:Destroy() end) end)
+        task.spawn(function() pcall(function() local sfx = Instance.new("Sound"); sfx.SoundId = "rbxassetid://4590662766"; sfx.Volume = 1; sfx.Parent = Workspace; sfx:Play(); task.wait(2); sfx:Destroy() end) end)
         safeTween(n, {Position = UDim2.new(1, -300, 1, targetY)}, 0.45)
 
         n.MouseButton1Click:Connect(function()
@@ -1734,7 +1733,7 @@ local function startMainChat()
                     msgTextLabel.LayoutOrder = 4
                     local msgCon = Instance.new("UISizeConstraint", msgTextLabel)
                     msgCon.MaxSize = Vector2.new(240, 99999)
-                    if isMentioned then task.spawn(function() local sfx = Instance.new("Sound"); sfx.SoundId = "rbxassetid://4590662766"; sfx.Volume = 1.5; sfx.Parent = SoundService; sfx:Play(); task.wait(2); pcall(function() sfx:Destroy() end) end) end
+                    if isMentioned then task.spawn(function() local sfx = Instance.new("Sound"); sfx.SoundId = "rbxassetid://4590662766"; sfx.Volume = 1.5; sfx.Parent = Workspace; sfx:Play(); task.wait(2); pcall(function() sfx:Destroy() end) end) end
                 end
 
                 local function makeSwipeable(frame, senderName2, messageText2, contextType2)
@@ -1775,7 +1774,7 @@ local function startMainChat()
                                     isHolding = false
                                     if holdConn then holdConn:Disconnect() end
                                     pcall(function()
-                                        local sfx = Instance.new("Sound", SoundService)
+                                        local sfx = Instance.new("Sound", Workspace)
                                         sfx.SoundId = "rbxassetid://6895088918"
                                         sfx.Volume = 0.5
                                         sfx.PlayOnRemove = true
@@ -1846,7 +1845,7 @@ local function startMainChat()
 
     local djFolder = Instance.new("Folder")
     djFolder.Name = "ZaynDJ_Folder"
-    djFolder.Parent = SoundService -- [FIXED] Parented to SoundService for local mute bug fix
+    djFolder.Parent = Workspace -- [FIXED] Parented to Workspace for local player audio fix
 
     local function StopZaynDJ()
         globalDjSequence = globalDjSequence + 1
@@ -2490,9 +2489,13 @@ local function startMainChat()
                                     end
                                 else
                                     addMessageToChat(cleanName, sMsg, false, tonumber(sUID), "Server", key)
+                                    
+                                    -- Bubble chat call for ALL players including LocalPlayer
+                                    local targetP = tonumber(sUID) and Players:GetPlayerByUserId(tonumber(sUID))
+                                    if targetP then createBubble(cleanName, sMsg, targetP) end
+
                                     if tostring(sUID) ~= myUserId then
                                         showNotif(cleanName, sMsg, false, tonumber(sUID), "Server", nil)
-                                        local targetP = tonumber(sUID) and Players:GetPlayerByUserId(tonumber(sUID)); if targetP then createBubble(cleanName, sMsg, targetP) end
                                     end
                                 end
                             end
