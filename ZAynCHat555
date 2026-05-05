@@ -1,15 +1,3 @@
--- ========================================================== --
--- ZAYN UI LAB - SERVER & GALLERY EDITION (V46.1 TITAN)       --
--- THEME: OBSIDIAN DARK & SOFT RELAXING PASTEL                --
--- SECURITY: TITANGUARD V10.1 (ANTI-SPOOF + WATCHDOG)         --
--- FIX: JOIN SPAM REMOVED (ONLY EXECUTION DETECTED)           --
--- NEW: ZAYN DJ SYSTEM WITH GLOBAL SYNC & PERMISSIONS         --
--- FIX: UNSEND SYSTEM + PREMIUM MUSIC BUBBLE + DJ BUG FIX     --
--- NEW: DJ MUTE COMMAND + LEAVE AUTO-STOP FIX                 --
--- HOTFIX: DJ STOP DATABASE & HARD FILE DELETION FIX          --
--- NEW FIX: DIRECT MESSAGES (DM) FULLY REAL-TIME & CRASH FIX  --
--- FULL SCRIPT: NO SHORTCUTS, NO GLITCHES                     --
--- ========================================================== --
 
 local TweenService = game:GetService("TweenService")
 local CoreGui = game:GetService("CoreGui")
@@ -18,19 +6,14 @@ local LocalPlayer = Players.LocalPlayer
 
 local UI_PARENT = (gethui and gethui()) or CoreGui
 
--- ================================================================= --
--- [STAGE 1] : CLEANUP OLD UI BEFORE STARTING
--- ================================================================= --
 if UI_PARENT:FindFirstChild("ZaynTitanRevelation") then UI_PARENT.ZaynTitanRevelation:Destroy() end
 if UI_PARENT:FindFirstChild("ZAYN_OMNI_GUI") then UI_PARENT.ZAYN_OMNI_GUI:Destroy() end
+
 if UI_PARENT:FindFirstChild("ZaynMediaBox") then UI_PARENT.ZaynMediaBox:Destroy() end
 if UI_PARENT:FindFirstChild("ZaynPreviewModal") then UI_PARENT.ZaynPreviewModal:Destroy() end
 if UI_PARENT:FindFirstChild("ZaynMiniProfile") then UI_PARENT.ZaynMiniProfile:Destroy() end
 if UI_PARENT:FindFirstChild("ZaynProfileEditor") then UI_PARENT.ZaynProfileEditor:Destroy() end
 
--- ================================================================= --
--- [GLOBAL DJ SOUND CLEANUP ON RE-EXECUTE]
--- ================================================================= --
 if getgenv then
     if getgenv().ZAYN_DJ_SOUND_REF then
         pcall(function()
@@ -60,9 +43,6 @@ for _, child in ipairs(UI_PARENT:GetChildren()) do
     end
 end
 
--- ================================================================= --
--- [STAGE 2] : ZAYN CHAT | CONCEPTUAL "TITAN REVELATION" STARTUP
--- ================================================================= --
 local FinalIntroGui = Instance.new("ScreenGui")
 FinalIntroGui.Name = "ZaynTitanRevelation"
 FinalIntroGui.IgnoreGuiInset = true
