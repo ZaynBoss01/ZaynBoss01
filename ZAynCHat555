@@ -27,6 +27,7 @@ if UI_PARENT:FindFirstChild("ZaynMediaBox") then UI_PARENT.ZaynMediaBox:Destroy(
 if UI_PARENT:FindFirstChild("ZaynPreviewModal") then UI_PARENT.ZaynPreviewModal:Destroy() end
 if UI_PARENT:FindFirstChild("ZaynMiniProfile") then UI_PARENT.ZaynMiniProfile:Destroy() end
 if UI_PARENT:FindFirstChild("ZaynProfileEditor") then UI_PARENT.ZaynProfileEditor:Destroy() end
+if UI_PARENT:FindFirstChild("ZaynMsgContext") then UI_PARENT.ZaynMsgContext:Destroy() end
 
 -- ================================================================= --
 -- [GLOBAL DJ SOUND CLEANUP ON RE-EXECUTE]
@@ -111,7 +112,7 @@ HaloGradient.Color = ColorSequence.new({
 HaloGradient.Parent = HaloGlow
 
 local HubTitle = Instance.new("TextLabel")
-HubTitle.Text = "Z A Y N  C H A T"
+HubTitle.Text = "Z C H A T"
 HubTitle.Font = Enum.Font.GothamBlack
 HubTitle.TextSize = 42
 HubTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -140,7 +141,7 @@ StatusTexts.GroupTransparency = 1
 StatusTexts.Parent = Halo
 
 local StatusMain = Instance.new("TextLabel")
-StatusMain.Text = "DEV : iZayn | ZAYN CHAT UPDATED!"
+StatusMain.Text = "DEV : iZayn | Z CHAT UPDATED!"
 StatusMain.Font = Enum.Font.Gotham
 StatusMain.TextSize = 12
 StatusMain.TextColor3 = Color3.fromRGB(150, 150, 150)
@@ -197,7 +198,7 @@ TweenService:Create(StatusTexts, t_sine, {GroupTransparency = 0}):Play()
 task.spawn(function()
     TypewriterEffect(StatusDetails, "> Welcome " .. LocalPlayer.DisplayName .. ". Verifying Access...", 0.04)
     task.wait(0.8)
-    TypewriterEffect(StatusDetails, "> ZAYN CHAT ACTIVE!", 0.03)
+    TypewriterEffect(StatusDetails, "> Z CHAT ACTIVE!", 0.03)
     task.wait(1)
 end)
 
@@ -428,7 +429,7 @@ local function startMainChat()
         local RE = ReplicatedStorage:FindFirstChild("RE")
         if RE and RE:FindFirstChild("1RPNam1eTex1t") then
             pcall(function()
-                RE["1RPNam1eTex1t"]:FireServer("RolePlayName", "✿ᴢᴀʏɴ ᴄʜᴀᴛ✿")
+                RE["1RPNam1eTex1t"]:FireServer("RolePlayName", "✿ᴢ ᴄʜᴀᴛ✿")
                 RE["1RPNam1eTex1t"]:FireServer("RolePlayBio", "Welcome dear " .. cleanMyName)
             end)
         end
@@ -610,6 +611,7 @@ local function startMainChat()
             dmChatContainer.Visible = false; currentTab = "GC"
         else switchTab("Server") end
     end)
+    
     -- ================================================================= --
     -- NOTIFICATION SYSTEM (CLICKABLE + STACKING)
     -- ================================================================= --
@@ -776,7 +778,14 @@ local function startMainChat()
                             table.insert(dmHistories[sUid], {name = mVal.senderName, msg = mVal.text, isSystem = false, uid = sUid})
 
                             if currentTab == "DMChat" and activeDmUserId == sUid then
-                                addMessageToChat(mVal.senderName, mVal.text, false, sUid, "DM")
+                                -- FIX 2: Live rendering of DM updates to make sure it's fully visible to both.
+                                for _, c in ipairs(dmChatFrame:GetChildren()) do if c:IsA("Frame") then c:Destroy() end end
+                                for _, h in ipairs(dmHistories[sUid]) do
+                                    addMessageToChat(h.name, h.msg, h.isSystem, h.uid, "DM")
+                                end
+                                task.wait(0.1)
+                                local maxScroll = dmChatLayout.AbsoluteContentSize.Y - dmChatFrame.AbsoluteSize.Y + 20
+                                if maxScroll > 0 then dmChatFrame.CanvasPosition = Vector2.new(0, maxScroll) end
                             else
                                 showNotif("🔒 DM: " .. mVal.senderName, mVal.text, true, sUid, "DM", sUid)
                             end
@@ -1002,7 +1011,7 @@ local function startMainChat()
                     if _rawReq and writefile and getcustomasset then
                         local s, r = pcall(_rawReq, {Url = url, Method = "GET"})
                         if s and r.StatusCode == 200 then
-                            local fN = "z_dp_preview_"..math.random(1000,9999)..".png"
+                            local fN = "z_dp_preview_"..math.random(1000,9999).png"
                             writefile(fN, r.Body)
                             avatarPreview.Image = getcustomasset(fN)
                         end
@@ -1157,7 +1166,7 @@ local function startMainChat()
             end
         end)
 
-        -- [NEW FIX]: Strict Type Checking & Handling for DM Button Crash
+        -- [FIXED 1]: UI Hidden Glitch when re-opening DM from profile
         local dmBtn = Instance.new("TextButton", box); dmBtn.Size=UDim2.new(1,-40,0,32); dmBtn.Position=UDim2.new(0,20,1,-42)
         dmBtn.Text="📩 DIRECT MESSAGE"; dmBtn.BackgroundColor3=Colors.Primary; dmBtn.TextColor3=Colors.Dark; dmBtn.Font=Enum.Font.GothamBold; Instance.new("UICorner", dmBtn).CornerRadius=UDim.new(0,8)
 
@@ -1165,14 +1174,14 @@ local function startMainChat()
             pcall(function() pGui:Destroy() end)
             
             local parsedUid = tonumber(tUid)
-            if not parsedUid then 
-                addMessageToChat("System", "❌ Error: Could not parse User ID for DM.", true, nil, "Server")
-                return 
-            end
+            if not parsedUid then return end
             
             activeDmUserId = parsedUid
             activeDmUserName = tName
             if dmChatTitle then dmChatTitle.Text = "Chat with " .. activeDmUserName end
+
+            -- FIX: Auto-toggle UI Open if it was closed
+            if not isUiOpen then toggleMainUI(true) end
 
             for _, c in ipairs(dmChatFrame:GetChildren()) do if c:IsA("Frame") then c:Destroy() end end
             if dmHistories[activeDmUserId] then
@@ -1195,6 +1204,7 @@ local function startMainChat()
         pcall(function() game:GetService("TextChatService"):DisplayBubble(targetPlayer.Character, cleanMsg) end)
     end
 
+    -- --- [PART 1 ENDS HERE] ---
     -- ================================================================= --
     -- MESSAGE CONTEXT MENU — UNSEND + REPLY + COPY + TRANSLATE
     -- ================================================================= --
@@ -1284,7 +1294,7 @@ local function startMainChat()
             end)
         end)
 
-        -- UNSEND BUTTON
+        -- UNSEND BUTTON [FIXED 4: GLOBAL UNSEND]
         if isMyMessage then
             local unsendBtn = Instance.new("TextButton", mainOpts)
             unsendBtn.Size = UDim2.new(1, -20, 0, 22)
@@ -1297,6 +1307,11 @@ local function startMainChat()
             unsendBtn.MouseButton1Click:Connect(function()
                 ctxGui:Destroy()
                 if firebaseKey and firebaseKey ~= "" then
+                    -- Send global signal for everyone to delete this message
+                    if messageQueue then
+                        table.insert(messageQueue, {text="[ZAYN_UNSEND] " .. firebaseKey, timestamp=os.time()})
+                        processQueue()
+                    end
                     task.spawn(function()
                         pcall(function()
                             reqFunc({
@@ -1834,6 +1849,7 @@ local function startMainChat()
         return id or url
     end
 
+    -- [FIXED 3: GLOBAL DJ SYNC] - This function will now trigger for ALL users in the server when the message is processed
     local function DownloadAndPlayYTAudio(vId, senderName)
         globalDjSequence = globalDjSequence + 1
         local mySeq = globalDjSequence
@@ -2258,6 +2274,25 @@ local function startMainChat()
                             processedIds[key] = true
 
                             local mtext = msgData.text
+
+                            -- [FIXED 4: GLOBAL UNSEND RECEIVER]
+                            if mtext:find("%[ZAYN_UNSEND%]") then
+                                local delKey = mtext:match("%[ZAYN_UNSEND%] ([%w_-]+)")
+                                if delKey then
+                                    for _, child in ipairs(chatFrame:GetChildren()) do
+                                        if child:GetAttribute("FBKey") == delKey then
+                                            safeTween(child, {BackgroundTransparency = 1}, 0.2)
+                                            for _, v in ipairs(child:GetDescendants()) do
+                                                if v:IsA("TextLabel") or v:IsA("TextButton") then pcall(function() safeTween(v, {TextTransparency = 1}, 0.2) end)
+                                                elseif v:IsA("ImageLabel") or v:IsA("ImageButton") then pcall(function() safeTween(v, {ImageTransparency = 1}, 0.2) end)
+                                                elseif v:IsA("Frame") then pcall(function() safeTween(v, {BackgroundTransparency = 1}, 0.2) end) end
+                                            end
+                                            task.delay(0.3, function() pcall(function() child:Destroy() end) end)
+                                        end
+                                    end
+                                end
+                                continue
+                            end
 
                             if mtext:find("%[ZAYN_DJ_GRANT:") then
                                 local grantUid = mtext:match("%[ZAYN_DJ_GRANT:([%w_]+)%]")
