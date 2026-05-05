@@ -1,12 +1,10 @@
 -- ========================================================== --
--- ZAYN UI LAB - SERVER & GALLERY EDITION (V46.8 TITAN)       --
+-- ZAYN UI LAB - SERVER & GALLERY EDITION (V47.0 TITAN)       --
 -- THEME: OBSIDIAN DARK & SOFT RELAXING PASTEL                --
--- FIX: DJ SYSTEM PROPERLY INTEGRATED (NO DUPLICATE)          --
--- FIX: PREMIUM MUSIC BUBBLE UI                               --
--- FIX: TEXT WRAP OVERFLOW (UI BOUNDS STRICTLY LIMITED)       --
--- FIX: PROFILE DP CLICKABLE TO OPEN MINI PROFILE             --
--- FIX: DM IDENTITY ENGINE REWRITTEN (SENDER LOGIC)           --
--- FULL SCRIPT: NO SHORTCUTS, NO GLITCHES                     --
+-- FIX: NOTIFICATION CLICK → DM MESSAGE NOW SHOWS CORRECTLY  --
+-- FIX: MESSAGE OVERFLOW (TEXT + IMAGE STRICTLY BOUNDED)      --
+-- FIX: PHOTO BUBBLE SIZE PROPERLY CONSTRAINED                --
+-- NEW: PREMIUM DM INBOX PAGE (CROSS-SERVER CONTACTS)         --
 -- ========================================================== --
 
 local TweenService = game:GetService("TweenService")
@@ -17,7 +15,7 @@ local LocalPlayer = Players.LocalPlayer
 local UI_PARENT = (gethui and gethui()) or CoreGui
 
 -- ================================================================= --
--- [STAGE 1] : CLEANUP OLD UI BEFORE STARTING
+-- [STAGE 1] : CLEANUP OLD UI
 -- ================================================================= --
 if UI_PARENT:FindFirstChild("ZaynTitanRevelation") then UI_PARENT.ZaynTitanRevelation:Destroy() end
 if UI_PARENT:FindFirstChild("ZAYN_OMNI_GUI") then UI_PARENT.ZAYN_OMNI_GUI:Destroy() end
@@ -27,6 +25,7 @@ if UI_PARENT:FindFirstChild("ZaynMiniProfile") then UI_PARENT.ZaynMiniProfile:De
 if UI_PARENT:FindFirstChild("ZaynProfileEditor") then UI_PARENT.ZaynProfileEditor:Destroy() end
 if UI_PARENT:FindFirstChild("ZaynMsgContext") then UI_PARENT.ZaynMsgContext:Destroy() end
 if UI_PARENT:FindFirstChild("ZaynMusicBubble") then UI_PARENT.ZaynMusicBubble:Destroy() end
+if UI_PARENT:FindFirstChild("ZaynDmInbox") then UI_PARENT.ZaynDmInbox:Destroy() end
 
 -- ================================================================= --
 -- [GLOBAL DJ SOUND CLEANUP ON RE-EXECUTE]
@@ -233,8 +232,9 @@ local function startMainChat()
     local TYPING_PATH = "servers/" .. SERVER_ID .. "/typing/"
     local BLACKLIST_DB_PATH = "blacklist/"
     local TITLES_DB_PATH = "titles/"
+    -- Cross-server DM contacts stored globally (not per server)
+    local DM_CONTACTS_PATH = "dm_contacts/"
 
-    -- DJ System Variables (declared here so accessible everywhere)
     local RAPID_API_KEY  = "097446f512mshd8abf5f58ef31b1p10a0d0jsn08925256e226"
     local RAPID_API_HOST = "youtube-mp36.p.rapidapi.com"
     local API_URL        = "https://youtube-mp36.p.rapidapi.com/dl?id="
@@ -362,6 +362,9 @@ local function startMainChat()
     local activeScriptUsers = {}
     local customProfiles = {}
     local dmHistories = {}
+    -- DM Contacts: stores {uid -> {displayName, username, dp, lastMsg, lastTime}}
+    local dmContacts = {}
+
     activeScriptUsers[myUserId] = {displayName = cleanMyName, name = myUser, lastSeen = os.time(), welcomed = true}
 
     local STICKER_LIST = {
@@ -419,9 +422,36 @@ local function startMainChat()
             if tRes.Success and tRes.Body ~= "null" then pcall(function() _internalTitles = HttpService:JSONDecode(tRes.Body) end) end
             local pRes = reqFunc({Url = FIREBASE_URL .. "profiles.json", Method = "GET"})
             if pRes.Success and pRes.Body ~= "null" then pcall(function() customProfiles = HttpService:JSONDecode(pRes.Body) end) end
+            -- Load DM contacts
+            local cRes = reqFunc({Url = FIREBASE_URL .. DM_CONTACTS_PATH .. myUserId .. ".json", Method = "GET"})
+            if cRes.Success and cRes.Body ~= "null" then
+                pcall(function() dmContacts = HttpService:JSONDecode(cRes.Body) end)
+            end
         end)
     end
     loadData()
+
+    -- Save DM contact to Firebase (cross-server)
+    local function saveDmContact(uid, displayName, username, dp, lastMsg)
+        local uidStr = tostring(uid)
+        dmContacts[uidStr] = {
+            displayName = displayName or "Unknown",
+            username = username or "unknown",
+            dp = dp or "",
+            lastMsg = lastMsg or "",
+            lastTime = os.time()
+        }
+        task.spawn(function()
+            pcall(function()
+                reqFunc({
+                    Url = FIREBASE_URL .. DM_CONTACTS_PATH .. myUserId .. "/" .. uidStr .. ".json",
+                    Method = "PUT",
+                    Headers = {["Content-Type"] = "application/json"},
+                    Body = HttpService:JSONEncode(dmContacts[uidStr])
+                })
+            end)
+        end)
+    end
 
     local rgbHue, rgbSpeed, rgbConn = 0, 0.008, nil
     local function startUltraSmoothRgb()
@@ -507,17 +537,19 @@ local function startMainChat()
 
     local titleLabel = Instance.new("TextLabel", titleBar); titleLabel.Size = UDim2.new(1, -75, 1, 0); titleLabel.Text = ""; titleLabel.Font = Enum.Font.GothamBlack; titleLabel.TextSize = 16; titleLabel.TextColor3 = Color3.fromRGB(168, 230, 207); titleLabel.BackgroundTransparency = 1; titleLabel.TextXAlignment = Enum.TextXAlignment.Right
 
-    local serverTabBtn = Instance.new("TextButton", titleBar); serverTabBtn.Size = UDim2.new(0, 60, 0, 20); serverTabBtn.Position = UDim2.new(0, 10, 0.5, 0); serverTabBtn.AnchorPoint = Vector2.new(0, 0.5); serverTabBtn.Text = "🌍 SERVER"; serverTabBtn.Font = Enum.Font.GothamBold; serverTabBtn.TextSize = 10; serverTabBtn.TextColor3 = Colors.Primary; serverTabBtn.BackgroundColor3 = Colors.Dark; serverTabBtn.BackgroundTransparency = 0.5; Instance.new("UICorner", serverTabBtn).CornerRadius = UDim.new(0, 6)
-    local galleryTabBtn = Instance.new("TextButton", titleBar); galleryTabBtn.Size = UDim2.new(0, 75, 0, 20); galleryTabBtn.Position = UDim2.new(0, 75, 0.5, 0); galleryTabBtn.AnchorPoint = Vector2.new(0, 0.5); galleryTabBtn.Text = "🖼️ GALLERY"; galleryTabBtn.Font = Enum.Font.GothamBold; galleryTabBtn.TextSize = 10; galleryTabBtn.TextColor3 = Colors.SystemYellow; galleryTabBtn.BackgroundColor3 = Colors.Dark; galleryTabBtn.BackgroundTransparency = 0.5; Instance.new("UICorner", galleryTabBtn).CornerRadius = UDim.new(0, 6)
-    local profileTabBtn = Instance.new("TextButton", titleBar); profileTabBtn.Size = UDim2.new(0, 65, 0, 20); profileTabBtn.Position = UDim2.new(0, 155, 0.5, 0); profileTabBtn.AnchorPoint = Vector2.new(0, 0.5); profileTabBtn.Text = "⚙️ PROFILE"; profileTabBtn.Font = Enum.Font.GothamBold; profileTabBtn.TextSize = 10; profileTabBtn.TextColor3 = Colors.Light; profileTabBtn.BackgroundColor3 = Colors.Dark; profileTabBtn.BackgroundTransparency = 0.5; Instance.new("UICorner", profileTabBtn).CornerRadius = UDim.new(0, 6)
-    local voiceTabBtn = Instance.new("TextButton", titleBar); voiceTabBtn.Size = UDim2.new(0, 60, 0, 20); voiceTabBtn.Position = UDim2.new(0, 225, 0.5, 0); voiceTabBtn.AnchorPoint = Vector2.new(0, 0.5); voiceTabBtn.Text = "🎵 VOICE"; voiceTabBtn.Font = Enum.Font.GothamBold; voiceTabBtn.TextSize = 10; voiceTabBtn.TextColor3 = Colors.Accent; voiceTabBtn.BackgroundColor3 = Colors.Dark; voiceTabBtn.BackgroundTransparency = 0.5; Instance.new("UICorner", voiceTabBtn).CornerRadius = UDim.new(0, 6)
+    local serverTabBtn = Instance.new("TextButton", titleBar); serverTabBtn.Size = UDim2.new(0, 55, 0, 20); serverTabBtn.Position = UDim2.new(0, 5, 0.5, 0); serverTabBtn.AnchorPoint = Vector2.new(0, 0.5); serverTabBtn.Text = "🌍 SERVER"; serverTabBtn.Font = Enum.Font.GothamBold; serverTabBtn.TextSize = 9; serverTabBtn.TextColor3 = Colors.Primary; serverTabBtn.BackgroundColor3 = Colors.Dark; serverTabBtn.BackgroundTransparency = 0.5; Instance.new("UICorner", serverTabBtn).CornerRadius = UDim.new(0, 6)
+    local galleryTabBtn = Instance.new("TextButton", titleBar); galleryTabBtn.Size = UDim2.new(0, 68, 0, 20); galleryTabBtn.Position = UDim2.new(0, 63, 0.5, 0); galleryTabBtn.AnchorPoint = Vector2.new(0, 0.5); galleryTabBtn.Text = "🖼️ GALLERY"; galleryTabBtn.Font = Enum.Font.GothamBold; galleryTabBtn.TextSize = 9; galleryTabBtn.TextColor3 = Colors.SystemYellow; galleryTabBtn.BackgroundColor3 = Colors.Dark; galleryTabBtn.BackgroundTransparency = 0.5; Instance.new("UICorner", galleryTabBtn).CornerRadius = UDim.new(0, 6)
+    local profileTabBtn = Instance.new("TextButton", titleBar); profileTabBtn.Size = UDim2.new(0, 60, 0, 20); profileTabBtn.Position = UDim2.new(0, 134, 0.5, 0); profileTabBtn.AnchorPoint = Vector2.new(0, 0.5); profileTabBtn.Text = "⚙️ PROFILE"; profileTabBtn.Font = Enum.Font.GothamBold; profileTabBtn.TextSize = 9; profileTabBtn.TextColor3 = Colors.Light; profileTabBtn.BackgroundColor3 = Colors.Dark; profileTabBtn.BackgroundTransparency = 0.5; Instance.new("UICorner", profileTabBtn).CornerRadius = UDim.new(0, 6)
+    local voiceTabBtn = Instance.new("TextButton", titleBar); voiceTabBtn.Size = UDim2.new(0, 55, 0, 20); voiceTabBtn.Position = UDim2.new(0, 197, 0.5, 0); voiceTabBtn.AnchorPoint = Vector2.new(0, 0.5); voiceTabBtn.Text = "🎵 VOICE"; voiceTabBtn.Font = Enum.Font.GothamBold; voiceTabBtn.TextSize = 9; voiceTabBtn.TextColor3 = Colors.Accent; voiceTabBtn.BackgroundColor3 = Colors.Dark; voiceTabBtn.BackgroundTransparency = 0.5; Instance.new("UICorner", voiceTabBtn).CornerRadius = UDim.new(0, 6)
+    -- NEW: DM Inbox Tab
+    local dmInboxTabBtn = Instance.new("TextButton", titleBar); dmInboxTabBtn.Size = UDim2.new(0, 50, 0, 20); dmInboxTabBtn.Position = UDim2.new(0, 255, 0.5, 0); dmInboxTabBtn.AnchorPoint = Vector2.new(0, 0.5); dmInboxTabBtn.Text = "📩 DMs"; dmInboxTabBtn.Font = Enum.Font.GothamBold; dmInboxTabBtn.TextSize = 9; dmInboxTabBtn.TextColor3 = Colors.NeonPink; dmInboxTabBtn.BackgroundColor3 = Colors.Dark; dmInboxTabBtn.BackgroundTransparency = 0.5; Instance.new("UICorner", dmInboxTabBtn).CornerRadius = UDim.new(0, 6)
 
     local closeBtn = Instance.new("TextButton", titleBar); closeBtn.Size = UDim2.new(0, 28, 0, 28); closeBtn.Position = UDim2.new(1, -34, 0.5, -14); closeBtn.Text = "-"; closeBtn.TextColor3 = Colors.Text; closeBtn.Font = Enum.Font.GothamBold; closeBtn.TextSize = 16; closeBtn.BackgroundColor3 = Colors.Dark; closeBtn.BackgroundTransparency = 0.2; Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(1, 0); Instance.new("UIStroke", closeBtn).Color = Colors.TextDim
     closeBtn.MouseButton1Click:Connect(function() toggleMainUI(false) end)
 
     local contentFrame = Instance.new("Frame", main); contentFrame.Size = UDim2.new(1, 0, 1, -42); contentFrame.Position = UDim2.new(0, 0, 0, 42); contentFrame.BackgroundTransparency = 1
 
-    local chatFrame = Instance.new("ScrollingFrame", contentFrame); chatFrame.Size = UDim2.new(1, -22, 0, 210); chatFrame.Position = UDim2.new(0, 11, 0, 5); chatFrame.BackgroundTransparency = 1; chatFrame.ScrollBarThickness = 2; chatFrame.ScrollBarImageColor3 = Colors.Glow; chatFrame.ScrollBarImageTransparency = 0.5; chatFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y; Instance.new("UIPadding", chatFrame).PaddingLeft = UDim.new(0, 6); Instance.new("UIPadding", chatFrame).PaddingRight = UDim.new(0, 6)
+    local chatFrame = Instance.new("ScrollingFrame", contentFrame); chatFrame.Size = UDim2.new(1, -22, 0, 210); chatFrame.Position = UDim2.new(0, 11, 0, 5); chatFrame.BackgroundTransparency = 1; chatFrame.ScrollBarThickness = 2; chatFrame.ScrollBarImageColor3 = Colors.Glow; chatFrame.ScrollBarImageTransparency = 0.5; chatFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y; chatFrame.ClipsDescendants = true; Instance.new("UIPadding", chatFrame).PaddingLeft = UDim.new(0, 6); Instance.new("UIPadding", chatFrame).PaddingRight = UDim.new(0, 6)
     local chatLayout = Instance.new("UIListLayout", chatFrame); chatLayout.SortOrder = Enum.SortOrder.LayoutOrder; chatLayout.Padding = UDim.new(0, 10)
 
     local galleryContainer = Instance.new("Frame", main); galleryContainer.Size = UDim2.new(1, 0, 1, -42); galleryContainer.Position = UDim2.new(0, 0, 0, 42); galleryContainer.BackgroundTransparency = 1; galleryContainer.Visible = false
@@ -528,6 +560,243 @@ local function startMainChat()
     local voiceScroll = Instance.new("ScrollingFrame", voiceContainer); voiceScroll.Size = UDim2.new(1, -22, 1, -10); voiceScroll.Position = UDim2.new(0, 11, 0, 5); voiceScroll.BackgroundTransparency = 1; voiceScroll.ScrollBarThickness = 2; voiceScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y; Instance.new("UIPadding", voiceScroll).PaddingLeft = UDim.new(0, 4); Instance.new("UIPadding", voiceScroll).PaddingRight = UDim.new(0, 4)
     local voiceLayout = Instance.new("UIListLayout", voiceScroll); voiceLayout.Padding = UDim.new(0, 8); voiceLayout.SortOrder = Enum.SortOrder.LayoutOrder
 
+    -- ================================================================= --
+    -- ✨ NEW: PREMIUM DM INBOX PAGE
+    -- ================================================================= --
+    local dmInboxContainer = Instance.new("Frame", main)
+    dmInboxContainer.Size = UDim2.new(1, 0, 1, -42)
+    dmInboxContainer.Position = UDim2.new(0, 0, 0, 42)
+    dmInboxContainer.BackgroundTransparency = 1
+    dmInboxContainer.Visible = false
+    dmInboxContainer.ClipsDescendants = true
+
+    -- Header
+    local dmInboxHeader = Instance.new("Frame", dmInboxContainer)
+    dmInboxHeader.Size = UDim2.new(1, -22, 0, 30)
+    dmInboxHeader.Position = UDim2.new(0, 11, 0, 5)
+    dmInboxHeader.BackgroundColor3 = Color3.fromRGB(20, 12, 28)
+    dmInboxHeader.BackgroundTransparency = 0.2
+    dmInboxHeader.BorderSizePixel = 0
+    Instance.new("UICorner", dmInboxHeader).CornerRadius = UDim.new(0, 10)
+    local dmInboxStroke = Instance.new("UIStroke", dmInboxHeader)
+    dmInboxStroke.Color = Colors.NeonPink
+    dmInboxStroke.Thickness = 1.5
+    dmInboxStroke.Transparency = 0.3
+
+    local dmInboxTitle = Instance.new("TextLabel", dmInboxHeader)
+    dmInboxTitle.Size = UDim2.new(1, 0, 1, 0)
+    dmInboxTitle.Text = "📩  Direct Messages"
+    dmInboxTitle.Font = Enum.Font.GothamBlack
+    dmInboxTitle.TextSize = 13
+    dmInboxTitle.TextColor3 = Colors.NeonPink
+    dmInboxTitle.BackgroundTransparency = 1
+
+    -- Contacts scroll list
+    local dmInboxScroll = Instance.new("ScrollingFrame", dmInboxContainer)
+    dmInboxScroll.Size = UDim2.new(1, -22, 1, -46)
+    dmInboxScroll.Position = UDim2.new(0, 11, 0, 42)
+    dmInboxScroll.BackgroundTransparency = 1
+    dmInboxScroll.ScrollBarThickness = 2
+    dmInboxScroll.ScrollBarImageColor3 = Colors.NeonPink
+    dmInboxScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    dmInboxScroll.BorderSizePixel = 0
+    local dmInboxLayout = Instance.new("UIListLayout", dmInboxScroll)
+    dmInboxLayout.Padding = UDim.new(0, 6)
+    dmInboxLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+    -- Empty state label
+    local dmEmptyLabel = Instance.new("TextLabel", dmInboxScroll)
+    dmEmptyLabel.Size = UDim2.new(1, 0, 0, 50)
+    dmEmptyLabel.Text = "No DMs yet!\nSend someone a message to start."
+    dmEmptyLabel.TextColor3 = Colors.TextDim
+    dmEmptyLabel.Font = Enum.Font.Gotham
+    dmEmptyLabel.TextSize = 12
+    dmEmptyLabel.BackgroundTransparency = 1
+    dmEmptyLabel.TextWrapped = true
+    dmEmptyLabel.LayoutOrder = 9999
+
+    local dmContactWidgets = {} -- uid -> widget frame
+
+    local function refreshDmInboxEmpty()
+        local hasContacts = false
+        for _ in pairs(dmContacts) do hasContacts = true; break end
+        dmEmptyLabel.Visible = not hasContacts
+    end
+
+    local function createOrUpdateDmContactWidget(uid, data)
+        local uidStr = tostring(uid)
+        if dmContactWidgets[uidStr] then
+            -- Update last message preview
+            local prevLbl = dmContactWidgets[uidStr]:FindFirstChild("LastMsg")
+            if prevLbl and data.lastMsg then
+                local cleanLastMsg = tostring(data.lastMsg):gsub("%[STICKER:%d+%]", "🌸 Sticker"):gsub("%[PHOTO:.-%]", "📸 Photo"):gsub("%[VOICE:.-%]", "🎵 Voice"):gsub("%[SNAP%].*", "🔥 Snap")
+                prevLbl.Text = cleanLastMsg ~= "" and cleanLastMsg or "Tap to chat"
+            end
+            return
+        end
+
+        local card = Instance.new("Frame", dmInboxScroll)
+        card.Name = "DMContact_" .. uidStr
+        card.Size = UDim2.new(1, -4, 0, 58)
+        card.BackgroundColor3 = Color3.fromRGB(18, 10, 25)
+        card.BackgroundTransparency = 0.1
+        card.BorderSizePixel = 0
+        card.LayoutOrder = os.time()
+        Instance.new("UICorner", card).CornerRadius = UDim.new(0, 12)
+        local cardStroke = Instance.new("UIStroke", card)
+        cardStroke.Color = Colors.NeonPink
+        cardStroke.Thickness = 1
+        cardStroke.Transparency = 0.5
+
+        -- Hover effect
+        card.MouseEnter:Connect(function()
+            safeTween(card, {BackgroundTransparency = 0}, 0.15)
+            safeTween(cardStroke, {Transparency = 0.1}, 0.15)
+        end)
+        card.MouseLeave:Connect(function()
+            safeTween(card, {BackgroundTransparency = 0.1}, 0.15)
+            safeTween(cardStroke, {Transparency = 0.5}, 0.15)
+        end)
+
+        -- Avatar
+        local avatarFrame = Instance.new("Frame", card)
+        avatarFrame.Size = UDim2.new(0, 44, 0, 44)
+        avatarFrame.Position = UDim2.new(0, 8, 0.5, -22)
+        avatarFrame.BackgroundColor3 = Colors.NeonPink
+        avatarFrame.BackgroundTransparency = 0.7
+        avatarFrame.BorderSizePixel = 0
+        Instance.new("UICorner", avatarFrame).CornerRadius = UDim.new(1, 0)
+        local avStroke2 = Instance.new("UIStroke", avatarFrame)
+        avStroke2.Color = Colors.NeonPink
+        avStroke2.Thickness = 2
+        avStroke2.Transparency = 0.2
+
+        local avatarImg2 = Instance.new("ImageLabel", avatarFrame)
+        avatarImg2.Size = UDim2.new(1, 0, 1, 0)
+        avatarImg2.BackgroundTransparency = 1
+        avatarImg2.ScaleType = Enum.ScaleType.Crop
+        Instance.new("UICorner", avatarImg2).CornerRadius = UDim.new(1, 0)
+
+        -- Load DP
+        local dpUrl = data.dp or ""
+        if dpUrl:find("http") then
+            task.spawn(function()
+                if _rawReq and writefile and getcustomasset then
+                    local s, r = pcall(_rawReq, {Url = dpUrl, Method = "GET"})
+                    if s and r.StatusCode == 200 then
+                        local fN = "z_inbox_dp_" .. uidStr .. ".png"; writefile(fN, r.Body)
+                        avatarImg2.Image = getcustomasset(fN)
+                    else avatarImg2.Image = "rbxthumb://type=AvatarHeadShot&id=" .. uidStr .. "&w=150&h=150" end
+                end
+            end)
+        else avatarImg2.Image = "rbxthumb://type=AvatarHeadShot&id=" .. uidStr .. "&w=150&h=150" end
+
+        -- Online indicator dot
+        local onlineDot = Instance.new("Frame", avatarFrame)
+        onlineDot.Size = UDim2.new(0, 10, 0, 10)
+        onlineDot.Position = UDim2.new(1, -10, 1, -10)
+        onlineDot.BackgroundColor3 = Color3.fromRGB(0, 255, 120)
+        onlineDot.BorderSizePixel = 0
+        Instance.new("UICorner", onlineDot).CornerRadius = UDim.new(1, 0)
+        -- Check if user is active (seen within 3 min)
+        local isActive = activeScriptUsers[uidStr] and (os.time() - (activeScriptUsers[uidStr].lastSeen or 0)) < 180
+        onlineDot.BackgroundColor3 = isActive and Color3.fromRGB(0, 255, 120) or Color3.fromRGB(100, 100, 100)
+
+        -- Text area
+        local textArea = Instance.new("Frame", card)
+        textArea.Size = UDim2.new(1, -120, 1, 0)
+        textArea.Position = UDim2.new(0, 60, 0, 0)
+        textArea.BackgroundTransparency = 1
+
+        local displayNameLbl = Instance.new("TextLabel", textArea)
+        displayNameLbl.Size = UDim2.new(1, 0, 0, 20)
+        displayNameLbl.Position = UDim2.new(0, 0, 0, 8)
+        displayNameLbl.Text = data.displayName or "Unknown"
+        displayNameLbl.Font = Enum.Font.GothamBlack
+        displayNameLbl.TextSize = 13
+        displayNameLbl.TextColor3 = Colors.Light
+        displayNameLbl.BackgroundTransparency = 1
+        displayNameLbl.TextXAlignment = Enum.TextXAlignment.Left
+        displayNameLbl.TextTruncate = Enum.TextTruncate.AtEnd
+
+        local usernameLbl = Instance.new("TextLabel", textArea)
+        usernameLbl.Size = UDim2.new(1, 0, 0, 14)
+        usernameLbl.Position = UDim2.new(0, 0, 0, 24)
+        usernameLbl.Text = "@" .. (data.username or "unknown")
+        usernameLbl.Font = Enum.Font.Gotham
+        usernameLbl.TextSize = 10
+        usernameLbl.TextColor3 = Colors.NeonPink
+        usernameLbl.BackgroundTransparency = 1
+        usernameLbl.TextXAlignment = Enum.TextXAlignment.Left
+
+        local cleanLastMsg = tostring(data.lastMsg or ""):gsub("%[STICKER:%d+%]", "🌸 Sticker"):gsub("%[PHOTO:.-%]", "📸 Photo"):gsub("%[VOICE:.-%]", "🎵 Voice"):gsub("%[SNAP%].*", "🔥 Snap")
+        local lastMsgLbl = Instance.new("TextLabel", textArea)
+        lastMsgLbl.Name = "LastMsg"
+        lastMsgLbl.Size = UDim2.new(1, 0, 0, 14)
+        lastMsgLbl.Position = UDim2.new(0, 0, 0, 38)
+        lastMsgLbl.Text = cleanLastMsg ~= "" and cleanLastMsg or "Tap to chat"
+        lastMsgLbl.Font = Enum.Font.Gotham
+        lastMsgLbl.TextSize = 10
+        lastMsgLbl.TextColor3 = Colors.TextDim
+        lastMsgLbl.BackgroundTransparency = 1
+        lastMsgLbl.TextXAlignment = Enum.TextXAlignment.Left
+        lastMsgLbl.TextTruncate = Enum.TextTruncate.AtEnd
+
+        -- DM Button on right
+        local dmOpenBtn = Instance.new("TextButton", card)
+        dmOpenBtn.Size = UDim2.new(0, 48, 0, 28)
+        dmOpenBtn.Position = UDim2.new(1, -56, 0.5, -14)
+        dmOpenBtn.Text = "💬 DM"
+        dmOpenBtn.Font = Enum.Font.GothamBold
+        dmOpenBtn.TextSize = 9
+        dmOpenBtn.TextColor3 = Colors.Dark
+        dmOpenBtn.BackgroundColor3 = Colors.NeonPink
+        dmOpenBtn.BorderSizePixel = 0
+        Instance.new("UICorner", dmOpenBtn).CornerRadius = UDim.new(0, 8)
+
+        dmOpenBtn.MouseButton1Click:Connect(function()
+            local parsedUid = tonumber(uidStr)
+            if not parsedUid then return end
+            activeDmUserId = parsedUid
+            activeDmUserName = data.displayName or "Unknown"
+            if dmChatTitle then dmChatTitle.Text = "Chat with " .. activeDmUserName end
+            if not isUiOpen then toggleMainUI(true) end
+            contentFrame.Visible = false; galleryContainer.Visible = false; voiceContainer.Visible = false
+            dmChatContainer.Visible = true; dmInboxContainer.Visible = false; currentTab = "DMChat"
+            for _, c in ipairs(dmChatFrame:GetChildren()) do
+                if c:IsA("Frame") then
+                    if c:GetAttribute("ConvoId") == uidStr then c.Visible = true else c.Visible = false end
+                end
+            end
+            task.wait(0.1)
+            local maxScroll = dmChatLayout.AbsoluteContentSize.Y - dmChatFrame.AbsoluteSize.Y + 20
+            if maxScroll > 0 then dmChatFrame.CanvasPosition = Vector2.new(0, maxScroll) end
+        end)
+
+        -- Also full card clickable
+        card.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                dmOpenBtn.MouseButton1Click:Fire()
+            end
+        end)
+
+        dmContactWidgets[uidStr] = card
+        card:SetAttribute("ContactUid", uidStr)
+        refreshDmInboxEmpty()
+    end
+
+    -- Load existing contacts into inbox
+    task.spawn(function()
+        task.wait(2)
+        for uid, data in pairs(dmContacts) do
+            createOrUpdateDmContactWidget(uid, data)
+        end
+        refreshDmInboxEmpty()
+    end)
+
+    -- ================================================================= --
+    -- FULL SCREEN PREVIEW
+    -- ================================================================= --
     local function openFullScreenPreview(imgIdOrUrl)
         if UI_PARENT:FindFirstChild("ZaynPreviewModal") then UI_PARENT.ZaynPreviewModal:Destroy() end
         local mGui = Instance.new("ScreenGui", UI_PARENT); mGui.Name = "ZaynPreviewModal"; mGui.DisplayOrder = 99999; mGui.IgnoreGuiInset = true
@@ -584,12 +853,25 @@ local function startMainChat()
     local typingLbl = Instance.new("TextLabel", contentFrame); typingLbl.Size = UDim2.new(1, -30, 0, 15); typingLbl.Position = UDim2.new(0, 15, 1, -65); typingLbl.BackgroundTransparency = 1; typingLbl.TextColor3 = Colors.Accent; typingLbl.Font = Enum.Font.Gotham; typingLbl.TextSize = 10; typingLbl.TextXAlignment = Enum.TextXAlignment.Left; typingLbl.Text = ""
 
     local currentTab, activeDmUserId, activeDmUserName = "Server", nil, nil
+
     local dmChatContainer = Instance.new("Frame", main); dmChatContainer.Size = UDim2.new(1, 0, 1, -42); dmChatContainer.Position = UDim2.new(0, 0, 0, 42); dmChatContainer.BackgroundTransparency = 1; dmChatContainer.Visible = false
     local dmTopBar = Instance.new("Frame", dmChatContainer); dmTopBar.Size = UDim2.new(1, -22, 0, 30); dmTopBar.Position = UDim2.new(0, 11, 0, 5); dmTopBar.BackgroundColor3 = Colors.Darker; dmTopBar.BackgroundTransparency = 0.3; dmTopBar.BorderSizePixel = 0; Instance.new("UICorner", dmTopBar).CornerRadius = UDim.new(0, 8)
-    local dmBackBtn = Instance.new("TextButton", dmTopBar); dmBackBtn.Size = UDim2.new(0, 50, 1, 0); dmBackBtn.Text = "< Back"; dmBackBtn.Font = Enum.Font.GothamBold; dmBackBtn.TextSize = 12; dmBackBtn.TextColor3 = Colors.Primary; dmBackBtn.BackgroundTransparency = 1
-    local dmChatTitle = Instance.new("TextLabel", dmTopBar); dmChatTitle.Size = UDim2.new(1, -60, 1, 0); dmChatTitle.Position = UDim2.new(0, 60, 0, 0); dmChatTitle.Text = "Chat"; dmChatTitle.Font = Enum.Font.GothamBlack; dmChatTitle.TextSize = 13; dmChatTitle.TextColor3 = Colors.Light; dmChatTitle.BackgroundTransparency = 1; dmChatTitle.TextXAlignment = Enum.TextXAlignment.Left
+    local dmBackBtn = Instance.new("TextButton", dmTopBar); dmBackBtn.Size = UDim2.new(0, 60, 1, 0); dmBackBtn.Text = "< Back"; dmBackBtn.Font = Enum.Font.GothamBold; dmBackBtn.TextSize = 12; dmBackBtn.TextColor3 = Colors.Primary; dmBackBtn.BackgroundTransparency = 1
+    local dmChatTitle = Instance.new("TextLabel", dmTopBar); dmChatTitle.Size = UDim2.new(1, -70, 1, 0); dmChatTitle.Position = UDim2.new(0, 65, 0, 0); dmChatTitle.Text = "Chat"; dmChatTitle.Font = Enum.Font.GothamBlack; dmChatTitle.TextSize = 13; dmChatTitle.TextColor3 = Colors.Light; dmChatTitle.BackgroundTransparency = 1; dmChatTitle.TextXAlignment = Enum.TextXAlignment.Left; dmChatTitle.TextTruncate = Enum.TextTruncate.AtEnd
 
-    local dmChatFrame = Instance.new("ScrollingFrame", dmChatContainer); dmChatFrame.Size = UDim2.new(1, -22, 0, 180); dmChatFrame.Position = UDim2.new(0, 11, 0, 40); dmChatFrame.BackgroundTransparency = 1; dmChatFrame.BorderSizePixel = 0; dmChatFrame.ScrollBarThickness = 2; dmChatFrame.ScrollBarImageColor3 = Colors.NeonPink; dmChatFrame.ScrollBarImageTransparency = 0.5; dmChatFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y; dmChatFrame.ScrollingDirection = Enum.ScrollingDirection.Y; Instance.new("UIPadding", dmChatFrame).PaddingLeft = UDim.new(0, 6); Instance.new("UIPadding", dmChatFrame).PaddingRight = UDim.new(0, 6)
+    -- FIX: DM Chat Frame with proper ClipsDescendants
+    local dmChatFrame = Instance.new("ScrollingFrame", dmChatContainer)
+    dmChatFrame.Size = UDim2.new(1, -22, 0, 180)
+    dmChatFrame.Position = UDim2.new(0, 11, 0, 40)
+    dmChatFrame.BackgroundTransparency = 1
+    dmChatFrame.BorderSizePixel = 0
+    dmChatFrame.ScrollBarThickness = 2
+    dmChatFrame.ScrollBarImageColor3 = Colors.NeonPink
+    dmChatFrame.ScrollBarImageTransparency = 0.5
+    dmChatFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    dmChatFrame.ScrollingDirection = Enum.ScrollingDirection.Y
+    dmChatFrame.ClipsDescendants = true
+    local dmPadL = Instance.new("UIPadding", dmChatFrame); dmPadL.PaddingLeft = UDim.new(0, 6); dmPadL.PaddingRight = UDim.new(0, 6)
     local dmChatLayout = Instance.new("UIListLayout", dmChatFrame); dmChatLayout.SortOrder = Enum.SortOrder.LayoutOrder; dmChatLayout.Padding = UDim.new(0, 10)
 
     local dmInputBg = inputBg:Clone(); dmInputBg.Parent = dmChatContainer
@@ -640,15 +922,27 @@ local function startMainChat()
         galleryContainer.Visible = (tabName == "Gallery")
         voiceContainer.Visible = (tabName == "Voice")
         dmChatContainer.Visible = (tabName == "DMChat")
+        dmInboxContainer.Visible = (tabName == "DMInbox")
         isStickerPanelOpen = false; safeTween(stickerPanel, {Size = UDim2.new(1, -22, 0, 0)}, 0.2); mentionMenu.Visible = false
     end
     serverTabBtn.MouseButton1Click:Connect(function() switchTab("Server") end)
     galleryTabBtn.MouseButton1Click:Connect(function() switchTab("Gallery") end)
     voiceTabBtn.MouseButton1Click:Connect(function() switchTab("Voice") end)
-    dmBackBtn.MouseButton1Click:Connect(function() switchTab("Server") end)
+    dmInboxTabBtn.MouseButton1Click:Connect(function()
+        -- Refresh contact online status
+        for uidStr, widget in pairs(dmContactWidgets) do
+            local dotFrame = widget:FindFirstChildWhichIsA("Frame") and widget:FindFirstChildWhichIsA("Frame"):FindFirstChildWhichIsA("Frame")
+            -- update the online indicator if possible
+        end
+        switchTab("DMInbox")
+    end)
+    dmBackBtn.MouseButton1Click:Connect(function()
+        -- Go back to DM Inbox instead of Server
+        switchTab("DMInbox")
+    end)
 
     -- ================================================================= --
-    -- ✨ PREMIUM DJ MUSIC BUBBLE (FLOATING, ANIMATED, GLASS-MORPHISM)
+    -- ✨ PREMIUM DJ MUSIC BUBBLE
     -- ================================================================= --
     local musicBubbleGui = nil
     local musicBubbleConn = nil
@@ -681,15 +975,13 @@ local function startMainChat()
         musicBubbleGui.ResetOnSpawn = false
         musicBubbleGui.Parent = UI_PARENT
 
-        -- Outer container (draggable)
         local bubbleFrame = Instance.new("Frame", musicBubbleGui)
         bubbleFrame.Name = "BubbleFrame"
         bubbleFrame.Size = UDim2.new(0, 290, 0, 80)
-        bubbleFrame.Position = UDim2.new(0, -300, 0, 18)  -- starts off-screen
+        bubbleFrame.Position = UDim2.new(0, -300, 0, 18)
         bubbleFrame.BackgroundTransparency = 1
         bubbleFrame.BorderSizePixel = 0
 
-        -- Glass background
         local glassBg = Instance.new("Frame", bubbleFrame)
         glassBg.Size = UDim2.new(1, 0, 1, 0)
         glassBg.BackgroundColor3 = Color3.fromRGB(10, 10, 18)
@@ -697,14 +989,12 @@ local function startMainChat()
         glassBg.BorderSizePixel = 0
         Instance.new("UICorner", glassBg).CornerRadius = UDim.new(0, 20)
 
-        -- Animated gradient border (RGB glow)
         local borderStroke = Instance.new("UIStroke", glassBg)
         borderStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
         borderStroke.Thickness = 2
         borderStroke.Color = Color3.fromRGB(0, 200, 255)
         borderStroke.Transparency = 0.1
 
-        -- Inner shimmer line at top
         local shimmer = Instance.new("Frame", glassBg)
         shimmer.Size = UDim2.new(0.7, 0, 0, 1)
         shimmer.Position = UDim2.new(0.15, 0, 0, 2)
@@ -713,7 +1003,6 @@ local function startMainChat()
         shimmer.BorderSizePixel = 0
         Instance.new("UICorner", shimmer).CornerRadius = UDim.new(1, 0)
 
-        -- Disc icon frame
         local discOuter = Instance.new("Frame", glassBg)
         discOuter.Size = UDim2.new(0, 52, 0, 52)
         discOuter.Position = UDim2.new(0, 14, 0.5, -26)
@@ -741,11 +1030,9 @@ local function startMainChat()
         discNote.Font = Enum.Font.GothamBold
         discNote.TextColor3 = Color3.fromRGB(255, 255, 255)
 
-        -- Spinning animation for disc
         local discAngle = 0
         local discConn = RunService.RenderStepped:Connect(function(dt)
             discAngle = discAngle + dt * 80
-            -- Smooth pulsing glow on the border
             local pulse = (math.sin(tick() * 3) + 1) / 2
             local r = math.floor(0 + pulse * 0)
             local g = math.floor(180 + pulse * 75)
@@ -757,7 +1044,6 @@ local function startMainChat()
         end)
         table.insert(musicBubbleBarConns, discConn)
 
-        -- Song title (truncated)
         local truncatedTitle = songTitle
         if #truncatedTitle > 28 then truncatedTitle = truncatedTitle:sub(1, 25) .. "..." end
 
@@ -772,7 +1058,6 @@ local function startMainChat()
         songTitleLbl.TextXAlignment = Enum.TextXAlignment.Left
         songTitleLbl.TextTruncate = Enum.TextTruncate.AtEnd
 
-        -- Scrolling title if long
         if #songTitle > 28 then
             local scrollOffset = 0
             local scrollConn = RunService.RenderStepped:Connect(function(dt)
@@ -785,7 +1070,6 @@ local function startMainChat()
             table.insert(musicBubbleBarConns, scrollConn)
         end
 
-        -- DJ name label
         local djLbl = Instance.new("TextLabel", glassBg)
         djLbl.Size = UDim2.new(1, -82, 0, 15)
         djLbl.Position = UDim2.new(0, 74, 0, 34)
@@ -797,7 +1081,6 @@ local function startMainChat()
         djLbl.TextXAlignment = Enum.TextXAlignment.Left
         djLbl.TextTruncate = Enum.TextTruncate.AtEnd
 
-        -- Animated equalizer bars
         local eqContainer = Instance.new("Frame", glassBg)
         eqContainer.Size = UDim2.new(0, 50, 0, 18)
         eqContainer.Position = UDim2.new(0, 74, 0, 52)
@@ -819,7 +1102,6 @@ local function startMainChat()
             bars[i] = bar
         end
 
-        -- Animate the EQ bars
         local eqConn = RunService.RenderStepped:Connect(function(dt)
             for i, bar in ipairs(bars) do
                 if bar and bar.Parent then
@@ -830,7 +1112,6 @@ local function startMainChat()
         end)
         table.insert(musicBubbleBarConns, eqConn)
 
-        -- Close (stop) button
         local stopBtn = Instance.new("TextButton", glassBg)
         stopBtn.Size = UDim2.new(0, 24, 0, 24)
         stopBtn.Position = UDim2.new(1, -30, 0, 6)
@@ -849,7 +1130,6 @@ local function startMainChat()
             processQueue()
         end)
 
-        -- Mute/Unmute toggle button
         local muteBtn = Instance.new("TextButton", glassBg)
         muteBtn.Size = UDim2.new(0, 24, 0, 24)
         muteBtn.Position = UDim2.new(1, -30, 1, -30)
@@ -866,7 +1146,6 @@ local function startMainChat()
             if currentDjSound then currentDjSound.Volume = isDjMuted and 0 or 1 end
         end)
 
-        -- Drag functionality for music bubble
         local dragStart2, startPos2, isDragging2 = nil, nil, false
         glassBg.InputBegan:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -883,12 +1162,11 @@ local function startMainChat()
             if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then isDragging2 = false end
         end)
 
-        -- Slide in animation
         safeTween(bubbleFrame, {Position = UDim2.new(0, 10, 0, 18)}, 0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
     end
 
     -- ================================================================= --
-    -- ✨ ZAYN DJ SYSTEM (PROPERLY INTEGRATED)
+    -- ✨ ZAYN DJ SYSTEM
     -- ================================================================= --
     local function StopZaynDJ()
         globalDjSequence = globalDjSequence + 1
@@ -974,7 +1252,6 @@ local function startMainChat()
                                 newSound:Play()
                                 currentDjSound = newSound
                                 if getgenv then getgenv().ZAYN_DJ_SOUND_REF = newSound end
-                                -- Show the premium music bubble
                                 addMusicBubble(songTitle, senderName)
                                 newSound.Ended:Connect(function()
                                     if currentDjSound == newSound then
@@ -1031,6 +1308,7 @@ local function startMainChat()
         t.Size = UDim2.new(1, textMaxWidth, 0, 22); t.Position = UDim2.new(0, 54, 0, 10)
         t.Text = sender; t.TextColor3 = Colors.Light; t.BackgroundTransparency = 1
         t.Font = Enum.Font.GothamBold; t.TextSize = 12; t.TextXAlignment = Enum.TextXAlignment.Left
+        t.TextTruncate = Enum.TextTruncate.AtEnd
         local cleanMsg = msg:gsub("%[STICKER:%d+%]", "🖼️ Sent a Sticker"):gsub("%[PHOTO:.-%]", "📸 Sent a Photo"):gsub("%[SNAP%].*", "🔥 Sent a Snap"):gsub("%[VOICE:.-%]", "🎵 Sent a Voice Audio")
         local m = Instance.new("TextLabel", n)
         m.Size = UDim2.new(1, textMaxWidth, 0, 28); m.Position = UDim2.new(0, 54, 0, 34)
@@ -1057,21 +1335,40 @@ local function startMainChat()
         end
         task.spawn(function() pcall(function() local sfx = Instance.new("Sound"); sfx.SoundId = "rbxassetid://4590662766"; sfx.Volume = 1; sfx.Parent = UI_PARENT; sfx:Play(); task.wait(2); sfx:Destroy() end) end)
         safeTween(n, {Position = UDim2.new(1, -300, 1, targetY)}, 0.45)
+
         n.MouseButton1Click:Connect(function()
             if not isUiOpen then toggleMainUI(true) end
             if contextType == "DM" and contextId then
-                activeDmUserId = tonumber(contextId)
+                local dmUidNum = tonumber(contextId)
+                activeDmUserId = dmUidNum
+                -- FIX: Get proper sender name from senderUid
                 activeDmUserName = sender:gsub("🔒 DM: ", "")
                 if dmChatTitle then dmChatTitle.Text = "Chat with " .. activeDmUserName end
-                contentFrame.Visible = false; galleryContainer.Visible = false; voiceContainer.Visible = false; dmChatContainer.Visible = true; currentTab = "DMChat"
+                -- FIX: Switch to DMChat properly
+                contentFrame.Visible = false
+                galleryContainer.Visible = false
+                voiceContainer.Visible = false
+                dmInboxContainer.Visible = false
+                dmChatContainer.Visible = true
+                currentTab = "DMChat"
+                -- FIX: Show messages for this specific conversation
+                -- First make all DM messages invisible
                 for _, c in ipairs(dmChatFrame:GetChildren()) do
                     if c:IsA("Frame") then
-                        if c:GetAttribute("ConvoId") == tostring(activeDmUserId) then c.Visible = true else c.Visible = false end
+                        local cId = c:GetAttribute("ConvoId")
+                        c.Visible = (cId == tostring(dmUidNum))
                     end
                 end
-                task.wait(0.1)
-                local maxScroll = dmChatLayout.AbsoluteContentSize.Y - dmChatFrame.AbsoluteSize.Y + 20
-                if maxScroll > 0 then dmChatFrame.CanvasPosition = Vector2.new(0, maxScroll) end
+                -- FIX: Wait for layout to update, then scroll to bottom
+                task.wait(0.15)
+                local contentH = dmChatLayout.AbsoluteContentSize.Y
+                local frameH = dmChatFrame.AbsoluteSize.Y
+                local maxScroll = contentH - frameH + 20
+                if maxScroll > 0 then
+                    dmChatFrame.CanvasPosition = Vector2.new(0, maxScroll)
+                else
+                    dmChatFrame.CanvasPosition = Vector2.new(0, 0)
+                end
             elseif contextType == "Server" then switchTab("Server") end
             activeNotifs = math.max(0, activeNotifs - 1)
             safeTween(n, {Position = UDim2.new(1, 15, 1, targetY), BackgroundTransparency = 1}, 0.2)
@@ -1097,8 +1394,18 @@ local function startMainChat()
                         if not processedDMs[mKey] then
                             processedDMs[mKey] = true
                             local sUid = tonumber(mVal.senderId)
+                            local sUidStr = tostring(mVal.senderId)
                             if not dmHistories[sUid] then dmHistories[sUid] = {} end
                             table.insert(dmHistories[sUid], {name = mVal.senderName, msg = mVal.text, isSystem = false, uid = sUid})
+
+                            -- Save/update contact in inbox
+                            local senderProfile = customProfiles[sUidStr] or {}
+                            local senderDp = senderProfile.dp or ""
+                            -- Get username from activeScriptUsers or identity
+                            local senderUsername = (activeScriptUsers[sUidStr] and activeScriptUsers[sUidStr].name) or mVal.senderName
+                            saveDmContact(sUid, mVal.senderName, senderUsername, senderDp, mVal.text)
+                            createOrUpdateDmContactWidget(sUid, dmContacts[sUidStr] or {displayName=mVal.senderName, username=senderUsername, dp=senderDp, lastMsg=mVal.text})
+
                             if currentTab == "DMChat" and activeDmUserId == sUid then
                                 addMessageToChat(mVal.senderName, mVal.text, false, sUid, "DM", mKey, sUid)
                             else
@@ -1298,7 +1605,8 @@ local function startMainChat()
             activeDmUserId = parsedUid; activeDmUserName = tName
             if dmChatTitle then dmChatTitle.Text = "Chat with " .. activeDmUserName end
             if not isUiOpen then toggleMainUI(true) end
-            contentFrame.Visible = false; galleryContainer.Visible = false; voiceContainer.Visible = false; dmChatContainer.Visible = true; currentTab = "DMChat"
+            contentFrame.Visible = false; galleryContainer.Visible = false; voiceContainer.Visible = false
+            dmInboxContainer.Visible = false; dmChatContainer.Visible = true; currentTab = "DMChat"
             for _, c in ipairs(dmChatFrame:GetChildren()) do
                 if c:IsA("Frame") then if c:GetAttribute("ConvoId") == tostring(activeDmUserId) then c.Visible = true else c.Visible = false end end
             end
@@ -1351,18 +1659,26 @@ local function startMainChat()
     end
 
     -- ================================================================= --
-    -- addMessageToChat (CORE)
+    -- addMessageToChat (CORE) — FIXED OVERFLOW
     -- ================================================================= --
     addMessageToChat = function(name, message, isSystem, userId, chatType, fbKey, convoId)
         pcall(function()
             messageCount = messageCount + 1
             local targetFrame = (chatType == "DM") and dmChatFrame or chatFrame
             local targetLayout = (chatType == "DM") and dmChatLayout or chatLayout
+
+            -- FIX: Proper max bubble width based on chat width (380px main - padding)
+            local CHAT_INNER_WIDTH = 340  -- main frame width 380 - left/right padding
+            local MAX_BUBBLE_WIDTH = math.floor(CHAT_INNER_WIDTH * 0.72)  -- 72% of chat width
+            local MAX_IMG_SIZE = math.min(MAX_BUBBLE_WIDTH - 20, 150)       -- image capped smaller
+
             local masterContainer = Instance.new("Frame", targetFrame)
             masterContainer.Size = UDim2.new(1, 0, 0, 20)
             masterContainer.AutomaticSize = Enum.AutomaticSize.Y
             masterContainer.BackgroundTransparency = 1
             masterContainer.LayoutOrder = messageCount
+            -- FIX: Clip children to prevent overflow
+            masterContainer.ClipsDescendants = false
             if fbKey then masterContainer:SetAttribute("FBKey", fbKey) end
 
             local cleanName = name:gsub("^%[[^%]]+%]%s+", ""):gsub("^[👑💎]%s+", ""):gsub("%[.-%]%s*", "")
@@ -1373,7 +1689,10 @@ local function startMainChat()
                 local actualConvoId = convoId or userId
                 if actualConvoId then
                     masterContainer:SetAttribute("ConvoId", tostring(actualConvoId))
-                    if activeDmUserId and tostring(actualConvoId) ~= tostring(activeDmUserId) then masterContainer.Visible = false end
+                    -- FIX: Properly hide if not the active DM conversation
+                    if activeDmUserId and tostring(actualConvoId) ~= tostring(activeDmUserId) then
+                        masterContainer.Visible = false
+                    end
                 end
             end
 
@@ -1383,10 +1702,19 @@ local function startMainChat()
 
             if isSystem then
                 local msgLabel = Instance.new("TextLabel", masterContainer)
-                msgLabel.Size = UDim2.new(1, -10, 0, 0); msgLabel.AutomaticSize = Enum.AutomaticSize.Y
-                msgLabel.BackgroundTransparency = 1; msgLabel.Font = Enum.Font.GothamBlack
-                msgLabel.TextSize = 12; msgLabel.TextXAlignment = Enum.TextXAlignment.Left
-                msgLabel.TextWrapped = true; msgLabel.TextColor3 = Colors.SystemYellow; msgLabel.Text = ""
+                -- FIX: Constrain system message width strictly
+                msgLabel.Size = UDim2.new(1, -16, 0, 0)
+                msgLabel.AutomaticSize = Enum.AutomaticSize.Y
+                msgLabel.BackgroundTransparency = 1
+                msgLabel.Font = Enum.Font.GothamBlack
+                msgLabel.TextSize = 12
+                msgLabel.TextXAlignment = Enum.TextXAlignment.Left
+                msgLabel.TextWrapped = true
+                msgLabel.TextColor3 = Colors.SystemYellow
+                msgLabel.Text = ""
+                -- FIX: Add size constraint to prevent overflow
+                local sysCon = Instance.new("UISizeConstraint", msgLabel)
+                sysCon.MaxSize = Vector2.new(CHAT_INNER_WIDTH - 16, 99999)
                 task.spawn(function()
                     local fullText = "[SYSTEM] : " .. cleanMsgTxt
                     for i = 1, #fullText do
@@ -1413,19 +1741,45 @@ local function startMainChat()
                 if replyCtx then
                     local replyBlock = Instance.new("Frame", masterContainer); replyBlock.Size = UDim2.new(1, 0, 0, 14); replyBlock.AutomaticSize = Enum.AutomaticSize.Y; replyBlock.BackgroundTransparency = 1; replyBlock.LayoutOrder = 1
                     local replyLine = Instance.new("Frame", replyBlock); replyLine.Size = UDim2.new(0, 2, 1, 0); replyLine.BackgroundColor3 = color; replyLine.BorderSizePixel = 0
-                    local replyLabel = Instance.new("TextLabel", replyBlock); replyLabel.Size = UDim2.new(1, -12, 1, 0); replyLabel.Position = UDim2.new(0, 8, 0, 0); replyLabel.AutomaticSize = Enum.AutomaticSize.Y; replyLabel.BackgroundTransparency = 1; replyLabel.Text = replyCtx; replyLabel.Font = Enum.Font.Gotham; replyLabel.TextSize = 10; replyLabel.TextColor3 = Colors.TextDim; replyLabel.TextXAlignment = Enum.TextXAlignment.Left
+                    local replyLabel = Instance.new("TextLabel", replyBlock)
+                    replyLabel.Size = UDim2.new(1, -12, 1, 0); replyLabel.Position = UDim2.new(0, 8, 0, 0); replyLabel.AutomaticSize = Enum.AutomaticSize.Y
+                    replyLabel.BackgroundTransparency = 1; replyLabel.Text = replyCtx; replyLabel.Font = Enum.Font.Gotham; replyLabel.TextSize = 10; replyLabel.TextColor3 = Colors.TextDim; replyLabel.TextXAlignment = Enum.TextXAlignment.Left
+                    replyLabel.TextWrapped = true
+                    -- FIX: Constrain reply label
+                    local rCon = Instance.new("UISizeConstraint", replyLabel); rCon.MaxSize = Vector2.new(MAX_BUBBLE_WIDTH - 20, 99999)
                 end
 
-                local rowFrame = Instance.new("Frame", masterContainer); rowFrame.BackgroundTransparency = 1; rowFrame.AutomaticSize = Enum.AutomaticSize.XY; rowFrame.Size = UDim2.new(1, 0, 0, 0); rowFrame.LayoutOrder = 2
-                local rowLayout = Instance.new("UIListLayout", rowFrame); rowLayout.FillDirection = Enum.FillDirection.Horizontal; rowLayout.Padding = UDim.new(0, 8); rowLayout.VerticalAlignment = Enum.VerticalAlignment.Top; rowLayout.SortOrder = Enum.SortOrder.LayoutOrder
+                local rowFrame = Instance.new("Frame", masterContainer)
+                rowFrame.BackgroundTransparency = 1
+                rowFrame.AutomaticSize = Enum.AutomaticSize.XY
+                rowFrame.Size = UDim2.new(1, 0, 0, 0)
+                rowFrame.LayoutOrder = 2
+                -- FIX: Clip row so bubble can't overflow parent
+                rowFrame.ClipsDescendants = false
+
+                local rowLayout = Instance.new("UIListLayout", rowFrame)
+                rowLayout.FillDirection = Enum.FillDirection.Horizontal
+                rowLayout.Padding = UDim.new(0, 6)
+                rowLayout.VerticalAlignment = Enum.VerticalAlignment.Top
+                rowLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
                 local isRightAligned = (isMyMessage and chatType == "DM")
                 if isRightAligned then rowLayout.HorizontalAlignment = Enum.HorizontalAlignment.Right else rowLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left end
 
                 local avatarUid = tostring(userId)
-                local dpOrder = isRightAligned and 2 or 1; local bubbleOrder = isRightAligned and 1 or 2
+                local dpOrder = isRightAligned and 2 or 1
+                local bubbleOrder = isRightAligned and 1 or 2
 
-                local avatarImg = Instance.new("ImageButton", rowFrame); avatarImg.Size = UDim2.new(0, 26, 0, 26); avatarImg.BackgroundTransparency = 1; avatarImg.ScaleType = Enum.ScaleType.Crop; avatarImg.LayoutOrder = dpOrder; Instance.new("UICorner", avatarImg).CornerRadius = UDim.new(1, 0)
-                local avStroke = Instance.new("UIStroke", avatarImg); avStroke.Color = isMyMessage and Colors.Cyan or Color3.fromHSV((string.byte(cleanName, 1)*12 % 360)/360, 0.55, 1); if chatType == "DM" and not isMyMessage then avStroke.Color = Colors.NeonPink end; avStroke.Thickness = 1.5
+                local avatarImg = Instance.new("ImageButton", rowFrame)
+                avatarImg.Size = UDim2.new(0, 26, 0, 26)
+                avatarImg.BackgroundTransparency = 1
+                avatarImg.ScaleType = Enum.ScaleType.Crop
+                avatarImg.LayoutOrder = dpOrder
+                Instance.new("UICorner", avatarImg).CornerRadius = UDim.new(1, 0)
+                local avStroke = Instance.new("UIStroke", avatarImg)
+                avStroke.Color = isMyMessage and Colors.Cyan or Color3.fromHSV((string.byte(cleanName, 1)*12 % 360)/360, 0.55, 1)
+                if chatType == "DM" and not isMyMessage then avStroke.Color = Colors.NeonPink end
+                avStroke.Thickness = 1.5
                 avatarImg.MouseButton1Click:Connect(function() if userId and tostring(userId) ~= myUserId then openMiniProfile(tostring(userId), cleanName, titleData) end end)
                 local customDpUrl = customProfiles[avatarUid] and customProfiles[avatarUid].dp
                 if customDpUrl and customDpUrl:find("http") then
@@ -1438,20 +1792,54 @@ local function startMainChat()
                     end)
                 else avatarImg.Image = "rbxthumb://type=AvatarHeadShot&id=" .. avatarUid .. "&w=150&h=150" end
 
-                local bubbleBg = Instance.new("Frame", rowFrame); bubbleBg.AutomaticSize = Enum.AutomaticSize.XY
+                local bubbleBg = Instance.new("Frame", rowFrame)
+                bubbleBg.AutomaticSize = Enum.AutomaticSize.XY
                 bubbleBg.BackgroundColor3 = isMyMessage and Color3.fromRGB(0, 90, 160) or Color3.fromRGB(35, 35, 48)
                 if chatType == "Server" and not isMyMessage then bubbleBg.BackgroundColor3 = Color3.fromRGB(30, 30, 40) end
-                bubbleBg.BackgroundTransparency = 0.1; bubbleBg.BorderSizePixel = 0; bubbleBg.Size = UDim2.new(0, 0, 0, 0); bubbleBg.LayoutOrder = bubbleOrder; Instance.new("UICorner", bubbleBg).CornerRadius = UDim.new(0, 12)
-                local bubbleStroke = Instance.new("UIStroke", bubbleBg); bubbleStroke.Color = avStroke.Color; bubbleStroke.Transparency = 0.5; bubbleStroke.Thickness = 1
-                local bubblePad = Instance.new("UIPadding", bubbleBg); bubblePad.PaddingLeft = UDim.new(0, 9); bubblePad.PaddingRight = UDim.new(0, 9); bubblePad.PaddingTop = UDim.new(0, 7); bubblePad.PaddingBottom = UDim.new(0, 7)
-                local maxBubbleWidth = (chatType == "DM") and 220 or 250
-                local bubbleSizeCon = Instance.new("UISizeConstraint", bubbleBg); bubbleSizeCon.MaxSize = Vector2.new(maxBubbleWidth, 99999)
-                local innerLayout = Instance.new("UIListLayout", bubbleBg); innerLayout.FillDirection = Enum.FillDirection.Horizontal; innerLayout.Padding = UDim.new(0, 6); innerLayout.VerticalAlignment = Enum.VerticalAlignment.Top; innerLayout.SortOrder = Enum.SortOrder.LayoutOrder
-                local orderOffset = 0
-                if titleData then local tLbl = createRadiantRGBTitle(bubbleBg, titleData); tLbl.LayoutOrder = orderOffset + 1; orderOffset = orderOffset + 1 end
+                bubbleBg.BackgroundTransparency = 0.1
+                bubbleBg.BorderSizePixel = 0
+                bubbleBg.Size = UDim2.new(0, 0, 0, 0)
+                bubbleBg.LayoutOrder = bubbleOrder
+                Instance.new("UICorner", bubbleBg).CornerRadius = UDim.new(0, 12)
+                -- FIX: Hard max size constraint on bubble
+                local bubbleSizeCon = Instance.new("UISizeConstraint", bubbleBg)
+                bubbleSizeCon.MaxSize = Vector2.new(MAX_BUBBLE_WIDTH, 99999)
 
-                local nameLabel = Instance.new("TextButton", bubbleBg); nameLabel.BackgroundTransparency = 1; nameLabel.Text = cleanName .. ":"; nameLabel.Font = Enum.Font.GothamBlack; nameLabel.Size = UDim2.new(0, 0, 0, 15); nameLabel.TextSize = 12; nameLabel.TextColor3 = color; nameLabel.AutomaticSize = Enum.AutomaticSize.X; nameLabel.LayoutOrder = orderOffset + 1; nameLabel.TextTruncate = Enum.TextTruncate.AtEnd; nameLabel.TextYAlignment = Enum.TextYAlignment.Top
-                local nameCon = Instance.new("UISizeConstraint", nameLabel); nameCon.MaxSize = Vector2.new(120, 15)
+                local bubbleStroke = Instance.new("UIStroke", bubbleBg); bubbleStroke.Color = avStroke.Color; bubbleStroke.Transparency = 0.5; bubbleStroke.Thickness = 1
+                local bubblePad = Instance.new("UIPadding", bubbleBg)
+                bubblePad.PaddingLeft = UDim.new(0, 8)
+                bubblePad.PaddingRight = UDim.new(0, 8)
+                bubblePad.PaddingTop = UDim.new(0, 6)
+                bubblePad.PaddingBottom = UDim.new(0, 6)
+
+                local innerLayout = Instance.new("UIListLayout", bubbleBg)
+                innerLayout.FillDirection = Enum.FillDirection.Horizontal
+                innerLayout.Padding = UDim.new(0, 4)
+                innerLayout.VerticalAlignment = Enum.VerticalAlignment.Top
+                innerLayout.SortOrder = Enum.SortOrder.LayoutOrder
+                innerLayout.Wraps = true  -- FIX: Allow wrapping within bubble
+
+                local orderOffset = 0
+                if titleData then
+                    local tLbl = createRadiantRGBTitle(bubbleBg, titleData)
+                    tLbl.LayoutOrder = orderOffset + 1
+                    orderOffset = orderOffset + 1
+                end
+
+                local nameLabel = Instance.new("TextButton", bubbleBg)
+                nameLabel.BackgroundTransparency = 1
+                nameLabel.Text = cleanName .. ":"
+                nameLabel.Font = Enum.Font.GothamBlack
+                nameLabel.Size = UDim2.new(0, 0, 0, 15)
+                nameLabel.TextSize = 12
+                nameLabel.TextColor3 = color
+                nameLabel.AutomaticSize = Enum.AutomaticSize.X
+                nameLabel.LayoutOrder = orderOffset + 1
+                nameLabel.TextTruncate = Enum.TextTruncate.AtEnd
+                nameLabel.TextYAlignment = Enum.TextYAlignment.Top
+                -- FIX: Limit name label width
+                local nameCon = Instance.new("UISizeConstraint", nameLabel)
+                nameCon.MaxSize = Vector2.new(MAX_BUBBLE_WIDTH - 20, 15)
                 nameLabel.MouseButton1Click:Connect(function() if userId and tostring(userId) ~= myUserId then openMiniProfile(tostring(userId), cleanName, titleData) end end)
                 orderOffset = orderOffset + 1
 
@@ -1462,18 +1850,49 @@ local function startMainChat()
 
                 if photoUrl then
                     if tostring(userId) == myUserId then addPhotoToGallery(photoUrl, false) end
-                    local pImg = Instance.new("ImageButton", bubbleBg); pImg.BackgroundTransparency = 1; pImg.Size = UDim2.new(0, 140, 0, 140); pImg.ScaleType = Enum.ScaleType.Fit; pImg.BorderSizePixel = 0; pImg.LayoutOrder = orderOffset + 1; Instance.new("UICorner", pImg).CornerRadius = UDim.new(0, 10)
-                    task.spawn(function() if _rawReq and writefile and getcustomasset then local s, r = pcall(_rawReq, {Url = photoUrl, Method = "GET"}); if s and r.StatusCode == 200 then local fN = "z_"..math.random(1000,9999)..".png"; writefile(fN, r.Body); pImg.Image = getcustomasset(fN) end end end)
+                    -- FIX: Image strictly bounded within bubble
+                    local pImg = Instance.new("ImageButton", bubbleBg)
+                    pImg.BackgroundTransparency = 1
+                    -- FIX: Use fixed pixel size that fits within bubble, not percentage
+                    pImg.Size = UDim2.new(0, MAX_IMG_SIZE, 0, MAX_IMG_SIZE)
+                    pImg.ScaleType = Enum.ScaleType.Fit
+                    pImg.BorderSizePixel = 0
+                    pImg.LayoutOrder = orderOffset + 1
+                    Instance.new("UICorner", pImg).CornerRadius = UDim.new(0, 8)
+                    -- FIX: Hard constraint on image size
+                    local imgCon = Instance.new("UISizeConstraint", pImg)
+                    imgCon.MaxSize = Vector2.new(MAX_IMG_SIZE, MAX_IMG_SIZE)
+                    task.spawn(function()
+                        if _rawReq and writefile and getcustomasset then
+                            local s, r = pcall(_rawReq, {Url = photoUrl, Method = "GET"})
+                            if s and r.StatusCode == 200 then local fN = "z_"..math.random(1000,9999)..".png"; writefile(fN, r.Body); pImg.Image = getcustomasset(fN) end
+                        end
+                    end)
                     pImg.MouseButton1Click:Connect(function() openFullScreenPreview(pImg.Image) end)
                 elseif stickerId then
                     local sThumb = "rbxthumb://type=Asset&id=" .. stickerId .. "&w=150&h=150"
-                    local sImg = Instance.new("ImageButton", bubbleBg); sImg.BackgroundTransparency = 1; sImg.Size = UDim2.new(0, 80, 0, 80); sImg.Image = sThumb; sImg.LayoutOrder = orderOffset + 1
+                    local sImg = Instance.new("ImageButton", bubbleBg)
+                    sImg.BackgroundTransparency = 1
+                    -- FIX: Constrain sticker size
+                    sImg.Size = UDim2.new(0, 72, 0, 72)
+                    sImg.Image = sThumb
+                    sImg.LayoutOrder = orderOffset + 1
+                    local sImgCon = Instance.new("UISizeConstraint", sImg)
+                    sImgCon.MaxSize = Vector2.new(72, 72)
                     sImg.MouseButton1Click:Connect(function() openFullScreenPreview(sThumb) end)
                 elseif voiceId then
                     if tostring(userId) == myUserId then addVoiceToSaved(voiceId, false) end
-                    local vFrame = Instance.new("Frame", bubbleBg); vFrame.Size = UDim2.new(0, 130, 0, 28); vFrame.BackgroundColor3 = Colors.Dark; vFrame.LayoutOrder = orderOffset + 1; Instance.new("UICorner", vFrame).CornerRadius = UDim.new(0, 6); Instance.new("UIStroke", vFrame).Color = Colors.Primary
+                    local vFrame = Instance.new("Frame", bubbleBg)
+                    -- FIX: Voice frame strictly bounded
+                    vFrame.Size = UDim2.new(0, math.min(130, MAX_BUBBLE_WIDTH - 20), 0, 28)
+                    vFrame.BackgroundColor3 = Colors.Dark
+                    vFrame.LayoutOrder = orderOffset + 1
+                    Instance.new("UICorner", vFrame).CornerRadius = UDim.new(0, 6)
+                    Instance.new("UIStroke", vFrame).Color = Colors.Primary
+                    local vFrameCon = Instance.new("UISizeConstraint", vFrame)
+                    vFrameCon.MaxSize = Vector2.new(math.min(130, MAX_BUBBLE_WIDTH - 20), 28)
                     local playBtn2 = Instance.new("TextButton", vFrame); playBtn2.Size = UDim2.new(0, 28, 0, 28); playBtn2.Text = "▶"; playBtn2.BackgroundTransparency = 1; playBtn2.TextColor3 = Colors.Accent; playBtn2.Font = Enum.Font.GothamBold; playBtn2.TextSize = 14
-                    local vLbl = Instance.new("TextLabel", vFrame); vLbl.Size = UDim2.new(1, -35, 1, 0); vLbl.Position = UDim2.new(0, 32, 0, 0); vLbl.Text = "Audio: " .. voiceId; vLbl.BackgroundTransparency = 1; vLbl.TextColor3 = Colors.Text; vLbl.TextXAlignment = Enum.TextXAlignment.Left; vLbl.Font = Enum.Font.Gotham; vLbl.TextSize = 11
+                    local vLbl = Instance.new("TextLabel", vFrame); vLbl.Size = UDim2.new(1, -35, 1, 0); vLbl.Position = UDim2.new(0, 32, 0, 0); vLbl.Text = "Audio: " .. voiceId; vLbl.BackgroundTransparency = 1; vLbl.TextColor3 = Colors.Text; vLbl.TextXAlignment = Enum.TextXAlignment.Left; vLbl.Font = Enum.Font.Gotham; vLbl.TextSize = 11; vLbl.TextTruncate = Enum.TextTruncate.AtEnd
                     local audio2 = Instance.new("Sound", vFrame); audio2.SoundId = "rbxassetid://" .. voiceId; audio2.Volume = 1
                     local isPlaying2 = false
                     playBtn2.MouseButton1Click:Connect(function() if isPlaying2 then audio2:Stop(); playBtn2.Text = "▶"; isPlaying2 = false else audio2:Play(); playBtn2.Text = "⏸"; isPlaying2 = true end end)
@@ -1481,11 +1900,28 @@ local function startMainChat()
                 else
                     local urlMatch = cleanMsgTxt:match("(https?://[%w-_%.%?%.:/%+=&]+)")
                     if urlMatch then
-                        local lBtn = Instance.new("TextButton", bubbleBg); lBtn.Size = UDim2.new(0, 80, 0, 15); lBtn.Text = "🔗 Open Link"; lBtn.TextColor3 = Colors.Primary; lBtn.Font = Enum.Font.GothamBold; lBtn.TextSize = 10; lBtn.BackgroundColor3 = Colors.Dark; lBtn.LayoutOrder = orderOffset + 2; Instance.new("UICorner", lBtn).CornerRadius = UDim.new(0, 4)
+                        local lBtn = Instance.new("TextButton", bubbleBg)
+                        lBtn.Size = UDim2.new(0, 80, 0, 15)
+                        lBtn.Text = "🔗 Open Link"; lBtn.TextColor3 = Colors.Primary; lBtn.Font = Enum.Font.GothamBold; lBtn.TextSize = 10; lBtn.BackgroundColor3 = Colors.Dark; lBtn.LayoutOrder = orderOffset + 2; Instance.new("UICorner", lBtn).CornerRadius = UDim.new(0, 4)
                         lBtn.MouseButton1Click:Connect(function() if setclipboard then setclipboard(urlMatch); showNotif("🔗 Link", "Copied to clipboard!", true, nil, "Server") end end)
                     end
-                    msgTextLabel = Instance.new("TextLabel", bubbleBg); msgTextLabel.BackgroundTransparency = 1; msgTextLabel.Text = tostring(cleanMsgTxt); msgTextLabel.Font = isMentioned and Enum.Font.GothamBold or Enum.Font.Gotham; msgTextLabel.TextColor3 = isMentioned and Colors.Gold or Colors.Text; msgTextLabel.Size = UDim2.new(0, 0, 0, 15); msgTextLabel.TextSize = 12; msgTextLabel.AutomaticSize = Enum.AutomaticSize.XY; msgTextLabel.TextWrapped = true; msgTextLabel.TextXAlignment = Enum.TextXAlignment.Left; msgTextLabel.TextYAlignment = Enum.TextYAlignment.Top; msgTextLabel.LayoutOrder = orderOffset + 1
-                    local msgCon = Instance.new("UISizeConstraint", msgTextLabel); msgCon.MaxSize = Vector2.new((chatType == "DM" and 180 or 200), 99999)
+                    msgTextLabel = Instance.new("TextLabel", bubbleBg)
+                    msgTextLabel.BackgroundTransparency = 1
+                    msgTextLabel.Text = tostring(cleanMsgTxt)
+                    msgTextLabel.Font = isMentioned and Enum.Font.GothamBold or Enum.Font.Gotham
+                    msgTextLabel.TextColor3 = isMentioned and Colors.Gold or Colors.Text
+                    msgTextLabel.Size = UDim2.new(0, 0, 0, 0)
+                    msgTextLabel.TextSize = 12
+                    msgTextLabel.AutomaticSize = Enum.AutomaticSize.XY
+                    msgTextLabel.TextWrapped = true
+                    msgTextLabel.TextXAlignment = Enum.TextXAlignment.Left
+                    msgTextLabel.TextYAlignment = Enum.TextYAlignment.Top
+                    msgTextLabel.LayoutOrder = orderOffset + 1
+                    -- FIX: Strict width constraint on message text - this is the main overflow fix
+                    local msgCon = Instance.new("UISizeConstraint", msgTextLabel)
+                    -- Account for padding (16px total) + name label area, keep text within bubble
+                    local textMaxW = MAX_BUBBLE_WIDTH - 18
+                    msgCon.MaxSize = Vector2.new(textMaxW, 99999)
                     if isMentioned then task.spawn(function() local sfx = Instance.new("Sound"); sfx.SoundId = "rbxassetid://4590662766"; sfx.Volume = 1.5; sfx.Parent = UI_PARENT; sfx:Play(); task.wait(2); pcall(function() sfx:Destroy() end) end) end
                 end
 
@@ -1551,7 +1987,7 @@ local function startMainChat()
             end
 
             task.spawn(function()
-                task.wait(0.1)
+                task.wait(0.12)
                 if not targetFrame then return end
                 if masterContainer.Visible == false then return end
                 local isNearBottom = targetFrame.CanvasPosition.Y >= (targetLayout.AbsoluteContentSize.Y - targetFrame.AbsoluteWindowSize.Y - 100)
@@ -1715,7 +2151,7 @@ local function startMainChat()
     end
 
     -- ================================================================= --
-    -- sendDmMsg
+    -- sendDmMsg — WITH CONTACT SAVE
     -- ================================================================= --
     sendDmMsg = function(txt, targetUid)
         if isBlacklisted then return end
@@ -1730,6 +2166,16 @@ local function startMainChat()
         if not dmHistories[tonumber(targetUid)] then dmHistories[tonumber(targetUid)] = {} end
         table.insert(dmHistories[tonumber(targetUid)], {name = cleanMyName, msg = txt, isSystem = false, uid = tonumber(myUserId)})
         addMessageToChat(cleanMyName, txt, false, tonumber(myUserId), "DM", nil, tonumber(targetUid))
+
+        -- Save/update the recipient as a DM contact (cross-server)
+        local targetUidStr = tostring(targetUid)
+        local targetProfile = customProfiles[targetUidStr] or {}
+        local targetDp = targetProfile.dp or ""
+        local targetDisplayName = activeDmUserName or (activeScriptUsers[targetUidStr] and activeScriptUsers[targetUidStr].displayName) or "Unknown"
+        local targetUsername = (activeScriptUsers[targetUidStr] and activeScriptUsers[targetUidStr].name) or "unknown"
+        saveDmContact(targetUid, targetDisplayName, targetUsername, targetDp, txt)
+        createOrUpdateDmContactWidget(targetUid, dmContacts[targetUidStr] or {displayName=targetDisplayName, username=targetUsername, dp=targetDp, lastMsg=txt})
+
         local mData = {senderId = myUserId, senderName = cleanMyName, text = txt, timestamp = os.time()}
         task.spawn(function()
             reqFunc({Url = FIREBASE_URL .. "global_dms/" .. targetUid .. ".json", Method = "POST", Headers = {["Content-Type"] = "application/json"}, Body = HttpService:JSONEncode(mData)})
@@ -1929,6 +2375,8 @@ local function startMainChat()
         addMessageToChat("System", "🎧 DJ: /djplay [yt_link] | /djstop | /djmute | /djunmute", true, nil, "Server")
         task.wait(0.3)
         addMessageToChat("System", "💬 Support: Discord: mickeyyy009", true, nil, "Server")
+        task.wait(0.3)
+        addMessageToChat("System", "📩 Click 📩 DMs tab to see your Direct Messages inbox!", true, nil, "Server")
     end)
 
     -- ================================================================= --
