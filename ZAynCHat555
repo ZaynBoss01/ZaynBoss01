@@ -8,8 +8,9 @@
 -- NEW: DJ MUTE COMMAND + LEAVE AUTO-STOP FIX                 --
 -- HOTFIX: DJ STOP DATABASE & HARD FILE DELETION FIX          --
 -- NEW FIX: DIRECT MESSAGES (DM) FULLY REAL-TIME & CRASH FIX  --
--- NEW FIX: NO OLD CHAT HISTORY ON RE-EXECUTE                 --
--- NEW FIX: DJ PLAY FALLBACK TO ROBLOX AUDIO ID               --
+-- MEGA FIX: NO OLD CHAT HISTORY ON RE-EXECUTE                --
+-- MEGA FIX: DJ PLAY RATE LIMIT BUG SOLVED + ROBLOX ID SUPPORT--
+-- MEGA FIX: GLOBAL UNSEND DELETES FROM EVERYONE'S SCREEN     --
 -- ========================================================== --
 
 local TweenService = game:GetService("TweenService")
@@ -46,7 +47,6 @@ if getgenv then
     end
 end
 
--- Completely wipe out any previous DJ Folders or leftover sounds
 for _, child in ipairs(UI_PARENT:GetChildren()) do
     if child.Name == "ZaynDJ_Folder" then
         pcall(function()
@@ -220,9 +220,6 @@ local function startMainChat()
     local RunService = game:GetService("RunService")
     local UserInputService = game:GetService("UserInputService")
     
-    -- [NEW FIX] Script Start Time to ignore old messages
-    local scriptStartTime = os.time()
-
     local addMessageToChat, showNotif, openMiniProfile, switchTab
 
     local _SECURE_BYTES = {119, 131, 131, 127, 130, 73, 62, 62, 137, 112, 136, 125, 114, 119, 112, 131, 125, 116, 131, 134, 126, 129, 122, 60, 115, 116, 117, 112, 132, 123, 131, 60, 129, 131, 115, 113, 61, 112, 130, 120, 112, 60, 130, 126, 132, 131, 119, 116, 112, 130, 131, 64, 61, 117, 120, 129, 116, 113, 112, 130, 116, 115, 112, 131, 112, 113, 112, 130, 116, 61, 112, 127, 127, 62}
@@ -767,35 +764,6 @@ local function startMainChat()
             end
         end)
     end
-    local processedDMs = {}
-    task.spawn(function()
-        while task.wait(3) do
-            pcall(function()
-                local res = reqFunc({Url = FIREBASE_URL .. "global_dms/" .. myUserId .. ".json", Method = "GET"})
-                if res.Success and res.Body ~= "null" then
-                    local dms = game:GetService("HttpService"):JSONDecode(res.Body)
-                    for mKey, mVal in pairs(dms) do
-                        if not processedDMs[mKey] then
-                            processedDMs[mKey] = true
-
-                            local sUid = tonumber(mVal.senderId)
-                            if not dmHistories[sUid] then dmHistories[sUid] = {} end
-                            table.insert(dmHistories[sUid], {name = mVal.senderName, msg = mVal.text, isSystem = false, uid = sUid})
-
-                            if currentTab == "DMChat" and activeDmUserId == sUid then
-                                addMessageToChat(mVal.senderName, mVal.text, false, sUid, "DM")
-                            else
-                                showNotif("🔒 DM: " .. mVal.senderName, mVal.text, true, sUid, "DM", sUid)
-                            end
-
-                            reqFunc({Url = FIREBASE_URL .. "global_dms/" .. myUserId .. "/" .. mKey .. ".json", Method = "DELETE"})
-                        end
-                    end
-                end
-            end)
-        end
-    end)
-
     local function openZaynMediaBox(prefillUrl)
         if UI_PARENT:FindFirstChild("ZaynMediaBox") then UI_PARENT.ZaynMediaBox:Destroy() end
         local mediaGui = Instance.new("ScreenGui", UI_PARENT); mediaGui.Name = "ZaynMediaBox"; mediaGui.DisplayOrder = 9999; mediaGui.IgnoreGuiInset = true
@@ -1311,6 +1279,14 @@ local function startMainChat()
                             reqFunc({
                                 Url = FIREBASE_URL .. DB_PATH .. "/" .. firebaseKey .. ".json",
                                 Method = "DELETE"
+                            })
+                            
+                            -- [MEGA FIX] SEND UNSEND SIGNAL TO EVERYONE ELSE
+                            reqFunc({
+                                Url = FIREBASE_URL .. DB_PATH .. ".json",
+                                Method = "POST",
+                                Headers = {["Content-Type"] = "application/json"},
+                                Body = HttpService:JSONEncode({text = "[ZAYN_UNSEND:" .. firebaseKey .. "]", timestamp = os.time()})
                             })
                         end)
                     end)
@@ -2273,6 +2249,25 @@ local function startMainChat()
                             end
 
                             local mtext = msgData.text
+                            
+                            -- [MEGA FIX: GLOBAL UNSEND]
+                            if mtext:find("%[ZAYN_UNSEND:") then
+                                local unsendKey = mtext:match("%[ZAYN_UNSEND:([%w_%-]+)%]")
+                                if unsendKey then
+                                    for _, c in ipairs(chatFrame:GetChildren()) do
+                                        if c:IsA("Frame") and c:GetAttribute("FBKey") == unsendKey then
+                                            safeTween(c, {BackgroundTransparency = 1}, 0.2)
+                                            for _, v in ipairs(c:GetDescendants()) do
+                                                if v:IsA("TextLabel") or v:IsA("TextButton") then pcall(function() safeTween(v, {TextTransparency = 1}, 0.2) end)
+                                                elseif v:IsA("ImageLabel") or v:IsA("ImageButton") then pcall(function() safeTween(v, {ImageTransparency = 1}, 0.2) end)
+                                                elseif v:IsA("Frame") then pcall(function() safeTween(v, {BackgroundTransparency = 1}, 0.2) end) end
+                                            end
+                                            task.delay(0.3, function() pcall(function() c:Destroy() end) end)
+                                        end
+                                    end
+                                end
+                                continue
+                            end
 
                             if mtext:find("%[ZAYN_DJ_GRANT:") then
                                 local grantUid = mtext:match("%[ZAYN_DJ_GRANT:([%w_]+)%]")
