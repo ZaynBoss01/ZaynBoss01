@@ -1,6 +1,6 @@
 -- ========================================================== --
 -- ZAYN UI LAB - V49.0 FINAL                                  --
--- SWIPE ANIMATION FIXED + DJ PLAY FIXED                      --
+-- SWIPE ANIMATION FIXED + DJ PLAY FIXED + CHAT GAPS FIXED    --
 -- ========================================================== --
 
 local TweenService = game:GetService("TweenService")
@@ -763,9 +763,11 @@ local function startMainChat()
     local chatPad = Instance.new("UIPadding", chatFrame)
     chatPad.PaddingLeft = UDim.new(0, 6)
     chatPad.PaddingRight = UDim.new(0, 6)
+    
+    -- === FIX 1: REDUCED CHAT PADDING TO 5 ===
     local chatLayout = Instance.new("UIListLayout", chatFrame)
     chatLayout.SortOrder = Enum.SortOrder.LayoutOrder
-    chatLayout.Padding = UDim.new(0, 10)
+    chatLayout.Padding = UDim.new(0, 5) 
 
     local galleryContainer = Instance.new("Frame", main)
     galleryContainer.Size = UDim2.new(1, 0, 1, -42)
@@ -907,9 +909,11 @@ local function startMainChat()
     local dmPadL = Instance.new("UIPadding", dmChatFrame)
     dmPadL.PaddingLeft = UDim.new(0, 6)
     dmPadL.PaddingRight = UDim.new(0, 6)
+    
+    -- === FIX 2: REDUCED DM CHAT PADDING TO 5 ===
     local dmChatLayout = Instance.new("UIListLayout", dmChatFrame)
     dmChatLayout.SortOrder = Enum.SortOrder.LayoutOrder
-    dmChatLayout.Padding = UDim.new(0, 10)
+    dmChatLayout.Padding = UDim.new(0, 5)
 
     local isStickerPanelOpen = false
     local stickerPanel
@@ -2256,8 +2260,7 @@ local function startMainChat()
             end)
         end
     end
-
-    -- ================================================================= --
+-- ================================================================= --
     -- addMessageToChat - WHATSAPP STYLE SWIPE ZONE OVERLAY (NEW APPROACH)
     -- ================================================================= --
     addMessageToChat = function(name, message, isSystem, userId, chatType, fbKey, convoId)
@@ -2274,7 +2277,8 @@ local function startMainChat()
             -- MASTER CONTAINER - yeh poora message ka wrapper hai
             -- ================================================================= --
             local masterContainer = Instance.new("Frame", targetFrame)
-            masterContainer.Size = UDim2.new(1, 0, 0, 20)
+            -- === FIX 3: CHANGE MASTER CONTAINER BASE SIZE FROM 20 TO 0 ===
+            masterContainer.Size = UDim2.new(1, 0, 0, 0)
             masterContainer.AutomaticSize = Enum.AutomaticSize.Y
             masterContainer.BackgroundTransparency = 1
             masterContainer.LayoutOrder = messageCount
@@ -2564,8 +2568,6 @@ local function startMainChat()
 
             -- ================================================================= --
             -- SWIPE ZONE OVERLAY - TRANSPARENT BLOCK UPAR SE COVER KARTA HAI
-            -- Yeh alag transparent frame hai jo bubble ke upar hota hai
-            -- Is se swipe detect hota hai bina bubble ke scroll rokne ke
             -- ================================================================= --
             local function attachSwipeAndHoldToMaster(containerFrame, senderName2, messageText2, contextType2)
 
@@ -2602,8 +2604,6 @@ local function startMainChat()
                 end
 
                 local function smoothSetBubbleX(targetX)
-                    -- Sirf rowFrame ko slide karte hain (bubble + DP dono)
-                    -- Spring-like resistance
                     local maxX = 80
                     local resistance = 0.65
                     local finalX = 0
@@ -2616,7 +2616,6 @@ local function startMainChat()
                     pcall(function()
                         rowFrame.Position = UDim2.new(0, finalX, 0, 0)
                     end)
-                    -- Arrow opacity based on swipe distance
                     local arrowAlpha = math.min(1, math.abs(finalX) / 40)
                     local arrowTransp = 1 - arrowAlpha
                     pcall(function() replyArrow.TextTransparency = arrowTransp end)
@@ -2637,7 +2636,6 @@ local function startMainChat()
                     local replyText = isSnap and "[Snap 🔥]" or cleanMsgTxt
                     if contextType2 == "DM" then updateDmReplyState(senderName2, replyText)
                     elseif contextType2 == "Server" then updateServerReplyState(senderName2, replyText) end
-                    -- Reply sound
                     pcall(function()
                         local sfx = Instance.new("Sound", UI_PARENT)
                         sfx.SoundId = "rbxassetid://6895088918"; sfx.Volume = 0.5; sfx:Play()
@@ -2645,7 +2643,6 @@ local function startMainChat()
                     end)
                 end
 
-                -- InputBegan on master container (whole row)
                 masterContainer.InputBegan:Connect(function(input)
                     if input.UserInputType ~= Enum.UserInputType.MouseButton1 and
                        input.UserInputType ~= Enum.UserInputType.Touch then return end
@@ -2655,18 +2652,15 @@ local function startMainChat()
                     hasMoved = false
                     isHolding = true
 
-                    -- Hold timer - 0.45s se context menu open karo
                     if holdTimer then task.cancel(holdTimer) end
                     holdTimer = task.delay(0.45, function()
                         if isHolding and not hasMoved then
                             isHolding = false
-                            -- Haptic sound
                             pcall(function()
                                 local sfx = Instance.new("Sound", UI_PARENT)
                                 sfx.SoundId = "rbxassetid://6895088918"; sfx.Volume = 0.4; sfx:Play()
                                 task.wait(0.3); sfx:Destroy()
                             end)
-                            -- Wiggle animation
                             local origX = swipeOffset
                             for _, dx in ipairs({6, -6, 4, -4, 0}) do
                                 if not rowFrame or not rowFrame.Parent then break end
@@ -2681,7 +2675,6 @@ local function startMainChat()
                     end)
                 end)
 
-                -- InputChanged - swipe tracking
                 masterContainer.InputChanged:Connect(function(input)
                     if not touchStart then return end
                     if input.UserInputType ~= Enum.UserInputType.MouseMovement and
@@ -2691,20 +2684,17 @@ local function startMainChat()
                     local absDX = math.abs(delta.X)
                     local absDY = math.abs(delta.Y)
 
-                    -- Movement detect
                     if delta.Magnitude > 6 then
                         hasMoved = true
                         isHolding = false
                     end
 
-                    -- Horizontal swipe (zyada horizontal than vertical)
                     if absDX > 10 and absDX > absDY * 1.3 then
                         isSwiping = true
                         smoothSetBubbleX(delta.X)
                     end
                 end)
 
-                -- InputEnded - finalize swipe or cancel
                 masterContainer.InputEnded:Connect(function(input)
                     if input.UserInputType ~= Enum.UserInputType.MouseButton1 and
                        input.UserInputType ~= Enum.UserInputType.Touch then return end
@@ -2717,7 +2707,6 @@ local function startMainChat()
                         local absDX = math.abs(delta.X)
                         local absDY = math.abs(delta.Y)
 
-                        -- 50px minimum swipe + horizontal predominant
                         if absDX > 50 and absDX > absDY * 1.3 then
                             triggerReply()
                             snapBubbleBack(true)
@@ -2731,10 +2720,8 @@ local function startMainChat()
                 end)
             end
 
-            -- Apply swipe to this message's masterContainer
             attachSwipeAndHoldToMaster(masterContainer, cleanName, cleanMsgTxt, chatType)
 
-            -- Snap message auto-delete
             if isSnap then
                 task.delay(10, function()
                     if masterContainer and masterContainer.Parent then
@@ -2749,7 +2736,6 @@ local function startMainChat()
                 end)
             end
 
-            -- Mention sound
             if isMentioned then
                 task.spawn(function()
                     local sfx = Instance.new("Sound"); sfx.SoundId = "rbxassetid://4590662766"
@@ -2757,7 +2743,6 @@ local function startMainChat()
                 end)
             end
 
-            -- Auto scroll
             task.spawn(function()
                 task.wait(0.12)
                 if not targetFrame then return end
