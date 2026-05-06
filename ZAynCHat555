@@ -1,6 +1,6 @@
 -- ========================================================== --
--- ZAYN UI LAB - V49.0 FINAL (GAP FIXED)                      --
--- SWIPE ANIMATION FIXED + DJ PLAY FIXED                      --
+-- ZAYN UI LAB - V49.0 FINAL (PART 1)                         --
+-- SWIPE ANIMATION FIXED + DJ PLAY FIXED + BUGS FIXED         --
 -- ========================================================== --
 
 local TweenService = game:GetService("TweenService")
@@ -765,7 +765,7 @@ local function startMainChat()
     chatPad.PaddingRight = UDim.new(0, 6)
     local chatLayout = Instance.new("UIListLayout", chatFrame)
     chatLayout.SortOrder = Enum.SortOrder.LayoutOrder
-    chatLayout.Padding = UDim.new(0, 3) -- FIXED GAP HERE (Was 10)
+    chatLayout.Padding = UDim.new(0, 10)
 
     local galleryContainer = Instance.new("Frame", main)
     galleryContainer.Size = UDim2.new(1, 0, 1, -42)
@@ -909,7 +909,7 @@ local function startMainChat()
     dmPadL.PaddingRight = UDim.new(0, 6)
     local dmChatLayout = Instance.new("UIListLayout", dmChatFrame)
     dmChatLayout.SortOrder = Enum.SortOrder.LayoutOrder
-    dmChatLayout.Padding = UDim.new(0, 3) -- FIXED GAP HERE (Was 10)
+    dmChatLayout.Padding = UDim.new(0, 10)
 
     local isStickerPanelOpen = false
     local stickerPanel
@@ -1517,7 +1517,7 @@ local function startMainChat()
     end
 
     -- ================================================================= --
-    -- DJ DOWNLOAD + PLAY (FIXED - multiple api fallback + better error)
+    -- DJ DOWNLOAD + PLAY (FIXED)
     -- ================================================================= --
     local function DownloadAndPlayYTAudio(vId, senderName)
         globalDjSequence = globalDjSequence + 1
@@ -1529,7 +1529,6 @@ local function startMainChat()
         task.spawn(function()
             if mySeq ~= globalDjSequence then return end
 
-            -- Step 1: Get download link from RapidAPI
             local apiResponse = reqFunc({
                 Url = API_URL .. vId,
                 Method = "GET",
@@ -1553,10 +1552,8 @@ local function startMainChat()
                 return
             end
 
-            -- Check status
             local apiStatus = data.status or data.msg or ""
             if apiStatus ~= "ok" and apiStatus ~= "success" then
-                -- Sometimes it's processing, retry once after 3 seconds
                 if apiStatus == "processing" or apiStatus == "downloading" then
                     addMessageToChat("System", "⏳ DJ: Track is processing, retrying...", true, nil, "Server")
                     task.wait(4)
@@ -1595,7 +1592,6 @@ local function startMainChat()
             if mySeq ~= globalDjSequence then return end
             addMessageToChat("System", "📥 Downloading: " .. (songTitle:sub(1, 40)), true, nil, "Server")
 
-            -- Step 2: Download the MP3
             local audioRes = reqFunc({Url = directLink, Method = "GET"})
             if mySeq ~= globalDjSequence then return end
 
@@ -1609,7 +1605,6 @@ local function startMainChat()
                 return
             end
 
-            -- Step 3: Write and load
             local fileName = "zayn_dj_" .. vId .. "_" .. math.random(1000,9999) .. ".mp3"
             local writeOk = pcall(function() writefile(fileName, audioRes.Body) end)
             if not writeOk then
@@ -1624,12 +1619,10 @@ local function startMainChat()
             end
 
             if mySeq ~= globalDjSequence then
-                -- A new song was requested, clean up
                 if delfile and isfile and isfile(fileName) then pcall(function() delfile(fileName) end) end
                 return
             end
 
-            -- Step 4: Stop old + play new
             StopZaynDJ()
             globalDjSequence = mySeq
             currentDjFileName = fileName
@@ -1669,7 +1662,6 @@ local function startMainChat()
             end
         end)
     end
-
     -- ================================================================= --
     -- NOTIFICATION SYSTEM
     -- ================================================================= --
@@ -2151,10 +2143,10 @@ local function startMainChat()
         local cleanMsg = msg
         local repMatch, restMsg = msg:match("^↪️ %[Replying to (.-)%]\n(.*)")
         if repMatch then cleanMsg = restMsg end
-        if tostring(cleanMsg):match("^%[STICKER:(%d+)%]$") then cleanMsg = "[Sticker 🌸]"
-        elseif tostring(cleanMsg):match("^%[PHOTO:(.-)%]$") then cleanMsg = "[Photo 📸]"
+        if tostring(cleanMsg):match("^%[STICKER:(%d+)%]%s*$") then cleanMsg = "[Sticker 🌸]"
+        elseif tostring(cleanMsg):match("^%[PHOTO:(.-)%]%s*$") then cleanMsg = "[Photo 📸]"
         elseif tostring(cleanMsg):match("^%[SNAP%]") then cleanMsg = "[Snap 🔥]"
-        elseif tostring(cleanMsg):match("^%[VOICE:(.-)%]$") then cleanMsg = "[Voice Audio 🎵]" end
+        elseif tostring(cleanMsg):match("^%[VOICE:(.-)%]%s*$") then cleanMsg = "[Voice Audio 🎵]" end
         pcall(function() game:GetService("TextChatService"):DisplayBubble(targetPlayer.Character, cleanMsg) end)
     end
 
@@ -2256,8 +2248,9 @@ local function startMainChat()
             end)
         end
     end
--- ================================================================= --
-    -- addMessageToChat - WHATSAPP STYLE SWIPE ZONE OVERLAY (NEW APPROACH)
+
+    -- ================================================================= --
+    -- addMessageToChat - FIXED SWIPE GAP & STICKER PARSING
     -- ================================================================= --
     addMessageToChat = function(name, message, isSystem, userId, chatType, fbKey, convoId)
         pcall(function()
@@ -2270,10 +2263,10 @@ local function startMainChat()
             local MAX_IMG_SIZE = math.min(MAX_BUBBLE_WIDTH - 20, 150)
 
             -- ================================================================= --
-            -- MASTER CONTAINER - yeh poora message ka wrapper hai
+            -- MASTER CONTAINER
             -- ================================================================= --
             local masterContainer = Instance.new("Frame", targetFrame)
-            masterContainer.Size = UDim2.new(1, 0, 0, 0) -- CHANGED FROM 20 TO 0 SO IT HUGS CONTENT TIGHTLY
+            masterContainer.Size = UDim2.new(1, 0, 0, 20)
             masterContainer.AutomaticSize = Enum.AutomaticSize.Y
             masterContainer.BackgroundTransparency = 1
             masterContainer.LayoutOrder = messageCount
@@ -2344,7 +2337,7 @@ local function startMainChat()
 
             local masterLayout = Instance.new("UIListLayout", masterContainer)
             masterLayout.FillDirection = Enum.FillDirection.Vertical
-            masterLayout.Padding = UDim.new(0, 1) -- REDUCED INTERNAL PADDING TO 1
+            masterLayout.Padding = UDim.new(0, 2)
 
             if replyCtx then
                 local replyBlock = Instance.new("Frame", masterContainer)
@@ -2466,9 +2459,10 @@ local function startMainChat()
             end)
             orderOffset = orderOffset + 1
 
-            local stickerId = tostring(cleanMsgTxt):match("^%[STICKER:(%d+)%]$")
-            local photoUrl = tostring(cleanMsgTxt):match("^%[PHOTO:(.-)%]$")
-            local voiceId = tostring(cleanMsgTxt):match("^%[VOICE:(%d+)%]$")
+            -- FIXED REGEX: Added %s*$ to trim invisible spaces from Firebase strings
+            local stickerId = tostring(cleanMsgTxt):match("^%[STICKER:(%d+)%]%s*$")
+            local photoUrl = tostring(cleanMsgTxt):match("^%[PHOTO:(.-)%]%s*$")
+            local voiceId = tostring(cleanMsgTxt):match("^%[VOICE:(%d+)%]%s*$")
             local msgTextLabel
 
             if photoUrl then
@@ -2562,7 +2556,7 @@ local function startMainChat()
             end
 
             -- ================================================================= --
-            -- SWIPE ZONE OVERLAY
+            -- SWIPE ZONE OVERLAY - TRANSPARENT BLOCK
             -- ================================================================= --
             local function attachSwipeAndHoldToMaster(containerFrame, senderName2, messageText2, contextType2)
 
