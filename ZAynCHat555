@@ -1,7 +1,7 @@
 -- ========================================================== --
 -- ZAYN UI LAB - SERVER & GALLERY EDITION (V48.0 FIXED)       --
 -- THEME: OBSIDIAN DARK & SOFT RELAXING PASTEL                --
--- FIX: DJ PERMS | BUBBLE SWIPE ANIMATION | HOLD UNSEND+TR   --
+-- FIX: DJ GLOBAL SYNC + WHATSAPP STYLE SWIPE ANIMATION       --
 -- ========================================================== --
 
 local TweenService = game:GetService("TweenService")
@@ -381,13 +381,11 @@ local function startMainChat()
     end
 
     -- ================================================================= --
-    -- FIX: DJ PERMISSION CHECK - Sirf Creator + Permitted Users
+    -- DJ PERMISSION CHECK
     -- ================================================================= --
     local function hasDjPermission(uid)
         local uidStr = tostring(uid)
-        -- Creator (10432865434) ko hamesha allow karo
         if _internalOwners[uidStr] then return true end
-        -- Permitted users ko allow karo
         if djPermittedUsers[uidStr] then return true end
         return false
     end
@@ -431,7 +429,6 @@ local function startMainChat()
             if cRes.Success and cRes.Body ~= "null" then
                 pcall(function() dmContacts = HttpService:JSONDecode(cRes.Body) end)
             end
-            -- DJ permissions load karo Firebase se
             local djRes = reqFunc({Url = FIREBASE_URL .. "dj_permissions.json", Method = "GET"})
             if djRes.Success and djRes.Body ~= "null" then
                 pcall(function()
@@ -1102,9 +1099,6 @@ local function startMainChat()
         musicBubbleGui = nil
     end
 
-    -- ================================================================= --
-    -- FIX: addMusicBubble - Stop button sirf DJ permission wale ko dikhao
-    -- ================================================================= --
     local function addMusicBubble(songTitle, djName)
         removeMusicBubble()
         musicBubbleGui = Instance.new("ScreenGui")
@@ -1242,9 +1236,6 @@ local function startMainChat()
         end)
         table.insert(musicBubbleBarConns, eqConn)
 
-        -- ================================================================= --
-        -- FIX: Stop button sirf hasDjPermission walo ko dikhao
-        -- ================================================================= --
         if hasDjPermission(myUserId) then
             local stopBtn = Instance.new("TextButton", glassBg)
             stopBtn.Size = UDim2.new(0, 24, 0, 24)
@@ -1267,7 +1258,6 @@ local function startMainChat()
 
         local muteBtn = Instance.new("TextButton", glassBg)
         muteBtn.Size = UDim2.new(0, 24, 0, 24)
-        -- Agar stop button nahi hai (no DJ perm) toh mute top-right mein ho
         if hasDjPermission(myUserId) then
             muteBtn.Position = UDim2.new(1, -30, 1, -30)
         else
@@ -1304,8 +1294,7 @@ local function startMainChat()
 
         safeTween(bubbleFrame, {Position = UDim2.new(0, 10, 0, 18)}, 0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
     end
-
-    -- ================================================================= --
+-- ================================================================= --
     -- ZAYN DJ SYSTEM
     -- ================================================================= --
     local function StopZaynDJ()
@@ -1737,7 +1726,7 @@ local function startMainChat()
     end
 
     -- ================================================================= --
-    -- FIX: sendDmMsg
+    -- sendDmMsg
     -- ================================================================= --
     sendDmMsg = function(txt, targetUid)
         txt = tostring(txt):gsub("^%s+", ""):gsub("%s+$", "")
@@ -1823,7 +1812,7 @@ local function startMainChat()
         end)
 
         -- ================================================================= --
-        -- FIX: Translate option - Hold karo message pe translate ho
+        -- Translate option
         -- ================================================================= --
         addCtxBtn("🌐", "Translate", Colors.SystemYellow, function()
             local translating = true
@@ -1835,8 +1824,7 @@ local function startMainChat()
         end)
 
         -- ================================================================= --
-        -- FIX: Unsend - Global Firebase se bhi delete ho, sab ke chat se bhi
-        -- Sirf apna message unsend kar sakte ho
+        -- Unsend
         -- ================================================================= --
         if isMyMsg then
             addCtxBtn("🗑️", "Unsend", Colors.NeonPink, function()
@@ -1849,7 +1837,6 @@ local function startMainChat()
                                 reqFunc({Url = FIREBASE_URL .. "dm_history/" .. dmConvoKey .. "/" .. fbKey .. ".json", Method = "DELETE"})
                             end)
                             -- Global DM se bhi delete (dusre user ke liye)
-                            -- Note: yahan hum broadcast karenge ZAYN_DM_UNSEND
                             local targetUidStr = tostring(activeDmUserId)
                             pcall(function()
                                 reqFunc({
@@ -2136,8 +2123,7 @@ local function startMainChat()
                 end
 
                 -- ================================================================= --
-                -- FIX: POORA BUBBLE SWIPE ANIMATION - WhatsApp style
-                -- Bubble poori taraf swipe hoti hai, phir snap wapas
+                -- POORA BUBBLE SWIPE ANIMATION - WhatsApp style
                 -- ================================================================= --
                 local function makeBubbleSwipeAndHold(bubbleFrame, senderName2, messageText2, contextType2)
                     local startPos = nil
@@ -2330,7 +2316,7 @@ local function startMainChat()
     end
 
     -- ================================================================= --
-    -- sendMsg - FIX: DJ commands sirf permitted users ke liye
+    -- sendMsg - DJ commands sirf permitted users ke liye
     -- ================================================================= --
     sendMsg = function(txt)
         txt = tostring(txt):gsub("^%s+", ""):gsub("%s+$", "")
@@ -2446,7 +2432,7 @@ local function startMainChat()
         end
 
         -- ================================================================= --
-        -- FIX: DJ Commands - hasDjPermission check karo
+        -- DJ Commands - hasDjPermission check karo
         -- ================================================================= --
         if hasDjPermission(myUserId) then
             if txt:lower():sub(1,8) == "/djplay " then
