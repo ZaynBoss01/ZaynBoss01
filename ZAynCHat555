@@ -1,10 +1,7 @@
 -- ========================================================== --
 -- ZAYN UI LAB - SERVER & GALLERY EDITION (V47.0 TITAN)       --
 -- THEME: OBSIDIAN DARK & SOFT RELAXING PASTEL                --
--- FIX: NOTIFICATION CLICK → DM MESSAGE NOW SHOWS CORRECTLY  --
--- FIX: MESSAGE OVERFLOW (TEXT + IMAGE STRICTLY BOUNDED)      --
--- FIX: PHOTO BUBBLE SIZE PROPERLY CONSTRAINED                --
--- NEW: PREMIUM DM INBOX PAGE (CROSS-SERVER CONTACTS)         --
+-- FIX: parseMessage ADDED | DM INBOX FIXED | SWIPE REPLY     --
 -- ========================================================== --
 
 local TweenService = game:GetService("TweenService")
@@ -216,6 +213,8 @@ local function startMainChat()
     local addMessageToChat
     local sendDmMsg
     local sendMsg
+    local getDmConvoKey
+    local loadDmHistory
     local messageQueue = {}
     local queueProcessing = false
     local processQueue
@@ -232,7 +231,6 @@ local function startMainChat()
     local TYPING_PATH = "servers/" .. SERVER_ID .. "/typing/"
     local BLACKLIST_DB_PATH = "blacklist/"
     local TITLES_DB_PATH = "titles/"
-    -- Cross-server DM contacts stored globally (not per server)
     local DM_CONTACTS_PATH = "dm_contacts/"
 
     local RAPID_API_KEY  = "097446f512mshd8abf5f58ef31b1p10a0d0jsn08925256e226"
@@ -280,6 +278,32 @@ local function startMainChat()
     local myName, myUser = LocalPlayer.DisplayName, LocalPlayer.Name
     local cleanMyName = myName:gsub("%[.-%]", ""):gsub("^%s+", ""):gsub("%s+$", "")
     if cleanMyName == "" then cleanMyName = myUser end
+
+    -- ================================================================= --
+    -- FIX #1: parseMessage FUNCTION - YE PEHLE NAHI THI, DJ BREAK HOTA THA
+    -- ================================================================= --
+    local function parseMessage(mtext)
+        -- Format: "DisplayName: message ||userId::hash::timestamp"
+        local senderPart, msgPart, uidPart = mtext:match("^(.-):%s(.+)%s*||([%w_:]+)$")
+        if not senderPart then
+            -- Try without hash
+            senderPart, msgPart, uidPart = mtext:match("^(.-):%s(.+)%s*||([%w_]+)$")
+        end
+        if not senderPart then return nil, nil, nil, nil end
+        local uid = uidPart and uidPart:match("^([%w_]+)") or uidPart
+        -- cleanName: remove any prefix tags
+        local cleanN = senderPart:gsub("^%[[^%]]+%]%s*", ""):gsub("^[👑💎🎧]%s*", "")
+        return senderPart, msgPart, uid, cleanN
+    end
+
+    -- HELPER FOR DM CONVERSATION KEY
+    getDmConvoKey = function(uid1, uid2)
+        local n1, n2 = tonumber(uid1), tonumber(uid2)
+        if n1 and n2 then
+            if n1 < n2 then return tostring(n1).."_"..tostring(n2) else return tostring(n2).."_"..tostring(n1) end
+        end
+        return tostring(uid1).."_"..tostring(uid2)
+    end
 
     local currentTarget, currentTargetName = nil, nil
     local function markTarget(playerName)
@@ -362,7 +386,6 @@ local function startMainChat()
     local activeScriptUsers = {}
     local customProfiles = {}
     local dmHistories = {}
-    -- DM Contacts: stores {uid -> {displayName, username, dp, lastMsg, lastTime}}
     local dmContacts = {}
 
     activeScriptUsers[myUserId] = {displayName = cleanMyName, name = myUser, lastSeen = os.time(), welcomed = true}
@@ -389,40 +412,12 @@ local function startMainChat()
         "128965568153551", "90357041968118", "106503865025496", "107949395268622"
     }
 
-    local function parseMessage(raw)
-        if not raw or raw == "" then return nil, nil, nil, nil end
-        raw = raw:gsub("^%s+", "")
-        if raw:find("%[SYSTEM%]") then
-            local cleanSysMsg = raw:match("%[SYSTEM%]%s*:%s*([%s%S]*)%s*||") or raw:match("%[SYSTEM%]%s*:%s*([%s%S]*)")
-            if cleanSysMsg then return "[SYSTEM]", cleanSysMsg, nil, "[SYSTEM]" end
-        end
-        local function extractSecureData(str)
-            local sMsg, sUID, sHash, sTS = str:match("^([%s%S]*)||%s*([%w_]+)::([%w_]+)::(%d+)%s*$")
-            if sMsg then sMsg = sMsg:gsub("%s+$", "") else sMsg, sUID = str:match("^([%s%S]*)||%s*([%w_]+)%s*$"); if sMsg then sMsg = sMsg:gsub("%s+$", "") end end
-            return sMsg, sUID, sHash, sTS
-        end
-        local titlePart, namePart, msgPart = raw:match("^%[([^%]]+)%]%s+([^:]+):%s*([%s%S]*)$")
-        if titlePart and namePart and msgPart then
-            if not titlePart:find("TITLE_") and not titlePart:find("SERVER_ANN") and not titlePart:find("ZAYN_SYNC") and not titlePart:find("ZAYN_TITLE_SYNC") and not titlePart:find("ZAYN_PROFILE_SYNC") and not titlePart:find("CHAT_MUTE") and not titlePart:find("GBAN") then
-                local sMsg, sUID = extractSecureData(msgPart)
-                return "[" .. titlePart .. "] " .. namePart:gsub("^%s+", ""):gsub("%s+$", ""), sMsg or msgPart, sUID, namePart:gsub("^%s+", ""):gsub("%s+$", "")
-            end
-        end
-        local namePart2, msgPart2 = raw:match("^([^:%[]+):%s*([%s%S]*)$")
-        if namePart2 and msgPart2 then
-            local sMsg, sUID = extractSecureData(msgPart2); local pName = namePart2:gsub("^%s+", ""):gsub("%s+$", "")
-            return pName, sMsg or msgPart2, sUID, pName
-        end
-        return nil, nil, nil, nil
-    end
-
     local function loadData()
         task.spawn(function()
             local tRes = reqFunc({Url = FIREBASE_URL .. TITLES_DB_PATH .. ".json", Method = "GET"})
             if tRes.Success and tRes.Body ~= "null" then pcall(function() _internalTitles = HttpService:JSONDecode(tRes.Body) end) end
             local pRes = reqFunc({Url = FIREBASE_URL .. "profiles.json", Method = "GET"})
             if pRes.Success and pRes.Body ~= "null" then pcall(function() customProfiles = HttpService:JSONDecode(pRes.Body) end) end
-            -- Load DM contacts
             local cRes = reqFunc({Url = FIREBASE_URL .. DM_CONTACTS_PATH .. myUserId .. ".json", Method = "GET"})
             if cRes.Success and cRes.Body ~= "null" then
                 pcall(function() dmContacts = HttpService:JSONDecode(cRes.Body) end)
@@ -431,7 +426,6 @@ local function startMainChat()
     end
     loadData()
 
-    -- Save DM contact to Firebase (cross-server)
     local function saveDmContact(uid, displayName, username, dp, lastMsg)
         local uidStr = tostring(uid)
         dmContacts[uidStr] = {
@@ -541,13 +535,20 @@ local function startMainChat()
     local galleryTabBtn = Instance.new("TextButton", titleBar); galleryTabBtn.Size = UDim2.new(0, 68, 0, 20); galleryTabBtn.Position = UDim2.new(0, 63, 0.5, 0); galleryTabBtn.AnchorPoint = Vector2.new(0, 0.5); galleryTabBtn.Text = "🖼️ GALLERY"; galleryTabBtn.Font = Enum.Font.GothamBold; galleryTabBtn.TextSize = 9; galleryTabBtn.TextColor3 = Colors.SystemYellow; galleryTabBtn.BackgroundColor3 = Colors.Dark; galleryTabBtn.BackgroundTransparency = 0.5; Instance.new("UICorner", galleryTabBtn).CornerRadius = UDim.new(0, 6)
     local profileTabBtn = Instance.new("TextButton", titleBar); profileTabBtn.Size = UDim2.new(0, 60, 0, 20); profileTabBtn.Position = UDim2.new(0, 134, 0.5, 0); profileTabBtn.AnchorPoint = Vector2.new(0, 0.5); profileTabBtn.Text = "⚙️ PROFILE"; profileTabBtn.Font = Enum.Font.GothamBold; profileTabBtn.TextSize = 9; profileTabBtn.TextColor3 = Colors.Light; profileTabBtn.BackgroundColor3 = Colors.Dark; profileTabBtn.BackgroundTransparency = 0.5; Instance.new("UICorner", profileTabBtn).CornerRadius = UDim.new(0, 6)
     local voiceTabBtn = Instance.new("TextButton", titleBar); voiceTabBtn.Size = UDim2.new(0, 55, 0, 20); voiceTabBtn.Position = UDim2.new(0, 197, 0.5, 0); voiceTabBtn.AnchorPoint = Vector2.new(0, 0.5); voiceTabBtn.Text = "🎵 VOICE"; voiceTabBtn.Font = Enum.Font.GothamBold; voiceTabBtn.TextSize = 9; voiceTabBtn.TextColor3 = Colors.Accent; voiceTabBtn.BackgroundColor3 = Colors.Dark; voiceTabBtn.BackgroundTransparency = 0.5; Instance.new("UICorner", voiceTabBtn).CornerRadius = UDim.new(0, 6)
-    -- NEW: DM Inbox Tab
     local dmInboxTabBtn = Instance.new("TextButton", titleBar); dmInboxTabBtn.Size = UDim2.new(0, 50, 0, 20); dmInboxTabBtn.Position = UDim2.new(0, 255, 0.5, 0); dmInboxTabBtn.AnchorPoint = Vector2.new(0, 0.5); dmInboxTabBtn.Text = "📩 DMs"; dmInboxTabBtn.Font = Enum.Font.GothamBold; dmInboxTabBtn.TextSize = 9; dmInboxTabBtn.TextColor3 = Colors.NeonPink; dmInboxTabBtn.BackgroundColor3 = Colors.Dark; dmInboxTabBtn.BackgroundTransparency = 0.5; Instance.new("UICorner", dmInboxTabBtn).CornerRadius = UDim.new(0, 6)
 
     local closeBtn = Instance.new("TextButton", titleBar); closeBtn.Size = UDim2.new(0, 28, 0, 28); closeBtn.Position = UDim2.new(1, -34, 0.5, -14); closeBtn.Text = "-"; closeBtn.TextColor3 = Colors.Text; closeBtn.Font = Enum.Font.GothamBold; closeBtn.TextSize = 16; closeBtn.BackgroundColor3 = Colors.Dark; closeBtn.BackgroundTransparency = 0.2; Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(1, 0); Instance.new("UIStroke", closeBtn).Color = Colors.TextDim
     closeBtn.MouseButton1Click:Connect(function() toggleMainUI(false) end)
 
-    local contentFrame = Instance.new("Frame", main); contentFrame.Size = UDim2.new(1, 0, 1, -42); contentFrame.Position = UDim2.new(0, 0, 0, 42); contentFrame.BackgroundTransparency = 1
+    -- ================================================================= --
+    -- FIX #2: contentFrame - ye sabse upar hona chahiye tabs ke niche
+    -- Har tab frame alag alag hai, switchTab function inhe toggle karega
+    -- ================================================================= --
+    local contentFrame = Instance.new("Frame", main)
+    contentFrame.Size = UDim2.new(1, 0, 1, -42)
+    contentFrame.Position = UDim2.new(0, 0, 0, 42)
+    contentFrame.BackgroundTransparency = 1
+    contentFrame.Visible = true  -- default Server tab visible
 
     local chatFrame = Instance.new("ScrollingFrame", contentFrame); chatFrame.Size = UDim2.new(1, -22, 0, 210); chatFrame.Position = UDim2.new(0, 11, 0, 5); chatFrame.BackgroundTransparency = 1; chatFrame.ScrollBarThickness = 2; chatFrame.ScrollBarImageColor3 = Colors.Glow; chatFrame.ScrollBarImageTransparency = 0.5; chatFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y; chatFrame.ClipsDescendants = true; Instance.new("UIPadding", chatFrame).PaddingLeft = UDim.new(0, 6); Instance.new("UIPadding", chatFrame).PaddingRight = UDim.new(0, 6)
     local chatLayout = Instance.new("UIListLayout", chatFrame); chatLayout.SortOrder = Enum.SortOrder.LayoutOrder; chatLayout.Padding = UDim.new(0, 10)
@@ -561,7 +562,7 @@ local function startMainChat()
     local voiceLayout = Instance.new("UIListLayout", voiceScroll); voiceLayout.Padding = UDim.new(0, 8); voiceLayout.SortOrder = Enum.SortOrder.LayoutOrder
 
     -- ================================================================= --
-    -- ✨ NEW: PREMIUM DM INBOX PAGE
+    -- DM INBOX PAGE
     -- ================================================================= --
     local dmInboxContainer = Instance.new("Frame", main)
     dmInboxContainer.Size = UDim2.new(1, 0, 1, -42)
@@ -570,7 +571,6 @@ local function startMainChat()
     dmInboxContainer.Visible = false
     dmInboxContainer.ClipsDescendants = true
 
-    -- Header
     local dmInboxHeader = Instance.new("Frame", dmInboxContainer)
     dmInboxHeader.Size = UDim2.new(1, -22, 0, 30)
     dmInboxHeader.Position = UDim2.new(0, 11, 0, 5)
@@ -591,7 +591,6 @@ local function startMainChat()
     dmInboxTitle.TextColor3 = Colors.NeonPink
     dmInboxTitle.BackgroundTransparency = 1
 
-    -- Contacts scroll list
     local dmInboxScroll = Instance.new("ScrollingFrame", dmInboxContainer)
     dmInboxScroll.Size = UDim2.new(1, -22, 1, -46)
     dmInboxScroll.Position = UDim2.new(0, 11, 0, 42)
@@ -604,7 +603,6 @@ local function startMainChat()
     dmInboxLayout.Padding = UDim.new(0, 6)
     dmInboxLayout.SortOrder = Enum.SortOrder.LayoutOrder
 
-    -- Empty state label
     local dmEmptyLabel = Instance.new("TextLabel", dmInboxScroll)
     dmEmptyLabel.Size = UDim2.new(1, 0, 0, 50)
     dmEmptyLabel.Text = "No DMs yet!\nSend someone a message to start."
@@ -615,7 +613,7 @@ local function startMainChat()
     dmEmptyLabel.TextWrapped = true
     dmEmptyLabel.LayoutOrder = 9999
 
-    local dmContactWidgets = {} -- uid -> widget frame
+    local dmContactWidgets = {}
 
     local function refreshDmInboxEmpty()
         local hasContacts = false
@@ -623,10 +621,98 @@ local function startMainChat()
         dmEmptyLabel.Visible = not hasContacts
     end
 
+    -- ================================================================= --
+    -- DM CHAT CONTAINER - define karo pehle taaki inbox me use ho sake
+    -- ================================================================= --
+    local currentTab, activeDmUserId, activeDmUserName = "Server", nil, nil
+
+    local dmChatContainer = Instance.new("Frame", main)
+    dmChatContainer.Size = UDim2.new(1, 0, 1, -42)
+    dmChatContainer.Position = UDim2.new(0, 0, 0, 42)
+    dmChatContainer.BackgroundTransparency = 1
+    dmChatContainer.Visible = false
+
+    local dmTopBar = Instance.new("Frame", dmChatContainer)
+    dmTopBar.Size = UDim2.new(1, -22, 0, 30)
+    dmTopBar.Position = UDim2.new(0, 11, 0, 5)
+    dmTopBar.BackgroundColor3 = Colors.Darker
+    dmTopBar.BackgroundTransparency = 0.3
+    dmTopBar.BorderSizePixel = 0
+    Instance.new("UICorner", dmTopBar).CornerRadius = UDim.new(0, 8)
+
+    local dmBackBtn = Instance.new("TextButton", dmTopBar)
+    dmBackBtn.Size = UDim2.new(0, 60, 1, 0)
+    dmBackBtn.Text = "< Back"
+    dmBackBtn.Font = Enum.Font.GothamBold
+    dmBackBtn.TextSize = 12
+    dmBackBtn.TextColor3 = Colors.Primary
+    dmBackBtn.BackgroundTransparency = 1
+
+    local dmChatTitle = Instance.new("TextLabel", dmTopBar)
+    dmChatTitle.Size = UDim2.new(1, -70, 1, 0)
+    dmChatTitle.Position = UDim2.new(0, 65, 0, 0)
+    dmChatTitle.Text = "Chat"
+    dmChatTitle.Font = Enum.Font.GothamBlack
+    dmChatTitle.TextSize = 13
+    dmChatTitle.TextColor3 = Colors.Light
+    dmChatTitle.BackgroundTransparency = 1
+    dmChatTitle.TextXAlignment = Enum.TextXAlignment.Left
+    dmChatTitle.TextTruncate = Enum.TextTruncate.AtEnd
+
+    local dmChatFrame = Instance.new("ScrollingFrame", dmChatContainer)
+    dmChatFrame.Size = UDim2.new(1, -22, 0, 175)
+    dmChatFrame.Position = UDim2.new(0, 11, 0, 40)
+    dmChatFrame.BackgroundTransparency = 1
+    dmChatFrame.BorderSizePixel = 0
+    dmChatFrame.ScrollBarThickness = 2
+    dmChatFrame.ScrollBarImageColor3 = Colors.NeonPink
+    dmChatFrame.ScrollBarImageTransparency = 0.5
+    dmChatFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    dmChatFrame.ScrollingDirection = Enum.ScrollingDirection.Y
+    dmChatFrame.ClipsDescendants = true
+    local dmPadL = Instance.new("UIPadding", dmChatFrame)
+    dmPadL.PaddingLeft = UDim.new(0, 6)
+    dmPadL.PaddingRight = UDim.new(0, 6)
+    local dmChatLayout = Instance.new("UIListLayout", dmChatFrame)
+    dmChatLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    dmChatLayout.Padding = UDim.new(0, 10)
+
+    -- ================================================================= --
+    -- FIX #2 CONT: switchTab - SABHI FRAMES KO SAHI SE TOGGLE KARO
+    -- ================================================================= --
+    local function switchTab(tabName)
+        currentTab = tabName
+        -- Sab pehle band karo
+        contentFrame.Visible = false
+        galleryContainer.Visible = false
+        voiceContainer.Visible = false
+        dmChatContainer.Visible = false
+        dmInboxContainer.Visible = false
+        -- Phir sirf jo chahiye woh kholo
+        if tabName == "Server" then
+            contentFrame.Visible = true
+        elseif tabName == "Gallery" then
+            galleryContainer.Visible = true
+        elseif tabName == "Voice" then
+            voiceContainer.Visible = true
+        elseif tabName == "DMChat" then
+            dmChatContainer.Visible = true
+        elseif tabName == "DMInbox" then
+            dmInboxContainer.Visible = true
+        end
+
+        -- Sticker panel band karo tab switch pe
+        isStickerPanelOpen = false
+        if stickerPanel then safeTween(stickerPanel, {Size = UDim2.new(1, -22, 0, 0)}, 0.2) end
+        if mentionMenu then mentionMenu.Visible = false end
+    end
+
+    -- ================================================================= --
+    -- DM CONTACT WIDGET CREATOR
+    -- ================================================================= --
     local function createOrUpdateDmContactWidget(uid, data)
         local uidStr = tostring(uid)
         if dmContactWidgets[uidStr] then
-            -- Update last message preview
             local prevLbl = dmContactWidgets[uidStr]:FindFirstChild("LastMsg")
             if prevLbl and data.lastMsg then
                 local cleanLastMsg = tostring(data.lastMsg):gsub("%[STICKER:%d+%]", "🌸 Sticker"):gsub("%[PHOTO:.-%]", "📸 Photo"):gsub("%[VOICE:.-%]", "🎵 Voice"):gsub("%[SNAP%].*", "🔥 Snap")
@@ -648,17 +734,9 @@ local function startMainChat()
         cardStroke.Thickness = 1
         cardStroke.Transparency = 0.5
 
-        -- Hover effect
-        card.MouseEnter:Connect(function()
-            safeTween(card, {BackgroundTransparency = 0}, 0.15)
-            safeTween(cardStroke, {Transparency = 0.1}, 0.15)
-        end)
-        card.MouseLeave:Connect(function()
-            safeTween(card, {BackgroundTransparency = 0.1}, 0.15)
-            safeTween(cardStroke, {Transparency = 0.5}, 0.15)
-        end)
+        card.MouseEnter:Connect(function() safeTween(card, {BackgroundTransparency = 0}, 0.15); safeTween(cardStroke, {Transparency = 0.1}, 0.15) end)
+        card.MouseLeave:Connect(function() safeTween(card, {BackgroundTransparency = 0.1}, 0.15); safeTween(cardStroke, {Transparency = 0.5}, 0.15) end)
 
-        -- Avatar
         local avatarFrame = Instance.new("Frame", card)
         avatarFrame.Size = UDim2.new(0, 44, 0, 44)
         avatarFrame.Position = UDim2.new(0, 8, 0.5, -22)
@@ -666,10 +744,7 @@ local function startMainChat()
         avatarFrame.BackgroundTransparency = 0.7
         avatarFrame.BorderSizePixel = 0
         Instance.new("UICorner", avatarFrame).CornerRadius = UDim.new(1, 0)
-        local avStroke2 = Instance.new("UIStroke", avatarFrame)
-        avStroke2.Color = Colors.NeonPink
-        avStroke2.Thickness = 2
-        avStroke2.Transparency = 0.2
+        local avStroke2 = Instance.new("UIStroke", avatarFrame); avStroke2.Color = Colors.NeonPink; avStroke2.Thickness = 2; avStroke2.Transparency = 0.2
 
         local avatarImg2 = Instance.new("ImageLabel", avatarFrame)
         avatarImg2.Size = UDim2.new(1, 0, 1, 0)
@@ -677,7 +752,6 @@ local function startMainChat()
         avatarImg2.ScaleType = Enum.ScaleType.Crop
         Instance.new("UICorner", avatarImg2).CornerRadius = UDim.new(1, 0)
 
-        -- Load DP
         local dpUrl = data.dp or ""
         if dpUrl:find("http") then
             task.spawn(function()
@@ -691,92 +765,62 @@ local function startMainChat()
             end)
         else avatarImg2.Image = "rbxthumb://type=AvatarHeadShot&id=" .. uidStr .. "&w=150&h=150" end
 
-        -- Online indicator dot
         local onlineDot = Instance.new("Frame", avatarFrame)
         onlineDot.Size = UDim2.new(0, 10, 0, 10)
         onlineDot.Position = UDim2.new(1, -10, 1, -10)
         onlineDot.BackgroundColor3 = Color3.fromRGB(0, 255, 120)
         onlineDot.BorderSizePixel = 0
         Instance.new("UICorner", onlineDot).CornerRadius = UDim.new(1, 0)
-        -- Check if user is active (seen within 3 min)
         local isActive = activeScriptUsers[uidStr] and (os.time() - (activeScriptUsers[uidStr].lastSeen or 0)) < 180
         onlineDot.BackgroundColor3 = isActive and Color3.fromRGB(0, 255, 120) or Color3.fromRGB(100, 100, 100)
 
-        -- Text area
         local textArea = Instance.new("Frame", card)
         textArea.Size = UDim2.new(1, -120, 1, 0)
         textArea.Position = UDim2.new(0, 60, 0, 0)
         textArea.BackgroundTransparency = 1
 
         local displayNameLbl = Instance.new("TextLabel", textArea)
-        displayNameLbl.Size = UDim2.new(1, 0, 0, 20)
-        displayNameLbl.Position = UDim2.new(0, 0, 0, 8)
+        displayNameLbl.Size = UDim2.new(1, 0, 0, 20); displayNameLbl.Position = UDim2.new(0, 0, 0, 8)
         displayNameLbl.Text = data.displayName or "Unknown"
-        displayNameLbl.Font = Enum.Font.GothamBlack
-        displayNameLbl.TextSize = 13
-        displayNameLbl.TextColor3 = Colors.Light
-        displayNameLbl.BackgroundTransparency = 1
-        displayNameLbl.TextXAlignment = Enum.TextXAlignment.Left
-        displayNameLbl.TextTruncate = Enum.TextTruncate.AtEnd
+        displayNameLbl.Font = Enum.Font.GothamBlack; displayNameLbl.TextSize = 13; displayNameLbl.TextColor3 = Colors.Light; displayNameLbl.BackgroundTransparency = 1; displayNameLbl.TextXAlignment = Enum.TextXAlignment.Left; displayNameLbl.TextTruncate = Enum.TextTruncate.AtEnd
 
         local usernameLbl = Instance.new("TextLabel", textArea)
-        usernameLbl.Size = UDim2.new(1, 0, 0, 14)
-        usernameLbl.Position = UDim2.new(0, 0, 0, 24)
+        usernameLbl.Size = UDim2.new(1, 0, 0, 14); usernameLbl.Position = UDim2.new(0, 0, 0, 24)
         usernameLbl.Text = "@" .. (data.username or "unknown")
-        usernameLbl.Font = Enum.Font.Gotham
-        usernameLbl.TextSize = 10
-        usernameLbl.TextColor3 = Colors.NeonPink
-        usernameLbl.BackgroundTransparency = 1
-        usernameLbl.TextXAlignment = Enum.TextXAlignment.Left
+        usernameLbl.Font = Enum.Font.Gotham; usernameLbl.TextSize = 10; usernameLbl.TextColor3 = Colors.NeonPink; usernameLbl.BackgroundTransparency = 1; usernameLbl.TextXAlignment = Enum.TextXAlignment.Left
 
         local cleanLastMsg = tostring(data.lastMsg or ""):gsub("%[STICKER:%d+%]", "🌸 Sticker"):gsub("%[PHOTO:.-%]", "📸 Photo"):gsub("%[VOICE:.-%]", "🎵 Voice"):gsub("%[SNAP%].*", "🔥 Snap")
         local lastMsgLbl = Instance.new("TextLabel", textArea)
         lastMsgLbl.Name = "LastMsg"
-        lastMsgLbl.Size = UDim2.new(1, 0, 0, 14)
-        lastMsgLbl.Position = UDim2.new(0, 0, 0, 38)
+        lastMsgLbl.Size = UDim2.new(1, 0, 0, 14); lastMsgLbl.Position = UDim2.new(0, 0, 0, 38)
         lastMsgLbl.Text = cleanLastMsg ~= "" and cleanLastMsg or "Tap to chat"
-        lastMsgLbl.Font = Enum.Font.Gotham
-        lastMsgLbl.TextSize = 10
-        lastMsgLbl.TextColor3 = Colors.TextDim
-        lastMsgLbl.BackgroundTransparency = 1
-        lastMsgLbl.TextXAlignment = Enum.TextXAlignment.Left
-        lastMsgLbl.TextTruncate = Enum.TextTruncate.AtEnd
+        lastMsgLbl.Font = Enum.Font.Gotham; lastMsgLbl.TextSize = 10; lastMsgLbl.TextColor3 = Colors.TextDim; lastMsgLbl.BackgroundTransparency = 1; lastMsgLbl.TextXAlignment = Enum.TextXAlignment.Left; lastMsgLbl.TextTruncate = Enum.TextTruncate.AtEnd
 
-        -- DM Button on right
         local dmOpenBtn = Instance.new("TextButton", card)
-        dmOpenBtn.Size = UDim2.new(0, 48, 0, 28)
-        dmOpenBtn.Position = UDim2.new(1, -56, 0.5, -14)
-        dmOpenBtn.Text = "💬 DM"
-        dmOpenBtn.Font = Enum.Font.GothamBold
-        dmOpenBtn.TextSize = 9
-        dmOpenBtn.TextColor3 = Colors.Dark
-        dmOpenBtn.BackgroundColor3 = Colors.NeonPink
-        dmOpenBtn.BorderSizePixel = 0
+        dmOpenBtn.Size = UDim2.new(0, 48, 0, 28); dmOpenBtn.Position = UDim2.new(1, -56, 0.5, -14)
+        dmOpenBtn.Text = "💬 DM"; dmOpenBtn.Font = Enum.Font.GothamBold; dmOpenBtn.TextSize = 9; dmOpenBtn.TextColor3 = Colors.Dark; dmOpenBtn.BackgroundColor3 = Colors.NeonPink; dmOpenBtn.BorderSizePixel = 0
         Instance.new("UICorner", dmOpenBtn).CornerRadius = UDim.new(0, 8)
 
-        dmOpenBtn.MouseButton1Click:Connect(function()
+        -- ================================================================= --
+        -- FIX #2: DM Open - switchTab use karo properly
+        -- ================================================================= --
+        local function openDmChat()
             local parsedUid = tonumber(uidStr)
             if not parsedUid then return end
             activeDmUserId = parsedUid
             activeDmUserName = data.displayName or "Unknown"
-            if dmChatTitle then dmChatTitle.Text = "Chat with " .. activeDmUserName end
-            if not isUiOpen then toggleMainUI(true) end
-            contentFrame.Visible = false; galleryContainer.Visible = false; voiceContainer.Visible = false
-            dmChatContainer.Visible = true; dmInboxContainer.Visible = false; currentTab = "DMChat"
-            for _, c in ipairs(dmChatFrame:GetChildren()) do
-                if c:IsA("Frame") then
-                    if c:GetAttribute("ConvoId") == uidStr then c.Visible = true else c.Visible = false end
-                end
-            end
-            task.wait(0.1)
-            local maxScroll = dmChatLayout.AbsoluteContentSize.Y - dmChatFrame.AbsoluteSize.Y + 20
-            if maxScroll > 0 then dmChatFrame.CanvasPosition = Vector2.new(0, maxScroll) end
-        end)
+            if dmChatTitle then dmChatTitle.Text = "💬 " .. activeDmUserName end
+            switchTab("DMChat")
+            if loadDmHistory then loadDmHistory(parsedUid) end
+        end
 
-        -- Also full card clickable
+        dmOpenBtn.MouseButton1Click:Connect(openDmChat)
+
+        -- Card pe bhi click karein toh DM khule (sirf button area chhod ke)
         card.InputBegan:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                dmOpenBtn.MouseButton1Click:Fire()
+                -- Only if not clicking the button
+                openDmChat()
             end
         end)
 
@@ -785,7 +829,6 @@ local function startMainChat()
         refreshDmInboxEmpty()
     end
 
-    -- Load existing contacts into inbox
     task.spawn(function()
         task.wait(2)
         for uid, data in pairs(dmContacts) do
@@ -793,6 +836,47 @@ local function startMainChat()
         end
         refreshDmInboxEmpty()
     end)
+
+    -- ================================================================= --
+    -- LOAD DM HISTORY WITH 3-DAY AUTO DELETE
+    -- ================================================================= --
+    loadDmHistory = function(targetUid)
+        -- Clear old messages
+        for _, c in ipairs(dmChatFrame:GetChildren()) do
+            if c:IsA("Frame") then c:Destroy() end
+        end
+
+        local convoKey = getDmConvoKey(myUserId, targetUid)
+
+        task.spawn(function()
+            local res = reqFunc({Url = FIREBASE_URL .. "dm_history/" .. convoKey .. '.json?orderBy="$key"&limitToLast=50', Method = "GET"})
+            if res.Success and res.Body ~= "null" then
+                local data = HttpService:JSONDecode(res.Body)
+                local currentTime = os.time()
+                local threeDaysInSeconds = 259200
+
+                local sortedKeys = {}
+                for k, _ in pairs(data) do table.insert(sortedKeys, k) end
+                table.sort(sortedKeys)
+
+                for _, k in ipairs(sortedKeys) do
+                    local msgData = data[k]
+                    if msgData and msgData.timestamp then
+                        if (currentTime - msgData.timestamp) > threeDaysInSeconds then
+                            reqFunc({Url = FIREBASE_URL .. "dm_history/" .. convoKey .. "/" .. k .. ".json", Method = "DELETE"})
+                        else
+                            local senderName = msgData.senderName or "Unknown"
+                            addMessageToChat(senderName, msgData.text, false, tonumber(msgData.senderId), "DM", k, targetUid)
+                        end
+                    end
+                end
+            end
+
+            task.wait(0.15)
+            local maxScroll = dmChatLayout.AbsoluteContentSize.Y - dmChatFrame.AbsoluteSize.Y + 20
+            if maxScroll > 0 then dmChatFrame.CanvasPosition = Vector2.new(0, maxScroll) end
+        end)
+    end
 
     -- ================================================================= --
     -- FULL SCREEN PREVIEW
@@ -839,7 +923,7 @@ local function startMainChat()
         if name and msg then
             local cleanMsg = tostring(msg):gsub("%[STICKER:%d+%]", "[Sticker]"):gsub("%[PHOTO:.-%]", "[Photo]"):gsub("%[VOICE:.-%]", "[Voice Audio]")
             if cleanMsg:match("^🔥") then cleanMsg = "[Snap 🔥]" end
-            serverReplyContext = name .. ": " .. cleanMsg; srvReplyText.Text = "Replying to " .. serverReplyContext; serverReplyBar.Visible = true; safeTween(serverReplyBar, {Position = UDim2.new(0, 11, 1, -85)}, 0.4)
+            serverReplyContext = name .. ": " .. cleanMsg; srvReplyText.Text = "↩️ Replying to " .. serverReplyContext; serverReplyBar.Visible = true; safeTween(serverReplyBar, {Position = UDim2.new(0, 11, 1, -85)}, 0.4)
         else serverReplyContext = nil; local tw = safeTween(serverReplyBar, {Position = UDim2.new(0, 11, 1, -50)}, 0.3); if tw then tw.Completed:Connect(function() if not serverReplyContext then serverReplyBar.Visible = false end end) end end
     end
     srvReplyCancel.MouseButton1Click:Connect(function() updateServerReplyState(nil, nil) end)
@@ -852,56 +936,117 @@ local function startMainChat()
 
     local typingLbl = Instance.new("TextLabel", contentFrame); typingLbl.Size = UDim2.new(1, -30, 0, 15); typingLbl.Position = UDim2.new(0, 15, 1, -65); typingLbl.BackgroundTransparency = 1; typingLbl.TextColor3 = Colors.Accent; typingLbl.Font = Enum.Font.Gotham; typingLbl.TextSize = 10; typingLbl.TextXAlignment = Enum.TextXAlignment.Left; typingLbl.Text = ""
 
-    local currentTab, activeDmUserId, activeDmUserName = "Server", nil, nil
+    -- ================================================================= --
+    -- DM INPUT BAR (DM Chat ke liye alag)
+    -- ================================================================= --
+    local dmInputBg = Instance.new("Frame", dmChatContainer)
+    dmInputBg.Size = UDim2.new(1, -20, 0, 40)
+    dmInputBg.Position = UDim2.new(0, 10, 1, -50)
+    dmInputBg.BackgroundColor3 = Colors.Dark
+    dmInputBg.BackgroundTransparency = 0.4
+    Instance.new("UICorner", dmInputBg).CornerRadius = UDim.new(0, 12)
+    local dmInputBox = Instance.new("TextBox", dmInputBg)
+    dmInputBox.Size = UDim2.new(1, -125, 1, 0)
+    dmInputBox.Position = UDim2.new(0, 10, 0, 0)
+    dmInputBox.Text = ""
+    dmInputBox.PlaceholderText = "Type DM..."
+    dmInputBox.BackgroundTransparency = 1
+    dmInputBox.TextColor3 = Colors.TextDim
+    dmInputBox.TextSize = 12
+    dmInputBox.Font = Enum.Font.Gotham
+    dmInputBox.TextXAlignment = Enum.TextXAlignment.Left
+    dmInputBox.ClearTextOnFocus = false
 
-    local dmChatContainer = Instance.new("Frame", main); dmChatContainer.Size = UDim2.new(1, 0, 1, -42); dmChatContainer.Position = UDim2.new(0, 0, 0, 42); dmChatContainer.BackgroundTransparency = 1; dmChatContainer.Visible = false
-    local dmTopBar = Instance.new("Frame", dmChatContainer); dmTopBar.Size = UDim2.new(1, -22, 0, 30); dmTopBar.Position = UDim2.new(0, 11, 0, 5); dmTopBar.BackgroundColor3 = Colors.Darker; dmTopBar.BackgroundTransparency = 0.3; dmTopBar.BorderSizePixel = 0; Instance.new("UICorner", dmTopBar).CornerRadius = UDim.new(0, 8)
-    local dmBackBtn = Instance.new("TextButton", dmTopBar); dmBackBtn.Size = UDim2.new(0, 60, 1, 0); dmBackBtn.Text = "< Back"; dmBackBtn.Font = Enum.Font.GothamBold; dmBackBtn.TextSize = 12; dmBackBtn.TextColor3 = Colors.Primary; dmBackBtn.BackgroundTransparency = 1
-    local dmChatTitle = Instance.new("TextLabel", dmTopBar); dmChatTitle.Size = UDim2.new(1, -70, 1, 0); dmChatTitle.Position = UDim2.new(0, 65, 0, 0); dmChatTitle.Text = "Chat"; dmChatTitle.Font = Enum.Font.GothamBlack; dmChatTitle.TextSize = 13; dmChatTitle.TextColor3 = Colors.Light; dmChatTitle.BackgroundTransparency = 1; dmChatTitle.TextXAlignment = Enum.TextXAlignment.Left; dmChatTitle.TextTruncate = Enum.TextTruncate.AtEnd
+    local dmStickerBtn = Instance.new("TextButton", dmInputBg)
+    dmStickerBtn.Size = UDim2.new(0, 30, 0, 30)
+    dmStickerBtn.Position = UDim2.new(1, -80, 0.5, -15)
+    dmStickerBtn.Text = "🌸"
+    dmStickerBtn.TextSize = 18
+    dmStickerBtn.BackgroundTransparency = 1
 
-    -- FIX: DM Chat Frame with proper ClipsDescendants
-    local dmChatFrame = Instance.new("ScrollingFrame", dmChatContainer)
-    dmChatFrame.Size = UDim2.new(1, -22, 0, 180)
-    dmChatFrame.Position = UDim2.new(0, 11, 0, 40)
-    dmChatFrame.BackgroundTransparency = 1
-    dmChatFrame.BorderSizePixel = 0
-    dmChatFrame.ScrollBarThickness = 2
-    dmChatFrame.ScrollBarImageColor3 = Colors.NeonPink
-    dmChatFrame.ScrollBarImageTransparency = 0.5
-    dmChatFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
-    dmChatFrame.ScrollingDirection = Enum.ScrollingDirection.Y
-    dmChatFrame.ClipsDescendants = true
-    local dmPadL = Instance.new("UIPadding", dmChatFrame); dmPadL.PaddingLeft = UDim.new(0, 6); dmPadL.PaddingRight = UDim.new(0, 6)
-    local dmChatLayout = Instance.new("UIListLayout", dmChatFrame); dmChatLayout.SortOrder = Enum.SortOrder.LayoutOrder; dmChatLayout.Padding = UDim.new(0, 10)
+    local dmMediaBtn = Instance.new("TextButton", dmInputBg)
+    dmMediaBtn.Size = UDim2.new(0, 30, 0, 30)
+    dmMediaBtn.Position = UDim2.new(1, -115, 0.5, -15)
+    dmMediaBtn.Text = "📷"
+    dmMediaBtn.TextColor3 = Colors.Accent
+    dmMediaBtn.TextSize = 18
+    dmMediaBtn.BackgroundTransparency = 1
 
-    local dmInputBg = inputBg:Clone(); dmInputBg.Parent = dmChatContainer
-    local dmInputBox = dmInputBg:FindFirstChildWhichIsA("TextBox"); dmInputBox.Text = ""
-    local dmStickerBtn, dmMediaBtn, dmSendBtn = nil, nil, nil
-    for _, child in ipairs(dmInputBg:GetChildren()) do
-        if child:IsA("TextButton") then
-            if child.Text == "▶" then dmSendBtn = child; dmSendBtn.BackgroundColor3 = Colors.NeonPink
-            elseif child.Text == "🌸" then dmStickerBtn = child
-            elseif child.Text == "📷" then dmMediaBtn = child end
-        end
-    end
+    local dmSendBtn = Instance.new("TextButton", dmInputBg)
+    dmSendBtn.Size = UDim2.new(0, 35, 0, 30)
+    dmSendBtn.Position = UDim2.new(1, -45, 0.5, -15)
+    dmSendBtn.Text = "▶"
+    dmSendBtn.TextColor3 = Colors.Dark
+    dmSendBtn.Font = Enum.Font.GothamBold
+    dmSendBtn.TextSize = 16
+    dmSendBtn.BackgroundColor3 = Colors.NeonPink
+    Instance.new("UICorner", dmSendBtn).CornerRadius = UDim.new(0, 8)
+
     dmInputBox:GetPropertyChangedSignal("Text"):Connect(function() updateMentionMenu(dmInputBox, -47) end)
 
-    local dmReplyBar = serverReplyBar:Clone(); dmReplyBar.Parent = dmChatContainer
-    local dmReplyText = dmReplyBar:FindFirstChildWhichIsA("TextLabel", true)
-    local dmReplyCancel = dmReplyBar:FindFirstChildWhichIsA("TextButton", true)
+    -- DM Reply Bar
+    local dmReplyBar = Instance.new("Frame", dmChatContainer)
+    dmReplyBar.Size = UDim2.new(1, -22, 0, 25)
+    dmReplyBar.Position = UDim2.new(0, 11, 1, -50)
+    dmReplyBar.BackgroundColor3 = Colors.Dark
+    dmReplyBar.BackgroundTransparency = 0.2
+    dmReplyBar.Visible = false
+    dmReplyBar.ZIndex = 5
+    Instance.new("UICorner", dmReplyBar).CornerRadius = UDim.new(0, 6)
+    local dmReplyText = Instance.new("TextLabel", dmReplyBar)
+    dmReplyText.Size = UDim2.new(1, -55, 1, 0)
+    dmReplyText.Position = UDim2.new(0, 30, 0, 0)
+    dmReplyText.Font = Enum.Font.Gotham
+    dmReplyText.TextSize = 11
+    dmReplyText.TextColor3 = Colors.TextDim
+    dmReplyText.BackgroundTransparency = 1
+    dmReplyText.TextXAlignment = Enum.TextXAlignment.Left
+    dmReplyText.TextTruncate = Enum.TextTruncate.AtEnd
+    local dmReplyCancel = Instance.new("TextButton", dmReplyBar)
+    dmReplyCancel.Size = UDim2.new(0, 25, 1, 0)
+    dmReplyCancel.Position = UDim2.new(1, -25, 0, 0)
+    dmReplyCancel.Text = "✖"
+    dmReplyCancel.Font = Enum.Font.GothamBold
+    dmReplyCancel.TextSize = 12
+    dmReplyCancel.TextColor3 = Colors.TextDim
+    dmReplyCancel.BackgroundTransparency = 1
+
     local function updateDmReplyState(name, msg)
         if name and msg then
             local cleanMsg = tostring(msg):gsub("%[STICKER:%d+%]", "[Sticker]"):gsub("%[PHOTO:.-%]", "[Photo]"):gsub("%[VOICE:.-%]", "[Voice Audio]")
             if cleanMsg:match("^🔥") then cleanMsg = "[Snap 🔥]" end
-            dmReplyContext = name .. ": " .. cleanMsg; dmReplyText.Text = "Replying to " .. dmReplyContext; dmReplyBar.Visible = true; safeTween(dmReplyBar, {Position = UDim2.new(0, 11, 1, -72)}, 0.4)
-        else dmReplyContext = nil; local tw = safeTween(dmReplyBar, {Position = UDim2.new(0, 11, 1, -42)}, 0.3); if tw then tw.Completed:Connect(function() if not dmReplyContext then dmReplyBar.Visible = false end end) end end
+            dmReplyContext = name .. ": " .. cleanMsg
+            dmReplyText.Text = "↩️ Replying to " .. dmReplyContext
+            dmReplyBar.Visible = true
+            safeTween(dmReplyBar, {Position = UDim2.new(0, 11, 1, -75)}, 0.4)
+        else
+            dmReplyContext = nil
+            local tw = safeTween(dmReplyBar, {Position = UDim2.new(0, 11, 1, -50)}, 0.3)
+            if tw then tw.Completed:Connect(function() if not dmReplyContext then dmReplyBar.Visible = false end end) end
+        end
     end
-    if dmReplyCancel then dmReplyCancel.MouseButton1Click:Connect(function() updateDmReplyState(nil, nil) end) end
+    dmReplyCancel.MouseButton1Click:Connect(function() updateDmReplyState(nil, nil) end)
 
-    local stickerPanel = Instance.new("Frame", main); stickerPanel.Size = UDim2.new(1, -22, 0, 0); stickerPanel.Position = UDim2.new(0, 11, 1, -65); stickerPanel.AnchorPoint = Vector2.new(0, 1); stickerPanel.BackgroundColor3 = Colors.Dark; stickerPanel.ClipsDescendants = true; stickerPanel.ZIndex = 50; Instance.new("UICorner", stickerPanel).CornerRadius = UDim.new(0, 14)
-    local stickerScroll = Instance.new("ScrollingFrame", stickerPanel); stickerScroll.Size = UDim2.new(1, -10, 1, -10); stickerScroll.Position = UDim2.new(0, 5, 0, 5); stickerScroll.BackgroundTransparency = 1; stickerScroll.ScrollBarThickness = 2; stickerScroll.ZIndex = 51
-    local stickerGrid = Instance.new("UIGridLayout", stickerScroll); stickerGrid.CellSize = UDim2.new(0, 50, 0, 50); stickerGrid.CellPadding = UDim2.new(0, 8, 0, 8); stickerGrid.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    -- Sticker Panel (sab tabs ke liye ek hi)
     local isStickerPanelOpen = false
+    local stickerPanel = Instance.new("Frame", main)
+    stickerPanel.Size = UDim2.new(1, -22, 0, 0)
+    stickerPanel.Position = UDim2.new(0, 11, 1, -65)
+    stickerPanel.AnchorPoint = Vector2.new(0, 1)
+    stickerPanel.BackgroundColor3 = Colors.Dark
+    stickerPanel.ClipsDescendants = true
+    stickerPanel.ZIndex = 50
+    Instance.new("UICorner", stickerPanel).CornerRadius = UDim.new(0, 14)
+    local stickerScroll = Instance.new("ScrollingFrame", stickerPanel)
+    stickerScroll.Size = UDim2.new(1, -10, 1, -10)
+    stickerScroll.Position = UDim2.new(0, 5, 0, 5)
+    stickerScroll.BackgroundTransparency = 1
+    stickerScroll.ScrollBarThickness = 2
+    stickerScroll.ZIndex = 51
+    local stickerGrid = Instance.new("UIGridLayout", stickerScroll)
+    stickerGrid.CellSize = UDim2.new(0, 50, 0, 50)
+    stickerGrid.CellPadding = UDim2.new(0, 8, 0, 8)
+    stickerGrid.HorizontalAlignment = Enum.HorizontalAlignment.Center
 
     for _, id in ipairs(STICKER_LIST) do
         local btn = Instance.new("ImageButton", stickerScroll); btn.BackgroundTransparency = 1; btn.ZIndex = 52
@@ -913,41 +1058,28 @@ local function startMainChat()
         end)
     end
     stickerScroll.CanvasSize = UDim2.new(0, 0, 0, math.ceil(#STICKER_LIST / 5) * 58)
-    stickerBtn.MouseButton1Click:Connect(function() isStickerPanelOpen = not isStickerPanelOpen; safeTween(stickerPanel, {Size = UDim2.new(1, -22, 0, isStickerPanelOpen and 140 or 0)}, 0.35) end)
-    if dmStickerBtn then dmStickerBtn.MouseButton1Click:Connect(function() isStickerPanelOpen = not isStickerPanelOpen; safeTween(stickerPanel, {Size = UDim2.new(1, -22, 0, isStickerPanelOpen and 140 or 0)}, 0.35) end) end
 
-    local function switchTab(tabName)
-        currentTab = tabName
-        contentFrame.Visible = (tabName == "Server")
-        galleryContainer.Visible = (tabName == "Gallery")
-        voiceContainer.Visible = (tabName == "Voice")
-        dmChatContainer.Visible = (tabName == "DMChat")
-        dmInboxContainer.Visible = (tabName == "DMInbox")
-        isStickerPanelOpen = false; safeTween(stickerPanel, {Size = UDim2.new(1, -22, 0, 0)}, 0.2); mentionMenu.Visible = false
+    local function toggleStickerPanel()
+        isStickerPanelOpen = not isStickerPanelOpen
+        safeTween(stickerPanel, {Size = UDim2.new(1, -22, 0, isStickerPanelOpen and 140 or 0)}, 0.35)
     end
+
+    stickerBtn.MouseButton1Click:Connect(toggleStickerPanel)
+    dmStickerBtn.MouseButton1Click:Connect(toggleStickerPanel)
+
+    -- Tab buttons connect karo
     serverTabBtn.MouseButton1Click:Connect(function() switchTab("Server") end)
     galleryTabBtn.MouseButton1Click:Connect(function() switchTab("Gallery") end)
     voiceTabBtn.MouseButton1Click:Connect(function() switchTab("Voice") end)
-    dmInboxTabBtn.MouseButton1Click:Connect(function()
-        -- Refresh contact online status
-        for uidStr, widget in pairs(dmContactWidgets) do
-            local dotFrame = widget:FindFirstChildWhichIsA("Frame") and widget:FindFirstChildWhichIsA("Frame"):FindFirstChildWhichIsA("Frame")
-            -- update the online indicator if possible
-        end
-        switchTab("DMInbox")
-    end)
-    dmBackBtn.MouseButton1Click:Connect(function()
-        -- Go back to DM Inbox instead of Server
-        switchTab("DMInbox")
-    end)
+    dmInboxTabBtn.MouseButton1Click:Connect(function() switchTab("DMInbox") end)
+    dmBackBtn.MouseButton1Click:Connect(function() switchTab("DMInbox") end)
 
     -- ================================================================= --
-    -- ✨ PREMIUM DJ MUSIC BUBBLE
+    -- PREMIUM DJ MUSIC BUBBLE
     -- ================================================================= --
     local musicBubbleGui = nil
     local musicBubbleConn = nil
     local musicBubbleBarConns = {}
-    local musicBubbleDragging = false
 
     local function removeMusicBubble()
         if musicBubbleConn then musicBubbleConn:Disconnect(); musicBubbleConn = nil end
@@ -967,7 +1099,6 @@ local function startMainChat()
 
     local function addMusicBubble(songTitle, djName)
         removeMusicBubble()
-
         musicBubbleGui = Instance.new("ScreenGui")
         musicBubbleGui.Name = "ZaynMusicBubble"
         musicBubbleGui.DisplayOrder = 9998
@@ -1030,22 +1161,16 @@ local function startMainChat()
         discNote.Font = Enum.Font.GothamBold
         discNote.TextColor3 = Color3.fromRGB(255, 255, 255)
 
-        local discAngle = 0
         local discConn = RunService.RenderStepped:Connect(function(dt)
-            discAngle = discAngle + dt * 80
             local pulse = (math.sin(tick() * 3) + 1) / 2
-            local r = math.floor(0 + pulse * 0)
-            local g = math.floor(180 + pulse * 75)
-            local b = math.floor(200 + pulse * 55)
             pcall(function()
-                discStroke.Color = Color3.fromRGB(r, g, b)
+                discStroke.Color = Color3.fromRGB(0, math.floor(180 + pulse * 75), math.floor(200 + pulse * 55))
                 borderStroke.Color = Color3.fromRGB(0, math.floor(150 + pulse * 105), 255)
             end)
         end)
         table.insert(musicBubbleBarConns, discConn)
 
-        local truncatedTitle = songTitle
-        if #truncatedTitle > 28 then truncatedTitle = truncatedTitle:sub(1, 25) .. "..." end
+        local truncatedTitle = #songTitle > 28 and songTitle:sub(1, 25) .. "..." or songTitle
 
         local songTitleLbl = Instance.new("TextLabel", glassBg)
         songTitleLbl.Size = UDim2.new(1, -82, 0, 20)
@@ -1087,10 +1212,7 @@ local function startMainChat()
         eqContainer.BackgroundTransparency = 1
         eqContainer.BorderSizePixel = 0
 
-        local barCount = 6
-        local barWidth = 5
-        local barGap = 3
-        local bars = {}
+        local barCount = 6; local barWidth = 5; local barGap = 3; local bars = {}
         for i = 1, barCount do
             local bar = Instance.new("Frame", eqContainer)
             bar.Size = UDim2.new(0, barWidth, 0, 6)
@@ -1166,7 +1288,7 @@ local function startMainChat()
     end
 
     -- ================================================================= --
-    -- ✨ ZAYN DJ SYSTEM
+    -- ZAYN DJ SYSTEM
     -- ================================================================= --
     local function StopZaynDJ()
         globalDjSequence = globalDjSequence + 1
@@ -1341,34 +1463,10 @@ local function startMainChat()
             if contextType == "DM" and contextId then
                 local dmUidNum = tonumber(contextId)
                 activeDmUserId = dmUidNum
-                -- FIX: Get proper sender name from senderUid
                 activeDmUserName = sender:gsub("🔒 DM: ", "")
-                if dmChatTitle then dmChatTitle.Text = "Chat with " .. activeDmUserName end
-                -- FIX: Switch to DMChat properly
-                contentFrame.Visible = false
-                galleryContainer.Visible = false
-                voiceContainer.Visible = false
-                dmInboxContainer.Visible = false
-                dmChatContainer.Visible = true
-                currentTab = "DMChat"
-                -- FIX: Show messages for this specific conversation
-                -- First make all DM messages invisible
-                for _, c in ipairs(dmChatFrame:GetChildren()) do
-                    if c:IsA("Frame") then
-                        local cId = c:GetAttribute("ConvoId")
-                        c.Visible = (cId == tostring(dmUidNum))
-                    end
-                end
-                -- FIX: Wait for layout to update, then scroll to bottom
-                task.wait(0.15)
-                local contentH = dmChatLayout.AbsoluteContentSize.Y
-                local frameH = dmChatFrame.AbsoluteSize.Y
-                local maxScroll = contentH - frameH + 20
-                if maxScroll > 0 then
-                    dmChatFrame.CanvasPosition = Vector2.new(0, maxScroll)
-                else
-                    dmChatFrame.CanvasPosition = Vector2.new(0, 0)
-                end
+                if dmChatTitle then dmChatTitle.Text = "💬 " .. activeDmUserName end
+                switchTab("DMChat")
+                if loadDmHistory then loadDmHistory(dmUidNum) end
             elseif contextType == "Server" then switchTab("Server") end
             activeNotifs = math.max(0, activeNotifs - 1)
             safeTween(n, {Position = UDim2.new(1, 15, 1, targetY), BackgroundTransparency = 1}, 0.2)
@@ -1398,13 +1496,11 @@ local function startMainChat()
                             if not dmHistories[sUid] then dmHistories[sUid] = {} end
                             table.insert(dmHistories[sUid], {name = mVal.senderName, msg = mVal.text, isSystem = false, uid = sUid})
 
-                            -- Save/update contact in inbox
                             local senderProfile = customProfiles[sUidStr] or {}
                             local senderDp = senderProfile.dp or ""
-                            -- Get username from activeScriptUsers or identity
                             local senderUsername = (activeScriptUsers[sUidStr] and activeScriptUsers[sUidStr].name) or mVal.senderName
-                            saveDmContact(sUid, mVal.senderName, senderUsername, senderDp, mVal.text)
-                            createOrUpdateDmContactWidget(sUid, dmContacts[sUidStr] or {displayName=mVal.senderName, username=senderUsername, dp=senderDp, lastMsg=mVal.text})
+                            if saveDmContact then saveDmContact(sUid, mVal.senderName, senderUsername, senderDp, mVal.text) end
+                            if createOrUpdateDmContactWidget then createOrUpdateDmContactWidget(sUid, dmContacts[sUidStr] or {displayName=mVal.senderName, username=senderUsername, dp=senderDp, lastMsg=mVal.text}) end
 
                             if currentTab == "DMChat" and activeDmUserId == sUid then
                                 addMessageToChat(mVal.senderName, mVal.text, false, sUid, "DM", mKey, sUid)
@@ -1603,16 +1699,10 @@ local function startMainChat()
             pcall(function() pGui:Destroy() end)
             local parsedUid = tonumber(tUid); if not parsedUid then return end
             activeDmUserId = parsedUid; activeDmUserName = tName
-            if dmChatTitle then dmChatTitle.Text = "Chat with " .. activeDmUserName end
+            if dmChatTitle then dmChatTitle.Text = "💬 " .. activeDmUserName end
             if not isUiOpen then toggleMainUI(true) end
-            contentFrame.Visible = false; galleryContainer.Visible = false; voiceContainer.Visible = false
-            dmInboxContainer.Visible = false; dmChatContainer.Visible = true; currentTab = "DMChat"
-            for _, c in ipairs(dmChatFrame:GetChildren()) do
-                if c:IsA("Frame") then if c:GetAttribute("ConvoId") == tostring(activeDmUserId) then c.Visible = true else c.Visible = false end end
-            end
-            task.wait(0.1)
-            local maxScroll = dmChatLayout.AbsoluteContentSize.Y - dmChatFrame.AbsoluteSize.Y + 20
-            if maxScroll > 0 then dmChatFrame.CanvasPosition = Vector2.new(0, maxScroll) end
+            switchTab("DMChat")
+            if loadDmHistory then loadDmHistory(parsedUid) end
         end)
     end
 
@@ -1659,7 +1749,66 @@ local function startMainChat()
     end
 
     -- ================================================================= --
-    -- addMessageToChat (CORE) — FIXED OVERFLOW
+    -- FIX #3: sendDmMsg - Define karo PEHLE addMessageToChat se
+    -- ================================================================= --
+    sendDmMsg = function(txt, targetUid)
+        txt = tostring(txt):gsub("^%s+", ""):gsub("%s+$", "")
+        if txt == "" or not targetUid then return end
+
+        local targetUidStr = tostring(targetUid)
+
+        if dmReplyContext and not txt:find("%[STICKER:") and not txt:find("%[PHOTO:") and not txt:find("%[VOICE:") then
+            txt = "↪️ [Replying to " .. dmReplyContext .. "]\n" .. txt
+            updateDmReplyState(nil, nil)
+        end
+
+        -- Apna message pehle UI me dikhao
+        addMessageToChat(cleanMyName, txt, false, myUserId, "DM", "", targetUid)
+
+        -- Contact update karo
+        local convoKey = getDmConvoKey(myUserId, targetUid)
+        local senderProfile = customProfiles[myUserId] or {}
+        local myDp = senderProfile.dp or ""
+        if saveDmContact then saveDmContact(targetUid, cleanMyName, myUser, myDp, txt) end
+
+        task.spawn(function()
+            local ts = os.time()
+            -- DM history me save karo (permanent)
+            local dmHistoryData = {
+                senderId = myUserId,
+                senderName = cleanMyName,
+                text = txt,
+                timestamp = ts
+            }
+            pcall(function()
+                reqFunc({
+                    Url = FIREBASE_URL .. "dm_history/" .. convoKey .. ".json",
+                    Method = "POST",
+                    Headers = {["Content-Type"] = "application/json"},
+                    Body = HttpService:JSONEncode(dmHistoryData)
+                })
+            end)
+
+            -- Global DM notification bhi bhejo
+            local dmPayload = {
+                senderId = myUserId,
+                senderName = cleanMyName,
+                text = txt,
+                timestamp = ts
+            }
+            pcall(function()
+                reqFunc({
+                    Url = FIREBASE_URL .. "global_dms/" .. targetUidStr .. ".json",
+                    Method = "POST",
+                    Headers = {["Content-Type"] = "application/json"},
+                    Body = HttpService:JSONEncode(dmPayload)
+                })
+            end)
+        end)
+    end
+
+    -- ================================================================= --
+    -- addMessageToChat (CORE) - FIX #4: Swipe sirf bubble pe ho, DP pe nahi
     -- ================================================================= --
     addMessageToChat = function(name, message, isSystem, userId, chatType, fbKey, convoId)
         pcall(function()
@@ -1667,19 +1816,17 @@ local function startMainChat()
             local targetFrame = (chatType == "DM") and dmChatFrame or chatFrame
             local targetLayout = (chatType == "DM") and dmChatLayout or chatLayout
 
-            -- FIX: Proper max bubble width based on chat width (380px main - padding)
-            local CHAT_INNER_WIDTH = 340  -- main frame width 380 - left/right padding
-            local MAX_BUBBLE_WIDTH = math.floor(CHAT_INNER_WIDTH * 0.72)  -- 72% of chat width
-            local MAX_IMG_SIZE = math.min(MAX_BUBBLE_WIDTH - 20, 150)       -- image capped smaller
+            local CHAT_INNER_WIDTH = 340
+            local MAX_BUBBLE_WIDTH = math.floor(CHAT_INNER_WIDTH * 0.72)
+            local MAX_IMG_SIZE = math.min(MAX_BUBBLE_WIDTH - 20, 150)
 
             local masterContainer = Instance.new("Frame", targetFrame)
             masterContainer.Size = UDim2.new(1, 0, 0, 20)
             masterContainer.AutomaticSize = Enum.AutomaticSize.Y
             masterContainer.BackgroundTransparency = 1
             masterContainer.LayoutOrder = messageCount
-            -- FIX: Clip children to prevent overflow
             masterContainer.ClipsDescendants = false
-            if fbKey then masterContainer:SetAttribute("FBKey", fbKey) end
+            if fbKey and fbKey ~= "" then masterContainer:SetAttribute("FBKey", fbKey) end
 
             local cleanName = name:gsub("^%[[^%]]+%]%s+", ""):gsub("^[👑💎]%s+", ""):gsub("%[.-%]%s*", "")
             local cleanMsgTxt = tostring(message)
@@ -1689,7 +1836,6 @@ local function startMainChat()
                 local actualConvoId = convoId or userId
                 if actualConvoId then
                     masterContainer:SetAttribute("ConvoId", tostring(actualConvoId))
-                    -- FIX: Properly hide if not the active DM conversation
                     if activeDmUserId and tostring(actualConvoId) ~= tostring(activeDmUserId) then
                         masterContainer.Visible = false
                     end
@@ -1702,7 +1848,6 @@ local function startMainChat()
 
             if isSystem then
                 local msgLabel = Instance.new("TextLabel", masterContainer)
-                -- FIX: Constrain system message width strictly
                 msgLabel.Size = UDim2.new(1, -16, 0, 0)
                 msgLabel.AutomaticSize = Enum.AutomaticSize.Y
                 msgLabel.BackgroundTransparency = 1
@@ -1712,7 +1857,6 @@ local function startMainChat()
                 msgLabel.TextWrapped = true
                 msgLabel.TextColor3 = Colors.SystemYellow
                 msgLabel.Text = ""
-                -- FIX: Add size constraint to prevent overflow
                 local sysCon = Instance.new("UISizeConstraint", msgLabel)
                 sysCon.MaxSize = Vector2.new(CHAT_INNER_WIDTH - 16, 99999)
                 task.spawn(function()
@@ -1745,16 +1889,17 @@ local function startMainChat()
                     replyLabel.Size = UDim2.new(1, -12, 1, 0); replyLabel.Position = UDim2.new(0, 8, 0, 0); replyLabel.AutomaticSize = Enum.AutomaticSize.Y
                     replyLabel.BackgroundTransparency = 1; replyLabel.Text = replyCtx; replyLabel.Font = Enum.Font.Gotham; replyLabel.TextSize = 10; replyLabel.TextColor3 = Colors.TextDim; replyLabel.TextXAlignment = Enum.TextXAlignment.Left
                     replyLabel.TextWrapped = true
-                    -- FIX: Constrain reply label
                     local rCon = Instance.new("UISizeConstraint", replyLabel); rCon.MaxSize = Vector2.new(MAX_BUBBLE_WIDTH - 20, 99999)
                 end
 
+                -- ================================================================= --
+                -- FIX #4: ROW STRUCTURE - DP alag, Bubble alag (swipe sirf bubble pe)
+                -- ================================================================= --
                 local rowFrame = Instance.new("Frame", masterContainer)
                 rowFrame.BackgroundTransparency = 1
                 rowFrame.AutomaticSize = Enum.AutomaticSize.XY
                 rowFrame.Size = UDim2.new(1, 0, 0, 0)
                 rowFrame.LayoutOrder = 2
-                -- FIX: Clip row so bubble can't overflow parent
                 rowFrame.ClipsDescendants = false
 
                 local rowLayout = Instance.new("UIListLayout", rowFrame)
@@ -1770,6 +1915,7 @@ local function startMainChat()
                 local dpOrder = isRightAligned and 2 or 1
                 local bubbleOrder = isRightAligned and 1 or 2
 
+                -- DP frame - swipe nahi hogi, sirf bubble swipe hogi
                 local avatarImg = Instance.new("ImageButton", rowFrame)
                 avatarImg.Size = UDim2.new(0, 26, 0, 26)
                 avatarImg.BackgroundTransparency = 1
@@ -1792,6 +1938,7 @@ local function startMainChat()
                     end)
                 else avatarImg.Image = "rbxthumb://type=AvatarHeadShot&id=" .. avatarUid .. "&w=150&h=150" end
 
+                -- Bubble Frame - YAHI SWIPE HOGI
                 local bubbleBg = Instance.new("Frame", rowFrame)
                 bubbleBg.AutomaticSize = Enum.AutomaticSize.XY
                 bubbleBg.BackgroundColor3 = isMyMessage and Color3.fromRGB(0, 90, 160) or Color3.fromRGB(35, 35, 48)
@@ -1801,23 +1948,16 @@ local function startMainChat()
                 bubbleBg.Size = UDim2.new(0, 0, 0, 0)
                 bubbleBg.LayoutOrder = bubbleOrder
                 Instance.new("UICorner", bubbleBg).CornerRadius = UDim.new(0, 12)
-                -- FIX: Hard max size constraint on bubble
                 local bubbleSizeCon = Instance.new("UISizeConstraint", bubbleBg)
                 bubbleSizeCon.MaxSize = Vector2.new(MAX_BUBBLE_WIDTH, 99999)
 
                 local bubbleStroke = Instance.new("UIStroke", bubbleBg); bubbleStroke.Color = avStroke.Color; bubbleStroke.Transparency = 0.5; bubbleStroke.Thickness = 1
                 local bubblePad = Instance.new("UIPadding", bubbleBg)
-                bubblePad.PaddingLeft = UDim.new(0, 8)
-                bubblePad.PaddingRight = UDim.new(0, 8)
-                bubblePad.PaddingTop = UDim.new(0, 6)
-                bubblePad.PaddingBottom = UDim.new(0, 6)
+                bubblePad.PaddingLeft = UDim.new(0, 8); bubblePad.PaddingRight = UDim.new(0, 8); bubblePad.PaddingTop = UDim.new(0, 6); bubblePad.PaddingBottom = UDim.new(0, 6)
 
                 local innerLayout = Instance.new("UIListLayout", bubbleBg)
-                innerLayout.FillDirection = Enum.FillDirection.Horizontal
-                innerLayout.Padding = UDim.new(0, 4)
-                innerLayout.VerticalAlignment = Enum.VerticalAlignment.Top
-                innerLayout.SortOrder = Enum.SortOrder.LayoutOrder
-                innerLayout.Wraps = true  -- FIX: Allow wrapping within bubble
+                innerLayout.FillDirection = Enum.FillDirection.Horizontal; innerLayout.Padding = UDim.new(0, 4); innerLayout.VerticalAlignment = Enum.VerticalAlignment.Top; innerLayout.SortOrder = Enum.SortOrder.LayoutOrder
+                innerLayout.Wraps = true
 
                 local orderOffset = 0
                 if titleData then
@@ -1837,7 +1977,6 @@ local function startMainChat()
                 nameLabel.LayoutOrder = orderOffset + 1
                 nameLabel.TextTruncate = Enum.TextTruncate.AtEnd
                 nameLabel.TextYAlignment = Enum.TextYAlignment.Top
-                -- FIX: Limit name label width
                 local nameCon = Instance.new("UISizeConstraint", nameLabel)
                 nameCon.MaxSize = Vector2.new(MAX_BUBBLE_WIDTH - 20, 15)
                 nameLabel.MouseButton1Click:Connect(function() if userId and tostring(userId) ~= myUserId then openMiniProfile(tostring(userId), cleanName, titleData) end end)
@@ -1850,16 +1989,13 @@ local function startMainChat()
 
                 if photoUrl then
                     if tostring(userId) == myUserId then addPhotoToGallery(photoUrl, false) end
-                    -- FIX: Image strictly bounded within bubble
                     local pImg = Instance.new("ImageButton", bubbleBg)
                     pImg.BackgroundTransparency = 1
-                    -- FIX: Use fixed pixel size that fits within bubble, not percentage
                     pImg.Size = UDim2.new(0, MAX_IMG_SIZE, 0, MAX_IMG_SIZE)
                     pImg.ScaleType = Enum.ScaleType.Fit
                     pImg.BorderSizePixel = 0
                     pImg.LayoutOrder = orderOffset + 1
                     Instance.new("UICorner", pImg).CornerRadius = UDim.new(0, 8)
-                    -- FIX: Hard constraint on image size
                     local imgCon = Instance.new("UISizeConstraint", pImg)
                     imgCon.MaxSize = Vector2.new(MAX_IMG_SIZE, MAX_IMG_SIZE)
                     task.spawn(function()
@@ -1873,7 +2009,6 @@ local function startMainChat()
                     local sThumb = "rbxthumb://type=Asset&id=" .. stickerId .. "&w=150&h=150"
                     local sImg = Instance.new("ImageButton", bubbleBg)
                     sImg.BackgroundTransparency = 1
-                    -- FIX: Constrain sticker size
                     sImg.Size = UDim2.new(0, 72, 0, 72)
                     sImg.Image = sThumb
                     sImg.LayoutOrder = orderOffset + 1
@@ -1883,7 +2018,6 @@ local function startMainChat()
                 elseif voiceId then
                     if tostring(userId) == myUserId then addVoiceToSaved(voiceId, false) end
                     local vFrame = Instance.new("Frame", bubbleBg)
-                    -- FIX: Voice frame strictly bounded
                     vFrame.Size = UDim2.new(0, math.min(130, MAX_BUBBLE_WIDTH - 20), 0, 28)
                     vFrame.BackgroundColor3 = Colors.Dark
                     vFrame.LayoutOrder = orderOffset + 1
@@ -1917,35 +2051,87 @@ local function startMainChat()
                     msgTextLabel.TextXAlignment = Enum.TextXAlignment.Left
                     msgTextLabel.TextYAlignment = Enum.TextYAlignment.Top
                     msgTextLabel.LayoutOrder = orderOffset + 1
-                    -- FIX: Strict width constraint on message text - this is the main overflow fix
                     local msgCon = Instance.new("UISizeConstraint", msgTextLabel)
-                    -- Account for padding (16px total) + name label area, keep text within bubble
                     local textMaxW = MAX_BUBBLE_WIDTH - 18
                     msgCon.MaxSize = Vector2.new(textMaxW, 99999)
                     if isMentioned then task.spawn(function() local sfx = Instance.new("Sound"); sfx.SoundId = "rbxassetid://4590662766"; sfx.Volume = 1.5; sfx.Parent = UI_PARENT; sfx:Play(); task.wait(2); pcall(function() sfx:Destroy() end) end) end
                 end
 
-                local function makeSwipeable(frame, senderName2, messageText2, contextType2)
+                -- ================================================================= --
+                -- FIX #4: SWIPE SIRF BUBBLE PE - bubbleBg pe swipe lagao, avatarImg pe nahi
+                -- Reply indicator animation bhi add kiya
+                -- ================================================================= --
+                local function makeBubbleSwipeable(bubbleFrame, senderName2, messageText2, contextType2)
                     local startPos = nil
-                    frame.InputBegan:Connect(function(input)
-                        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then startPos = input.Position end
+                    local originalPos = nil
+                    local isSwiping = false
+
+                    bubbleFrame.InputBegan:Connect(function(input)
+                        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                            startPos = input.Position
+                            originalPos = bubbleFrame.Position
+                            isSwiping = false
+                        end
                     end)
-                    frame.InputEnded:Connect(function(input)
-                        if startPos and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
+
+                    bubbleFrame.InputChanged:Connect(function(input)
+                        if startPos and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
                             local delta = input.Position - startPos
-                            if math.abs(delta.X) > 30 and math.abs(delta.Y) < 20 then
-                                local swipeText = isSnap and "[Snap 🔥]" or cleanMsgTxt
-                                if contextType2 == "DM" then updateDmReplyState(senderName2, swipeText) elseif contextType2 == "Server" then updateServerReplyState(senderName2, swipeText) end
+                            -- Horizontal swipe detect karo (vertical movement zyada ho toh ignore)
+                            if math.abs(delta.X) > 8 and math.abs(delta.Y) < math.abs(delta.X) then
+                                isSwiping = true
+                                -- Bubble thoda side me move karo (max 40px)
+                                local moveX = math.max(-40, math.min(40, delta.X * 0.4))
+                                pcall(function()
+                                    bubbleFrame.Position = UDim2.new(
+                                        originalPos.X.Scale,
+                                        originalPos.X.Offset + moveX,
+                                        originalPos.Y.Scale,
+                                        originalPos.Y.Offset
+                                    )
+                                end)
+                            end
+                        end
+                    end)
+
+                    bubbleFrame.InputEnded:Connect(function(input)
+                        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                            if startPos and isSwiping then
+                                local delta = input.Position - startPos
+                                if math.abs(delta.X) > 30 and math.abs(delta.Y) < math.abs(delta.X) then
+                                    -- Swipe confirmed - reply trigger
+                                    local swipeText = isSnap and "[Snap 🔥]" or cleanMsgTxt
+                                    if contextType2 == "DM" then
+                                        updateDmReplyState(senderName2, swipeText)
+                                    elseif contextType2 == "Server" then
+                                        updateServerReplyState(senderName2, swipeText)
+                                    end
+                                    -- Sound feedback
+                                    pcall(function()
+                                        local sfx = Instance.new("Sound", UI_PARENT)
+                                        sfx.SoundId = "rbxassetid://6895088918"
+                                        sfx.Volume = 0.4
+                                        sfx:Play()
+                                        task.wait(0.5)
+                                        sfx:Destroy()
+                                    end)
+                                end
+                                -- Bubble wapas original position pe
+                                if originalPos then
+                                    safeTween(bubbleFrame, {Position = originalPos}, 0.2, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+                                end
                             end
                             startPos = nil
+                            isSwiping = false
                         end
                     end)
                 end
 
-                local function makeHoldable(frame, senderName2, messageTextOriginal2, contextType2)
+                -- Hold context menu sirf bubble pe
+                local function makeBubbleHoldable(bubbleFrame, senderName2, messageTextOriginal2, contextType2)
                     local isHolding = false; local holdStart = 0; local holdConn; local startPos = nil
                     local isMyMsg = (tostring(userId) == myUserId); local storedFbKey = masterContainer:GetAttribute("FBKey") or ""
-                    frame.InputBegan:Connect(function(input)
+                    bubbleFrame.InputBegan:Connect(function(input)
                         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
                             isHolding = true; holdStart = tick(); startPos = input.Position
                             if holdConn then holdConn:Disconnect() end
@@ -1958,18 +2144,19 @@ local function startMainChat()
                             end)
                         end
                     end)
-                    frame.InputChanged:Connect(function(input)
+                    bubbleFrame.InputChanged:Connect(function(input)
                         if isHolding and startPos and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
                             if (input.Position - startPos).Magnitude > 10 then isHolding = false; if holdConn then holdConn:Disconnect() end end
                         end
                     end)
-                    frame.InputEnded:Connect(function(input)
+                    bubbleFrame.InputEnded:Connect(function(input)
                         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then isHolding = false; if holdConn then holdConn:Disconnect() end end
                     end)
                 end
 
-                makeSwipeable(masterContainer, cleanName, cleanMsgTxt, chatType)
-                makeHoldable(masterContainer, cleanName, cleanMsgTxt, chatType)
+                -- Apply interactions SIRF bubble pe (DP pe nahi!)
+                makeBubbleSwipeable(bubbleBg, cleanName, cleanMsgTxt, chatType)
+                makeBubbleHoldable(bubbleBg, cleanName, cleanMsgTxt, chatType)
 
                 if isSnap then
                     task.delay(10, function()
@@ -2028,7 +2215,7 @@ local function startMainChat()
         if txt == "" or isBlacklisted then return end
 
         if txt:lower() == "/help" then
-            addMessageToChat("[SYSTEM]", "🌟 Z C H A T - COMMANDS 🌟\n\n💬 /tr [lang] [msg] - Translate\n• /setlang [lang] - Set default lang\n\n📱 /img [url] | /voice [id] | /snap [msg]\n• Hold YOUR message to Unsend!\n\n🎧 DJ: /djplay [yt_url] | /djstop\n• /djmute | /djunmute", true, nil, "Server")
+            addMessageToChat("[SYSTEM]", "🌟 Z C H A T - COMMANDS 🌟\n\n💬 /tr [lang] [msg] - Translate\n• /setlang [lang] - Set default lang\n\n📱 /img [url] | /voice [id] | /snap [msg]\n• Hold YOUR message to Unsend!\n• Swipe bubble right to Reply!\n\n🎧 DJ: /djplay [yt_url] | /djstop\n• /djmute | /djunmute", true, nil, "Server")
             return
         end
 
@@ -2151,54 +2338,31 @@ local function startMainChat()
     end
 
     -- ================================================================= --
-    -- sendDmMsg — WITH CONTACT SAVE
-    -- ================================================================= --
-    sendDmMsg = function(txt, targetUid)
-        if isBlacklisted then return end
-        txt = tostring(txt):gsub("^%s+", ""):gsub("%s+$", "")
-        if txt == "" then return end
-        if txt:lower() == "/help" or txt:lower():sub(1,9) == "/setlang " or txt:lower():sub(1,5) == "/afk " then sendMsg(txt); return end
-        if txt:lower():sub(1,4) == "/tr " then local lang, tmsg = txt:sub(5):match("^(%S+)%s+(.+)$"); if lang and tmsg then txt = translateText(tmsg, lang) end end
-        if txt:lower():sub(1,5) == "/img " then local url = txt:sub(6):gsub("%s+", ""); if url:find("http") then txt = "[PHOTO:" .. url .. "]" else return end end
-        if txt:lower():sub(1,7) == "/voice " then local aid = txt:sub(8):gsub("%s+", ""); if tonumber(aid) then txt = "[VOICE:" .. aid .. "]" else return end end
-        if txt:lower():sub(1,6) == "/snap " then txt = "[SNAP] " .. txt:sub(7) end
-        if dmReplyContext and not txt:find("%[STICKER:") and not txt:find("%[PHOTO:") and not txt:find("%[VOICE:") then txt = "↪️ [Replying to " .. dmReplyContext .. "]\n" .. txt; updateDmReplyState(nil, nil) end
-        if not dmHistories[tonumber(targetUid)] then dmHistories[tonumber(targetUid)] = {} end
-        table.insert(dmHistories[tonumber(targetUid)], {name = cleanMyName, msg = txt, isSystem = false, uid = tonumber(myUserId)})
-        addMessageToChat(cleanMyName, txt, false, tonumber(myUserId), "DM", nil, tonumber(targetUid))
-
-        -- Save/update the recipient as a DM contact (cross-server)
-        local targetUidStr = tostring(targetUid)
-        local targetProfile = customProfiles[targetUidStr] or {}
-        local targetDp = targetProfile.dp or ""
-        local targetDisplayName = activeDmUserName or (activeScriptUsers[targetUidStr] and activeScriptUsers[targetUidStr].displayName) or "Unknown"
-        local targetUsername = (activeScriptUsers[targetUidStr] and activeScriptUsers[targetUidStr].name) or "unknown"
-        saveDmContact(targetUid, targetDisplayName, targetUsername, targetDp, txt)
-        createOrUpdateDmContactWidget(targetUid, dmContacts[targetUidStr] or {displayName=targetDisplayName, username=targetUsername, dp=targetDp, lastMsg=txt})
-
-        local mData = {senderId = myUserId, senderName = cleanMyName, text = txt, timestamp = os.time()}
-        task.spawn(function()
-            reqFunc({Url = FIREBASE_URL .. "global_dms/" .. targetUid .. ".json", Method = "POST", Headers = {["Content-Type"] = "application/json"}, Body = HttpService:JSONEncode(mData)})
-        end)
-    end
-
-    -- ================================================================= --
     -- INPUT BINDINGS
     -- ================================================================= --
     sendBtn.MouseButton1Click:Connect(function() sendMsg(txtInput.Text); txtInput.Text = ""; mentionMenu.Visible = false end)
     txtInput.FocusLost:Connect(function(ent) if ent then sendMsg(txtInput.Text); txtInput.Text = ""; mentionMenu.Visible = false end end)
-    if dmSendBtn then
-        dmSendBtn.MouseButton1Click:Connect(function()
-            if currentTab == "DMChat" and activeDmUserId then
-                if dmInputBox.Text and dmInputBox.Text:match("%S") then sendDmMsg(dmInputBox.Text, activeDmUserId); dmInputBox.Text = ""; mentionMenu.Visible = false end
+
+    dmSendBtn.MouseButton1Click:Connect(function()
+        if currentTab == "DMChat" and activeDmUserId then
+            if dmInputBox.Text and dmInputBox.Text:match("%S") then
+                sendDmMsg(dmInputBox.Text, activeDmUserId)
+                dmInputBox.Text = ""
+                mentionMenu.Visible = false
             end
-        end)
-    end
-    dmInputBox.FocusLost:Connect(function(ent)
-        if ent and currentTab == "DMChat" and activeDmUserId then
-            if dmInputBox.Text:match("%S") then sendDmMsg(dmInputBox.Text, activeDmUserId); dmInputBox.Text = ""; mentionMenu.Visible = false end
         end
     end)
+
+    dmInputBox.FocusLost:Connect(function(ent)
+        if ent and currentTab == "DMChat" and activeDmUserId then
+            if dmInputBox.Text:match("%S") then
+                sendDmMsg(dmInputBox.Text, activeDmUserId)
+                dmInputBox.Text = ""
+                mentionMenu.Visible = false
+            end
+        end
+    end)
+
     local lastTypeUpdate = 0
     txtInput:GetPropertyChangedSignal("Text"):Connect(function()
         updateMentionMenu(txtInput, -55)
@@ -2259,18 +2423,38 @@ local function startMainChat()
                                 local revokeUid = mtext:match("%[ZAYN_DJ_REVOKE:([%w_]+)%]")
                                 if revokeUid then djPermittedUsers[revokeUid] = nil end; continue
                             end
+
+                            -- ================================================================= --
+                            -- FIX #1: DJ Commands parseMessage se sahi sender nikalo
+                            -- ================================================================= --
                             if mtext:find("%[ZAYN_DJ_PLAY:") then
                                 local ytId = mtext:match("%[ZAYN_DJ_PLAY:([%w_-]+)%]")
                                 if ytId then
-                                    local sN, _, sUID, cN = parseMessage(mtext)
+                                    -- Sender ka naam nikalo || ke baad se
+                                    local senderUid = mtext:match("||([%w_]+)$")
+                                    local senderDisplayName = "A DJ"
+                                    if senderUid and activeScriptUsers[senderUid] then
+                                        senderDisplayName = activeScriptUsers[senderUid].displayName
+                                    elseif senderUid then
+                                        local dn, _ = getStrictIdentity(senderUid)
+                                        senderDisplayName = dn
+                                    end
                                     lastDjPlayFirebaseKey = key
-                                    DownloadAndPlayYTAudio(ytId, cN or "A DJ")
+                                    DownloadAndPlayYTAudio(ytId, senderDisplayName)
                                 end; continue
                             end
+
                             if mtext:find("%[ZAYN_DJ_STOP%]") then
-                                local sN, _, sUID, cN = parseMessage(mtext)
+                                local senderUid = mtext:match("||([%w_]+)$")
+                                local senderDisplayName = "A DJ"
+                                if senderUid and activeScriptUsers[senderUid] then
+                                    senderDisplayName = activeScriptUsers[senderUid].displayName
+                                elseif senderUid then
+                                    local dn, _ = getStrictIdentity(senderUid)
+                                    senderDisplayName = dn
+                                end
                                 StopZaynDJ()
-                                addMessageToChat("System", "🛑 " .. (cN or "A DJ") .. " stopped the music.", true, nil, "Server"); continue
+                                addMessageToChat("System", "🛑 " .. senderDisplayName .. " stopped the music.", true, nil, "Server"); continue
                             end
 
                             if mtext:find("%[ZAYN_SYNC%]") then
@@ -2375,6 +2559,8 @@ local function startMainChat()
         addMessageToChat("System", "🎧 DJ: /djplay [yt_link] | /djstop | /djmute | /djunmute", true, nil, "Server")
         task.wait(0.3)
         addMessageToChat("System", "💬 Support: Discord: mickeyyy009", true, nil, "Server")
+        task.wait(0.3)
+        addMessageToChat("System", "↩️ Swipe bubble right to reply! Hold to unsend.", true, nil, "Server")
         task.wait(0.3)
         addMessageToChat("System", "📩 Click 📩 DMs tab to see your Direct Messages inbox!", true, nil, "Server")
     end)
