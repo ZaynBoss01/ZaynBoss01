@@ -1,7 +1,8 @@
 -- ========================================================== --
--- ZAYN UI LAB - SERVER & GALLERY EDITION (V48.0 FIXED)       --
+-- ZAYN UI LAB - SERVER & GALLERY EDITION (V49.0)             --
 -- THEME: OBSIDIAN DARK & SOFT RELAXING PASTEL                --
--- FIX: DJ GLOBAL SYNC + WHATSAPP STYLE SWIPE ANIMATION       --
+-- FIX 1: WHATSAPP STYLE SWIPE - PROPER MASTER CONTAINER      --
+-- FIX 2: DJ GLOBAL SYNC - DIRECT URL BROADCAST               --
 -- ========================================================== --
 
 local TweenService = game:GetService("TweenService")
@@ -232,6 +233,10 @@ local function startMainChat()
     local BLACKLIST_DB_PATH = "blacklist/"
     local TITLES_DB_PATH = "titles/"
     local DM_CONTACTS_PATH = "dm_contacts/"
+    -- ================================================================= --
+    -- [FIX 2] DJ Global Audio URL path - direct URL broadcast ke liye
+    -- ================================================================= --
+    local DJ_AUDIO_PATH = "dj_audio/"
 
     local RAPID_API_KEY  = "097446f512mshd8abf5f58ef31b1p10a0d0jsn08925256e226"
     local RAPID_API_HOST = "youtube-mp36.p.rapidapi.com"
@@ -279,9 +284,6 @@ local function startMainChat()
     local cleanMyName = myName:gsub("%[.-%]", ""):gsub("^%s+", ""):gsub("%s+$", "")
     if cleanMyName == "" then cleanMyName = myUser end
 
-    -- ================================================================= --
-    -- parseMessage FUNCTION
-    -- ================================================================= --
     local function parseMessage(mtext)
         local senderPart, msgPart, uidPart = mtext:match("^(.-):%s(.+)%s*||([%w_:]+)$")
         if not senderPart then
@@ -293,7 +295,6 @@ local function startMainChat()
         return senderPart, msgPart, uid, cleanN
     end
 
-    -- HELPER FOR DM CONVERSATION KEY
     getDmConvoKey = function(uid1, uid2)
         local n1, n2 = tonumber(uid1), tonumber(uid2)
         if n1 and n2 then
@@ -380,9 +381,6 @@ local function startMainChat()
         end)
     end
 
-    -- ================================================================= --
-    -- DJ PERMISSION CHECK
-    -- ================================================================= --
     local function hasDjPermission(uid)
         local uidStr = tostring(uid)
         if _internalOwners[uidStr] then return true end
@@ -438,9 +436,33 @@ local function startMainChat()
                     end
                 end)
             end
+
+            -- ================================================================= --
+            -- [FIX 2] Check if DJ is already playing when user joins
+            -- ================================================================= --
+            task.spawn(function()
+                local djRes2 = reqFunc({Url = FIREBASE_URL .. DJ_AUDIO_PATH .. SERVER_ID .. ".json", Method = "GET"})
+                if djRes2.Success and djRes2.Body ~= "null" then
+                    pcall(function()
+                        local djData = HttpService:JSONDecode(djRes2.Body)
+                        if djData and djData.directUrl and djData.directUrl ~= "" and djData.songTitle and djData.djName then
+                            -- Agar song chal raha tha toh join karne pe bhi start karo
+                            local elapsed = os.time() - (djData.startTime or 0)
+                            if elapsed < 600 then -- 10 minute tak valid rahega
+                                task.wait(3) -- thoda wait karo UI load hone ke liye
+                                PlayDirectAudio(djData.directUrl, djData.songTitle, djData.djName, elapsed)
+                            else
+                                -- Stale data clean karo
+                                pcall(function()
+                                    reqFunc({Url = FIREBASE_URL .. DJ_AUDIO_PATH .. SERVER_ID .. ".json", Method = "DELETE"})
+                                end)
+                            end
+                        end
+                    end)
+                end
+            end)
         end)
     end
-    loadData()
 
     local function saveDmContact(uid, displayName, username, dp, lastMsg)
         local uidStr = tostring(uid)
@@ -686,9 +708,6 @@ local function startMainChat()
     dmChatLayout.SortOrder = Enum.SortOrder.LayoutOrder
     dmChatLayout.Padding = UDim.new(0, 10)
 
-    -- ================================================================= --
-    -- switchTab
-    -- ================================================================= --
     local isStickerPanelOpen = false
     local stickerPanel
     local mentionMenu
@@ -716,9 +735,6 @@ local function startMainChat()
         if mentionMenu then mentionMenu.Visible = false end
     end
 
-    -- ================================================================= --
-    -- DM CONTACT WIDGET
-    -- ================================================================= --
     local function createOrUpdateDmContactWidget(uid, data)
         local uidStr = tostring(uid)
         if dmContactWidgets[uidStr] then
@@ -840,9 +856,6 @@ local function startMainChat()
         refreshDmInboxEmpty()
     end)
 
-    -- ================================================================= --
-    -- LOAD DM HISTORY
-    -- ================================================================= --
     loadDmHistory = function(targetUid)
         for _, c in ipairs(dmChatFrame:GetChildren()) do
             if c:IsA("Frame") then c:Destroy() end
@@ -880,9 +893,6 @@ local function startMainChat()
         end)
     end
 
-    -- ================================================================= --
-    -- FULL SCREEN PREVIEW
-    -- ================================================================= --
     local function openFullScreenPreview(imgIdOrUrl)
         if UI_PARENT:FindFirstChild("ZaynPreviewModal") then UI_PARENT.ZaynPreviewModal:Destroy() end
         local mGui = Instance.new("ScreenGui", UI_PARENT); mGui.Name = "ZaynPreviewModal"; mGui.DisplayOrder = 99999; mGui.IgnoreGuiInset = true
@@ -938,9 +948,7 @@ local function startMainChat()
 
     local typingLbl = Instance.new("TextLabel", contentFrame); typingLbl.Size = UDim2.new(1, -30, 0, 15); typingLbl.Position = UDim2.new(0, 15, 1, -65); typingLbl.BackgroundTransparency = 1; typingLbl.TextColor3 = Colors.Accent; typingLbl.Font = Enum.Font.Gotham; typingLbl.TextSize = 10; typingLbl.TextXAlignment = Enum.TextXAlignment.Left; typingLbl.Text = ""
 
-    -- ================================================================= --
     -- DM INPUT BAR
-    -- ================================================================= --
     local dmInputBg = Instance.new("Frame", dmChatContainer)
     dmInputBg.Size = UDim2.new(1, -20, 0, 40)
     dmInputBg.Position = UDim2.new(0, 10, 1, -50)
@@ -1029,9 +1037,7 @@ local function startMainChat()
     end
     dmReplyCancel.MouseButton1Click:Connect(function() updateDmReplyState(nil, nil) end)
 
-    -- ================================================================= --
     -- Sticker Panel
-    -- ================================================================= --
     stickerPanel = Instance.new("Frame", main)
     stickerPanel.Size = UDim2.new(1, -22, 0, 0)
     stickerPanel.Position = UDim2.new(0, 11, 1, -65)
@@ -1294,8 +1300,96 @@ local function startMainChat()
 
         safeTween(bubbleFrame, {Position = UDim2.new(0, 10, 0, 18)}, 0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
     end
--- ================================================================= --
-    -- ZAYN DJ SYSTEM
+
+    -- ================================================================= --
+    -- [FIX 2] PlayDirectAudio - Direct URL se play karo (global sync ke liye)
+    -- Jab koi bhi user join kare ya broadcast receive kare, ye function call hoga
+    -- ================================================================= --
+    local function PlayDirectAudio(directUrl, songTitle, djName, seekSeconds)
+        globalDjSequence = globalDjSequence + 1
+        local mySeq = globalDjSequence
+
+        -- Pehle sab kuch stop karo
+        if currentDjSound then
+            pcall(function() currentDjSound:Stop(); currentDjSound:Destroy() end)
+            currentDjSound = nil
+        end
+        if getgenv and getgenv().ZAYN_DJ_SOUND_REF then
+            pcall(function() getgenv().ZAYN_DJ_SOUND_REF:Stop(); getgenv().ZAYN_DJ_SOUND_REF:Destroy() end)
+            getgenv().ZAYN_DJ_SOUND_REF = nil
+        end
+        for _, child in ipairs(djFolder:GetChildren()) do
+            if child:IsA("Sound") then pcall(function() child:Stop(); child:Destroy() end) end
+        end
+
+        task.spawn(function()
+            if mySeq ~= globalDjSequence then return end
+
+            -- Download karo direct URL se
+            local audioRes = reqFunc({Url = directUrl, Method = "GET"})
+            if mySeq ~= globalDjSequence then return end
+
+            if audioRes and audioRes.Success then
+                local fileName = "zayn_dj_direct_" .. math.random(100, 999) .. ".mp3"
+                if writefile then writefile(fileName, audioRes.Body) end
+                local success, assetId = pcall(function() return getcustomasset(fileName) end)
+                if success and assetId then
+                    if mySeq ~= globalDjSequence then return end
+
+                    local newSound = Instance.new("Sound")
+                    newSound.Name = "ZaynDJ_Audio"
+                    newSound.SoundId = assetId
+                    newSound.Volume = isDjMuted and 0 or 1
+                    newSound.Parent = djFolder
+                    newSound:Play()
+                    currentDjSound = newSound
+                    currentDjFileName = fileName
+
+                    -- Seek karo agar joined late
+                    if seekSeconds and seekSeconds > 0 then
+                        -- Note: Roblox Sound mein direct seek difficult hai
+                        -- Isliye TimePosition use karein
+                        task.wait(0.2)
+                        pcall(function()
+                            newSound.TimePosition = math.min(seekSeconds, newSound.TimeLength - 1)
+                        end)
+                    end
+
+                    if getgenv then getgenv().ZAYN_DJ_SOUND_REF = newSound end
+                    addMusicBubble(songTitle, djName)
+
+                    newSound.Ended:Connect(function()
+                        if currentDjSound == newSound then
+                            currentDjSound = nil
+                            if getgenv then getgenv().ZAYN_DJ_SOUND_REF = nil end
+                            removeMusicBubble()
+                            -- Firebase se DJ data clean karo
+                            task.spawn(function()
+                                pcall(function()
+                                    reqFunc({Url = FIREBASE_URL .. DJ_AUDIO_PATH .. SERVER_ID .. ".json", Method = "DELETE"})
+                                end)
+                            end)
+                        end
+                        pcall(function() newSound:Destroy() end)
+                        if delfile then pcall(function() delfile(fileName) end) end
+                        currentDjFileName = nil
+                    end)
+
+                    if getgenv then
+                        getgenv().ZAYN_DJ_CLEANUP = function()
+                            pcall(function() newSound:Stop(); newSound:Destroy() end)
+                            if delfile then pcall(function() delfile(fileName) end) end
+                            currentDjFileName = nil
+                            removeMusicBubble()
+                        end
+                    end
+                end
+            end
+        end)
+    end
+
+    -- ================================================================= --
+    -- ZAYN DJ SYSTEM - FIXED GLOBAL SYNC
     -- ================================================================= --
     local function StopZaynDJ()
         globalDjSequence = globalDjSequence + 1
@@ -1322,6 +1416,12 @@ local function startMainChat()
                 lastDjPlayFirebaseKey = nil
             end)
         end
+        -- Firebase DJ audio data bhi clean karo
+        task.spawn(function()
+            pcall(function()
+                reqFunc({Url = FIREBASE_URL .. DJ_AUDIO_PATH .. SERVER_ID .. ".json", Method = "DELETE"})
+            end)
+        end)
         removeMusicBubble()
     end
 
@@ -1335,6 +1435,10 @@ local function startMainChat()
         return id or url
     end
 
+    -- ================================================================= --
+    -- [FIX 2] DownloadAndPlayYTAudio - DJ play karta hai, direct URL Firebase pe store karta hai
+    -- Baaki sab log wahi URL se download karenge - NO separate API calls
+    -- ================================================================= --
     local function DownloadAndPlayYTAudio(vId, senderName)
         globalDjSequence = globalDjSequence + 1
         local mySeq = globalDjSequence
@@ -1342,10 +1446,8 @@ local function startMainChat()
         globalDjSequence = mySeq
         addMessageToChat("System", "💿 " .. senderName .. " is loading a track... Please wait.", true, nil, "Server")
         task.spawn(function()
-            if senderName ~= cleanMyName and senderName ~= myName and senderName ~= myUser then
-                task.wait(math.random(10, 30) / 10)
-            end
             if mySeq ~= globalDjSequence then return end
+
             local apiResponse = reqFunc({
                 Url = API_URL .. vId,
                 Method = "GET",
@@ -1356,54 +1458,52 @@ local function startMainChat()
                 }
             })
             if mySeq ~= globalDjSequence then return end
+
             if apiResponse.Success and apiResponse.StatusCode == 200 then
                 local s, data = pcall(function() return HttpService:JSONDecode(apiResponse.Body) end)
                 if s and data and (data.status == "ok" or data.msg == "success") then
                     local directLink = data.link
                     local songTitle = data.title or "Unknown Track"
+
                     if directLink and directLink ~= "" then
-                        local audioRes = reqFunc({Url = directLink, Method = "GET"})
-                        if mySeq ~= globalDjSequence then return end
-                        if audioRes.Success then
-                            local fileName = "zayn_dj_" .. vId .. "_" .. math.random(100,999) .. ".mp3"
-                            if writefile then writefile(fileName, audioRes.Body) end
-                            local success, assetId = pcall(function() return getcustomasset(fileName) end)
-                            if success and assetId then
-                                if mySeq ~= globalDjSequence then return end
-                                StopZaynDJ()
-                                globalDjSequence = mySeq
-                                currentDjFileName = fileName
-                                local newSound = Instance.new("Sound")
-                                newSound.Name = "ZaynDJ_Audio"
-                                newSound.SoundId = assetId
-                                newSound.Volume = isDjMuted and 0 or 1
-                                newSound.Parent = djFolder
-                                newSound:Play()
-                                currentDjSound = newSound
-                                if getgenv then getgenv().ZAYN_DJ_SOUND_REF = newSound end
-                                addMusicBubble(songTitle, senderName)
-                                newSound.Ended:Connect(function()
-                                    if currentDjSound == newSound then
-                                        currentDjSound = nil
-                                        if getgenv then getgenv().ZAYN_DJ_SOUND_REF = nil end
-                                        removeMusicBubble()
-                                    end
-                                    pcall(function() newSound:Destroy() end)
-                                    if delfile then pcall(function() delfile(fileName) end) end
-                                    currentDjFileName = nil
-                                end)
-                                if getgenv then
-                                    getgenv().ZAYN_DJ_CLEANUP = function()
-                                        pcall(function() newSound:Stop(); newSound:Destroy() end)
-                                        if delfile then pcall(function() delfile(fileName) end) end
-                                        currentDjFileName = nil
-                                        removeMusicBubble()
-                                    end
-                                end
-                            end
-                        end
+                        -- ============================================================ --
+                        -- [KEY FIX] Direct URL ko Firebase pe broadcast karo
+                        -- Ab sab users same URL se download karenge - no extra API calls
+                        -- ============================================================ --
+                        local startTime = os.time()
+                        local djBroadcastData = {
+                            directUrl = directLink,
+                            songTitle = songTitle,
+                            djName = senderName,
+                            djUid = myUserId,
+                            startTime = startTime,
+                            vId = vId
+                        }
+                        -- Firebase pe store karo taaki dusre bhi receive karein
+                        pcall(function()
+                            reqFunc({
+                                Url = FIREBASE_URL .. DJ_AUDIO_PATH .. SERVER_ID .. ".json",
+                                Method = "PUT",
+                                Headers = {["Content-Type"] = "application/json"},
+                                Body = HttpService:JSONEncode(djBroadcastData)
+                            })
+                        end)
+
+                        -- Chat mein broadcast message bhi bhejo
+                        table.insert(messageQueue, {
+                            text = "[ZAYN_DJ_AUDIO_READY:" .. vId .. "] ||" .. myUserId,
+                            timestamp = os.time()
+                        })
+                        processQueue()
+
+                        -- Khud bhi play karo direct URL se
+                        PlayDirectAudio(directLink, songTitle, senderName, 0)
                     end
+                else
+                    addMessageToChat("System", "❌ Failed to fetch audio. Try another link!", true, nil, "Server")
                 end
+            else
+                addMessageToChat("System", "❌ API Error! Check the YouTube link.", true, nil, "Server")
             end
         end)
     end
@@ -1725,9 +1825,6 @@ local function startMainChat()
         pcall(function() game:GetService("TextChatService"):DisplayBubble(targetPlayer.Character, cleanMsg) end)
     end
 
-    -- ================================================================= --
-    -- sendDmMsg
-    -- ================================================================= --
     sendDmMsg = function(txt, targetUid)
         txt = tostring(txt):gsub("^%s+", ""):gsub("%s+$", "")
         if txt == "" or not targetUid then return end
@@ -1781,7 +1878,7 @@ local function startMainChat()
     end
 
     -- ================================================================= --
-    -- MESSAGE CONTEXT MENU - WITH TRANSLATE + GLOBAL UNSEND
+    -- MESSAGE CONTEXT MENU
     -- ================================================================= --
     local function openMessageContextMenu(labelObj, messageText, senderName, contextType, containerFrame, isMyMsg, fbKey, chatTypeLocal, dmConvoKey)
         if UI_PARENT:FindFirstChild("ZaynMsgContext") then UI_PARENT.ZaynMsgContext:Destroy() end
@@ -1801,21 +1898,15 @@ local function startMainChat()
             btn.MouseButton1Click:Connect(function() pcall(function() ctxGui:Destroy() end); onClick() end)
         end
 
-        -- Reply
         addCtxBtn("↩️", "Reply", Colors.Cyan, function()
             if contextType == "DM" then updateDmReplyState(senderName, messageText) else updateServerReplyState(senderName, messageText) end
         end)
 
-        -- Copy
         addCtxBtn("📋", "Copy", Colors.Light, function()
             if setclipboard then setclipboard(messageText); showNotif("📋 Copied", "Message copied!", false, nil, "Server") end
         end)
 
-        -- ================================================================= --
-        -- Translate option
-        -- ================================================================= --
         addCtxBtn("🌐", "Translate", Colors.SystemYellow, function()
-            local translating = true
             addMessageToChat("[SYSTEM]", "🌐 Translating...", true, nil, "Server")
             task.spawn(function()
                 local translated = translateText(messageText, myTargetLang)
@@ -1823,20 +1914,14 @@ local function startMainChat()
             end)
         end)
 
-        -- ================================================================= --
-        -- Unsend
-        -- ================================================================= --
         if isMyMsg then
             addCtxBtn("🗑️", "Unsend", Colors.NeonPink, function()
                 if fbKey and fbKey ~= "" then
-                    -- Firebase se delete karo
                     task.spawn(function()
                         if chatTypeLocal == "DM" and dmConvoKey and dmConvoKey ~= "" then
-                            -- DM history se delete
                             pcall(function()
                                 reqFunc({Url = FIREBASE_URL .. "dm_history/" .. dmConvoKey .. "/" .. fbKey .. ".json", Method = "DELETE"})
                             end)
-                            -- Global DM se bhi delete (dusre user ke liye)
                             local targetUidStr = tostring(activeDmUserId)
                             pcall(function()
                                 reqFunc({
@@ -1852,10 +1937,8 @@ local function startMainChat()
                                 })
                             end)
                         else
-                            -- Server message - globally broadcast ZAYN_UNSEND
                             table.insert(messageQueue, {text = "[ZAYN_UNSEND] " .. fbKey, timestamp = os.time()})
                             processQueue()
-                            -- Firebase se bhi delete karo
                             task.spawn(function()
                                 pcall(function()
                                     reqFunc({Url = FIREBASE_URL .. DB_PATH .. "/" .. fbKey .. ".json", Method = "DELETE"})
@@ -1864,7 +1947,6 @@ local function startMainChat()
                         end
                     end)
                 end
-                -- Apne screen se UI element destroy karo
                 if containerFrame and containerFrame.Parent then
                     safeTween(containerFrame, {GroupTransparency = 1}, 0.25)
                     task.delay(0.3, function() pcall(function() containerFrame:Destroy() end) end)
@@ -1874,7 +1956,9 @@ local function startMainChat()
     end
 
     -- ================================================================= --
-    -- addMessageToChat - WITH FULL BUBBLE SWIPE ANIMATION
+    -- [FIX 1] addMessageToChat - PROPER WHATSAPP SWIPE ANIMATION
+    -- masterContainer poore bubble row ka container hai
+    -- Swipe masterContainer pe hogi (not just bubbleBg)
     -- ================================================================= --
     addMessageToChat = function(name, message, isSystem, userId, chatType, fbKey, convoId)
         pcall(function()
@@ -1886,19 +1970,23 @@ local function startMainChat()
             local MAX_BUBBLE_WIDTH = math.floor(CHAT_INNER_WIDTH * 0.72)
             local MAX_IMG_SIZE = math.min(MAX_BUBBLE_WIDTH - 20, 150)
 
-            local masterContainer = Instance.new("Frame", targetFrame)
+            -- ================================================================= --
+            -- [KEY FIX] masterContainer ko CanvasGroup banao
+            -- Ye swipe animation ke liye zaruri hai
+            -- ================================================================= --
+            local masterContainer = Instance.new("CanvasGroup", targetFrame)
             masterContainer.Size = UDim2.new(1, 0, 0, 20)
             masterContainer.AutomaticSize = Enum.AutomaticSize.Y
             masterContainer.BackgroundTransparency = 1
             masterContainer.LayoutOrder = messageCount
             masterContainer.ClipsDescendants = false
+            masterContainer.GroupTransparency = 0
             if fbKey and fbKey ~= "" then masterContainer:SetAttribute("FBKey", fbKey) end
 
             local cleanName = name:gsub("^%[[^%]]+%]%s+", ""):gsub("^[👑💎]%s+", ""):gsub("%[.-%]%s*", "")
             local cleanMsgTxt = tostring(message)
             local isMyMessage = (tostring(userId) == myUserId)
 
-            -- DM convoId filter
             if chatType == "DM" then
                 local actualConvoId = convoId or userId
                 if actualConvoId then
@@ -1959,7 +2047,6 @@ local function startMainChat()
                     local rCon = Instance.new("UISizeConstraint", replyLabel); rCon.MaxSize = Vector2.new(MAX_BUBBLE_WIDTH - 20, 99999)
                 end
 
-                -- Row Frame
                 local rowFrame = Instance.new("Frame", masterContainer)
                 rowFrame.BackgroundTransparency = 1
                 rowFrame.AutomaticSize = Enum.AutomaticSize.XY
@@ -1980,7 +2067,6 @@ local function startMainChat()
                 local dpOrder = isRightAligned and 2 or 1
                 local bubbleOrder = isRightAligned and 1 or 2
 
-                -- DP (Avatar)
                 local avatarImg = Instance.new("ImageButton", rowFrame)
                 avatarImg.Size = UDim2.new(0, 26, 0, 26)
                 avatarImg.BackgroundTransparency = 1
@@ -2003,7 +2089,6 @@ local function startMainChat()
                     end)
                 else avatarImg.Image = "rbxthumb://type=AvatarHeadShot&id=" .. avatarUid .. "&w=150&h=150" end
 
-                -- BUBBLE FRAME
                 local bubbleBg = Instance.new("Frame", rowFrame)
                 bubbleBg.AutomaticSize = Enum.AutomaticSize.XY
                 bubbleBg.BackgroundColor3 = isMyMessage and Color3.fromRGB(0, 90, 160) or Color3.fromRGB(35, 35, 48)
@@ -2123,53 +2208,55 @@ local function startMainChat()
                 end
 
                 -- ================================================================= --
-                -- POORA BUBBLE SWIPE ANIMATION - WhatsApp style
+                -- [FIX 1] PROPER WHATSAPP SWIPE ANIMATION
+                -- masterContainer pe swipe lagao (poora row move hoga)
+                -- Ya sirf rowFrame pe bhi kar sakte ho - dono options hain
                 -- ================================================================= --
-                local function makeBubbleSwipeAndHold(bubbleFrame, senderName2, messageText2, contextType2)
-                    local startPos = nil
-                    local originalAbsPos = nil
+                local function applySwipeAndHold(swipeTarget, senderName2, messageText2, contextType2)
+                    local touchStart = nil
+                    local origOffset = {X = 0, Y = 0}
                     local isSwiping = false
                     local isHolding = false
-                    local holdStart = 0
                     local holdConn = nil
-                    local touchStartTime = 0
+                    local holdStart = 0
                     local hasMoved = false
 
-                    -- Original offset store karo relative position ke liye
-                    local origOffsetX = bubbleFrame.Position.X.Offset
-                    local origOffsetY = bubbleFrame.Position.Y.Offset
-                    local origScaleX = bubbleFrame.Position.X.Scale
-                    local origScaleY = bubbleFrame.Position.Y.Scale
-
-                    -- DM convo key for unsend
                     local convoKeyLocal = ""
                     if chatType == "DM" and activeDmUserId then
                         convoKeyLocal = getDmConvoKey(myUserId, activeDmUserId)
                     end
-
                     local storedFbKey = masterContainer:GetAttribute("FBKey") or fbKey or ""
                     local isMyMsg2 = isMyMessage
 
-                    bubbleFrame.InputBegan:Connect(function(input)
+                    -- Reply arrow indicator - sirf swipe confirm pe dikhao
+                    local replyArrow = Instance.new("TextLabel", swipeTarget)
+                    replyArrow.Text = "↩️"
+                    replyArrow.TextSize = 18
+                    replyArrow.Size = UDim2.new(0, 30, 0, 30)
+                    replyArrow.Position = UDim2.new(0, -35, 0.5, -15)
+                    replyArrow.BackgroundTransparency = 1
+                    replyArrow.TextTransparency = 1
+                    replyArrow.ZIndex = 10
+
+                    swipeTarget.InputBegan:Connect(function(input)
                         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                            startPos = input.Position
-                            origOffsetX = bubbleFrame.Position.X.Offset
-                            origOffsetY = bubbleFrame.Position.Y.Offset
-                            origScaleX = bubbleFrame.Position.X.Scale
-                            origScaleY = bubbleFrame.Position.Y.Scale
+                            touchStart = input.Position
+                            -- Current position store karo
+                            origOffset.X = swipeTarget.Position.X.Offset
+                            origOffset.Y = swipeTarget.Position.Y.Offset
                             isSwiping = false
                             hasMoved = false
                             isHolding = true
                             holdStart = tick()
-                            touchStartTime = tick()
 
-                            -- Hold detection
+                            -- Hold detection loop
                             if holdConn then holdConn:Disconnect() end
                             holdConn = RunService.Heartbeat:Connect(function()
                                 if isHolding and not hasMoved and (tick() - holdStart) >= 0.45 then
                                     isHolding = false
                                     if holdConn then holdConn:Disconnect(); holdConn = nil end
-                                    -- Haptic feel
+                                    -- Hold confirmed! - context menu kholo
+                                    -- Pehle haptic/sound
                                     pcall(function()
                                         local sfx = Instance.new("Sound", UI_PARENT)
                                         sfx.SoundId = "rbxassetid://6895088918"
@@ -2177,60 +2264,81 @@ local function startMainChat()
                                         sfx:Play()
                                         task.wait(0.3); sfx:Destroy()
                                     end)
-                                    -- Bubble wiggle animation
-                                    safeTween(bubbleFrame, {Position = UDim2.new(origScaleX, origOffsetX + 5, origScaleY, origOffsetY)}, 0.06)
-                                    task.wait(0.06)
-                                    safeTween(bubbleFrame, {Position = UDim2.new(origScaleX, origOffsetX - 5, origScaleY, origOffsetY)}, 0.06)
-                                    task.wait(0.06)
-                                    safeTween(bubbleFrame, {Position = UDim2.new(origScaleX, origOffsetX, origScaleY, origOffsetY)}, 0.1)
+                                    -- Wiggle animation
+                                    local tw1 = TweenService:Create(swipeTarget,
+                                        TweenInfo.new(0.06, Enum.EasingStyle.Sine),
+                                        {Position = UDim2.new(swipeTarget.Position.X.Scale, origOffset.X + 6, swipeTarget.Position.Y.Scale, origOffset.Y)}
+                                    )
+                                    tw1:Play(); tw1.Completed:Connect(function()
+                                        local tw2 = TweenService:Create(swipeTarget,
+                                            TweenInfo.new(0.06, Enum.EasingStyle.Sine),
+                                            {Position = UDim2.new(swipeTarget.Position.X.Scale, origOffset.X - 6, swipeTarget.Position.Y.Scale, origOffset.Y)}
+                                        )
+                                        tw2:Play(); tw2.Completed:Connect(function()
+                                            TweenService:Create(swipeTarget,
+                                                TweenInfo.new(0.1, Enum.EasingStyle.Sine),
+                                                {Position = UDim2.new(swipeTarget.Position.X.Scale, origOffset.X, swipeTarget.Position.Y.Scale, origOffset.Y)}
+                                            ):Play()
+                                        end)
+                                    end)
                                     openMessageContextMenu(msgTextLabel, messageText2, senderName2, contextType2, masterContainer, isMyMsg2, storedFbKey, contextType2, convoKeyLocal)
                                 end
                             end)
                         end
                     end)
 
-                    bubbleFrame.InputChanged:Connect(function(input)
-                        if startPos and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-                            local delta = input.Position - startPos
+                    swipeTarget.InputChanged:Connect(function(input)
+                        if not touchStart then return end
+                        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+                            local delta = input.Position - touchStart
                             local absDX = math.abs(delta.X)
                             local absDY = math.abs(delta.Y)
 
-                            -- Movement detect karo
-                            if delta.Magnitude > 5 then
+                            if delta.Magnitude > 6 then
                                 hasMoved = true
-                                if isHolding and holdConn then holdConn:Disconnect(); holdConn = nil end
+                                if holdConn then holdConn:Disconnect(); holdConn = nil end
                                 isHolding = false
                             end
 
-                            -- Horizontal swipe (diagonal se zyada horizontal ho)
-                            if absDX > 8 and absDX > absDY * 1.2 then
+                            -- Horizontal swipe detect karo
+                            if absDX > 10 and absDX > absDY * 1.3 then
                                 isSwiping = true
-                                -- Poora bubble smoothly move karo (max 80px each side)
-                                local maxMove = 80
-                                local moveX = math.max(-maxMove, math.min(maxMove, delta.X * 0.7))
-                                -- Easing: jitna zyada swipe utna resistance
-                                local easedMove = moveX * (1 - math.abs(moveX) / (maxMove * 2.5))
+                                -- Resistance ke saath smooth move (max 85px)
+                                local maxMove = 85
+                                local rawMove = delta.X * 0.65
+                                local easedMove = rawMove * (1 - math.abs(rawMove) / (maxMove * 3))
+                                easedMove = math.max(-maxMove, math.min(maxMove, easedMove))
+
                                 pcall(function()
-                                    bubbleFrame.Position = UDim2.new(
-                                        origScaleX,
-                                        origOffsetX + easedMove,
-                                        origScaleY,
-                                        origOffsetY
+                                    swipeTarget.Position = UDim2.new(
+                                        swipeTarget.Position.X.Scale,
+                                        origOffset.X + easedMove,
+                                        swipeTarget.Position.Y.Scale,
+                                        origOffset.Y
                                     )
                                 end)
+
+                                -- Reply arrow show karo jab kaafi swipe ho
+                                local arrowAlpha = math.min(1, math.abs(easedMove) / 40)
+                                pcall(function() replyArrow.TextTransparency = 1 - arrowAlpha end)
                             end
                         end
                     end)
 
-                    bubbleFrame.InputEnded:Connect(function(input)
+                    swipeTarget.InputEnded:Connect(function(input)
                         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
                             if holdConn then holdConn:Disconnect(); holdConn = nil end
 
-                            if startPos and isSwiping then
-                                local delta = input.Position - startPos
-                                -- Swipe confirm: 45px se zyada horizontal move
-                                if math.abs(delta.X) > 45 and math.abs(delta.X) > math.abs(delta.Y) * 1.2 then
-                                    -- Reply trigger
+                            -- Arrow hide karo
+                            pcall(function() replyArrow.TextTransparency = 1 end)
+
+                            if touchStart and isSwiping then
+                                local delta = input.Position - touchStart
+                                local absDX = math.abs(delta.X)
+                                local absDY = math.abs(delta.Y)
+
+                                -- 50px se zyada swipe = reply confirm
+                                if absDX > 50 and absDX > absDY * 1.2 then
                                     local swipeText = isSnap and "[Snap 🔥]" or cleanMsgTxt
                                     if contextType2 == "DM" then
                                         updateDmReplyState(senderName2, swipeText)
@@ -2245,36 +2353,41 @@ local function startMainChat()
                                         sfx:Play()
                                         task.wait(0.5); sfx:Destroy()
                                     end)
-                                    -- Bubble overshoot then snap back (WhatsApp style)
-                                    local direction = delta.X > 0 and 1 or -1
-                                    safeTween(bubbleFrame, {Position = UDim2.new(origScaleX, origOffsetX + direction * 30, origScaleY, origOffsetY)}, 0.1, Enum.EasingStyle.Back, Enum.EasingDirection.In)
-                                    task.wait(0.1)
-                                    safeTween(bubbleFrame, {Position = UDim2.new(origScaleX, origOffsetX, origScaleY, origOffsetY)}, 0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+                                    -- Overshoot then snap back (WhatsApp feel)
+                                    local dir = delta.X > 0 and 1 or -1
+                                    TweenService:Create(swipeTarget,
+                                        TweenInfo.new(0.12, Enum.EasingStyle.Sine, Enum.EasingDirection.Out),
+                                        {Position = UDim2.new(swipeTarget.Position.X.Scale, origOffset.X + dir * 22, swipeTarget.Position.Y.Scale, origOffset.Y)}
+                                    ):Play()
+                                    task.delay(0.12, function()
+                                        TweenService:Create(swipeTarget,
+                                            TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+                                            {Position = UDim2.new(swipeTarget.Position.X.Scale, origOffset.X, swipeTarget.Position.Y.Scale, origOffset.Y)}
+                                        ):Play()
+                                    end)
                                 else
-                                    -- Snap wapas
-                                    safeTween(bubbleFrame, {Position = UDim2.new(origScaleX, origOffsetX, origScaleY, origOffsetY)}, 0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+                                    -- Snap wapas center
+                                    TweenService:Create(swipeTarget,
+                                        TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+                                        {Position = UDim2.new(swipeTarget.Position.X.Scale, origOffset.X, swipeTarget.Position.Y.Scale, origOffset.Y)}
+                                    ):Play()
                                 end
                             end
 
-                            startPos = nil
+                            touchStart = nil
                             isSwiping = false
                             isHolding = false
                         end
                     end)
                 end
 
-                -- Apply combined swipe + hold on bubble
-                makeBubbleSwipeAndHold(bubbleBg, cleanName, cleanMsgTxt, chatType)
+                -- rowFrame pe swipe apply karo (yahi visible part hai)
+                applySwipeAndHold(rowFrame, cleanName, cleanMsgTxt, chatType)
 
                 if isSnap then
                     task.delay(10, function()
                         if masterContainer then
-                            safeTween(masterContainer, {BackgroundTransparency = 1}, 0.5)
-                            for _, v in ipairs(masterContainer:GetDescendants()) do
-                                if v:IsA("TextLabel") or v:IsA("TextButton") then pcall(function() safeTween(v, {TextTransparency = 1}, 0.5) end)
-                                elseif v:IsA("ImageLabel") then pcall(function() safeTween(v, {ImageTransparency = 1}, 0.5) end)
-                                elseif v:IsA("UIStroke") then pcall(function() safeTween(v, {Transparency = 1}, 0.5) end) end
-                            end
+                            safeTween(masterContainer, {GroupTransparency = 1}, 0.5)
                             task.wait(0.5); pcall(function() masterContainer:Destroy() end)
                         end
                     end)
@@ -2291,7 +2404,7 @@ local function startMainChat()
                     if maxScroll > 0 then safeTween(targetFrame, {CanvasPosition = Vector2.new(0, maxScroll)}, 0.2, Enum.EasingStyle.Sine) end
                 end
                 local messages = {}
-                for _, child in ipairs(targetFrame:GetChildren()) do if child:IsA("Frame") then table.insert(messages, child) end end
+                for _, child in ipairs(targetFrame:GetChildren()) do if child:IsA("CanvasGroup") or child:IsA("Frame") then table.insert(messages, child) end end
                 if #messages > MAX_MESSAGES_ON_SCREEN then
                     table.sort(messages, function(a, b) return a.LayoutOrder < b.LayoutOrder end)
                     for i = 1, #messages - MAX_MESSAGES_ON_SCREEN do pcall(function() messages[i]:Destroy() end) end
@@ -2316,7 +2429,7 @@ local function startMainChat()
     end
 
     -- ================================================================= --
-    -- sendMsg - DJ commands sirf permitted users ke liye
+    -- sendMsg
     -- ================================================================= --
     sendMsg = function(txt)
         txt = tostring(txt):gsub("^%s+", ""):gsub("%s+$", "")
@@ -2362,7 +2475,6 @@ local function startMainChat()
                     for u,d in pairs(activeScriptUsers) do if d.name:lower()==tU:lower() or d.displayName:lower()==tU:lower() then tgt=u; break end end
                     if not tgt then for _, p in ipairs(Players:GetPlayers()) do if p.Name:lower()==tU:lower() or p.DisplayName:lower()==tU:lower() then tgt=tostring(p.UserId); break end end end
                     if tgt then
-                        -- Firebase pe save karo DJ permission
                         pcall(function()
                             reqFunc({Url = FIREBASE_URL .. "dj_permissions/" .. tgt .. ".json", Method = "PUT", Headers = {["Content-Type"] = "application/json"}, Body = "true"})
                         end)
@@ -2375,7 +2487,6 @@ local function startMainChat()
                     for u,d in pairs(activeScriptUsers) do if d.name:lower()==tU:lower() or d.displayName:lower()==tU:lower() then tgt=u; break end end
                     if not tgt then for _, p in ipairs(Players:GetPlayers()) do if p.Name:lower()==tU:lower() or p.DisplayName:lower()==tU:lower() then tgt=tostring(p.UserId); break end end end
                     if tgt then
-                        -- Firebase se remove karo
                         pcall(function()
                             reqFunc({Url = FIREBASE_URL .. "dj_permissions/" .. tgt .. ".json", Method = "DELETE"})
                         end)
@@ -2431,13 +2542,13 @@ local function startMainChat()
             if txt:lower() == "/untarget" then table.insert(messageQueue, {text="[TARGET_REMOVE] ||", timestamp=os.time()}); processQueue(); return end
         end
 
-        -- ================================================================= --
-        -- DJ Commands - hasDjPermission check karo
-        -- ================================================================= --
+        -- DJ Commands
         if hasDjPermission(myUserId) then
             if txt:lower():sub(1,8) == "/djplay " then
                 local ytUrl = txt:sub(9):gsub("%s+", ""); local vId = GetVideoID(ytUrl)
-                if vId and #vId > 5 then table.insert(messageQueue, {text="[ZAYN_DJ_PLAY:" .. vId .. "] ||" .. myUserId, timestamp=os.time()}); processQueue()
+                if vId and #vId > 5 then
+                    -- Directly download and broadcast
+                    DownloadAndPlayYTAudio(vId, cleanMyName)
                 else addMessageToChat("System", "❌ Invalid YouTube Link!", true, nil, "Server") end; return
             end
             if txt:lower() == "/djstop" then table.insert(messageQueue, {text="[ZAYN_DJ_STOP] ||" .. myUserId, timestamp=os.time()}); processQueue(); return end
@@ -2525,10 +2636,8 @@ local function startMainChat()
                             if mtext:find("%[ZAYN_UNSEND%]") then
                                 local delKey = mtext:match("%[ZAYN_UNSEND%] ([%w_-]+)")
                                 if delKey then
-                                    -- Server chat se delete karo
                                     for _, child in ipairs(chatFrame:GetChildren()) do
                                         if child:GetAttribute("FBKey") == delKey then
-                                            -- Smooth fade + destroy
                                             for _, v in ipairs(child:GetDescendants()) do
                                                 if v:IsA("TextLabel") or v:IsA("TextButton") then pcall(function() safeTween(v, {TextTransparency = 1}, 0.25) end)
                                                 elseif v:IsA("ImageLabel") or v:IsA("ImageButton") then pcall(function() safeTween(v, {ImageTransparency = 1}, 0.25) end)
@@ -2538,7 +2647,6 @@ local function startMainChat()
                                             task.delay(0.3, function() pcall(function() child:Destroy() end) end)
                                         end
                                     end
-                                    -- Firebase se bhi permanently delete karo
                                     task.spawn(function()
                                         pcall(function()
                                             reqFunc({Url = FIREBASE_URL .. DB_PATH .. "/" .. delKey .. ".json", Method = "DELETE"})
@@ -2562,31 +2670,38 @@ local function startMainChat()
                                 if revokeUid then djPermittedUsers[revokeUid] = nil end; continue
                             end
 
-                            -- DJ Play - sirf hasDjPermission wale ka message process karo
-                            if mtext:find("%[ZAYN_DJ_PLAY:") then
-                                local ytId = mtext:match("%[ZAYN_DJ_PLAY:([%w_-]+)%]")
+                            -- ================================================================= --
+                            -- [FIX 2] DJ Audio Ready - Direct URL se play karo
+                            -- Jab DJ ne track start kiya toh baaki sab Firebase se URL uthao
+                            -- ================================================================= --
+                            if mtext:find("%[ZAYN_DJ_AUDIO_READY:") then
+                                local vId = mtext:match("%[ZAYN_DJ_AUDIO_READY:([%w_-]+)%]")
                                 local senderUid = mtext:match("||([%w_]+)$")
-                                if ytId and senderUid and hasDjPermission(senderUid) then
-                                    local senderDisplayName = "A DJ"
-                                    if activeScriptUsers[senderUid] then
-                                        senderDisplayName = activeScriptUsers[senderUid].displayName
-                                    else
-                                        local dn, _ = getStrictIdentity(senderUid)
-                                        senderDisplayName = dn
-                                    end
-                                    lastDjPlayFirebaseKey = key
-                                    DownloadAndPlayYTAudio(ytId, senderDisplayName)
-                                elseif ytId and senderUid and not hasDjPermission(senderUid) then
-                                    -- Unauthorized DJ play attempt - ignore
+                                if vId and senderUid and senderUid ~= myUserId then
+                                    -- Dusre user ne broadcast kiya - Firebase se URL lo
                                     task.spawn(function()
-                                        pcall(function()
-                                            reqFunc({Url = FIREBASE_URL .. DB_PATH .. "/" .. key .. ".json", Method = "DELETE"})
-                                        end)
+                                        task.wait(1) -- thoda wait karo Firebase write ke liye
+                                        local djRes = reqFunc({Url = FIREBASE_URL .. DJ_AUDIO_PATH .. SERVER_ID .. ".json", Method = "GET"})
+                                        if djRes.Success and djRes.Body ~= "null" then
+                                            pcall(function()
+                                                local djData = HttpService:JSONDecode(djRes.Body)
+                                                if djData and djData.directUrl and djData.vId == vId then
+                                                    local elapsed = os.time() - (djData.startTime or 0)
+                                                    PlayDirectAudio(djData.directUrl, djData.songTitle or "Unknown", djData.djName or "DJ", elapsed)
+                                                end
+                                            end)
+                                        end
                                     end)
                                 end; continue
                             end
 
-                            -- DJ Stop - sirf hasDjPermission wale ka stop karo
+                            -- Old DJ Play handler (backward compat - agar koi purana message aaye)
+                            if mtext:find("%[ZAYN_DJ_PLAY:") then
+                                -- Ignore karo - naya system ZAYN_DJ_AUDIO_READY use karta hai
+                                continue
+                            end
+
+                            -- DJ Stop
                             if mtext:find("%[ZAYN_DJ_STOP%]") then
                                 local senderUid = mtext:match("||([%w_]+)$")
                                 if senderUid and hasDjPermission(senderUid) then
@@ -2747,6 +2862,9 @@ local function startMainChat()
     makeDraggable(main, titleBar)
     makeDraggable(toggleBtn, toggleBtn)
     toggleBtn.MouseButton1Click:Connect(function() toggleMainUI(not isUiOpen) end)
+
+    -- loadData call karo (PlayDirectAudio ke baad, isliye yahan)
+    loadData()
 end
 
 -- ================================================================= --
