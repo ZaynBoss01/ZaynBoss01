@@ -1,6 +1,6 @@
 -- ========================================================== --
 -- ZAYN UI LAB - V49.0 FINAL (PART 1)                         --
--- SWIPE ANIMATION FIXED + DJ PLAY FIXED + BUGS FIXED         --
+-- MASSIVE GAP FIXED + NORMAL SWIPE TO REPLY + BUGS FIXED     --
 -- ========================================================== --
 
 local TweenService = game:GetService("TweenService")
@@ -2574,20 +2574,6 @@ local function startMainChat()
                 local isHolding = false
                 local swipeOffset = 0 
 
-                local replyArrow = Instance.new("TextLabel", containerFrame)
-                replyArrow.Text = isRightAligned and "↩️" or "↪️"
-                replyArrow.TextSize = 18
-                replyArrow.BackgroundTransparency = 1
-                replyArrow.Size = UDim2.new(0, 30, 0, 30)
-                replyArrow.TextTransparency = 1
-                replyArrow.ZIndex = 10
-                replyArrow.BorderSizePixel = 0
-                if isRightAligned then
-                    replyArrow.Position = UDim2.new(0, 8, 0.5, -15)
-                else
-                    replyArrow.Position = UDim2.new(1, -38, 0.5, -15)
-                end
-
                 local function smoothSetBubbleX(targetX)
                     local maxX = 80
                     local resistance = 0.65
@@ -2601,9 +2587,6 @@ local function startMainChat()
                     pcall(function()
                         rowFrame.Position = UDim2.new(0, finalX, 0, 0)
                     end)
-                    local arrowAlpha = math.min(1, math.abs(finalX) / 40)
-                    local arrowTransp = 1 - arrowAlpha
-                    pcall(function() replyArrow.TextTransparency = arrowTransp end)
                 end
 
                 local function snapBubbleBack(withOvershoot)
@@ -2613,7 +2596,6 @@ local function startMainChat()
                         task.wait(0.08)
                     end
                     safeTween(rowFrame, {Position = UDim2.new(0, 0, 0, 0)}, 0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
-                    safeTween(replyArrow, {TextTransparency = 1}, 0.2)
                     swipeOffset = 0
                 end
 
