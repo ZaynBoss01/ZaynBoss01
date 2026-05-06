@@ -1,6 +1,6 @@
 -- ========================================================== --
--- ZAYN UI LAB - V49.0 FINAL                                  --
--- SWIPE ANIMATION FIXED + DJ PLAY FIXED + CHAT GAPS FIXED    --
+-- ZAYN UI LAB - V49.0 FINAL (GAP FIXED)                      --
+-- SWIPE ANIMATION FIXED + DJ PLAY FIXED                      --
 -- ========================================================== --
 
 local TweenService = game:GetService("TweenService")
@@ -763,11 +763,9 @@ local function startMainChat()
     local chatPad = Instance.new("UIPadding", chatFrame)
     chatPad.PaddingLeft = UDim.new(0, 6)
     chatPad.PaddingRight = UDim.new(0, 6)
-    
-    -- === FIX 1: REDUCED CHAT PADDING TO 5 ===
     local chatLayout = Instance.new("UIListLayout", chatFrame)
     chatLayout.SortOrder = Enum.SortOrder.LayoutOrder
-    chatLayout.Padding = UDim.new(0, 5) 
+    chatLayout.Padding = UDim.new(0, 3) -- FIXED GAP HERE (Was 10)
 
     local galleryContainer = Instance.new("Frame", main)
     galleryContainer.Size = UDim2.new(1, 0, 1, -42)
@@ -909,11 +907,9 @@ local function startMainChat()
     local dmPadL = Instance.new("UIPadding", dmChatFrame)
     dmPadL.PaddingLeft = UDim.new(0, 6)
     dmPadL.PaddingRight = UDim.new(0, 6)
-    
-    -- === FIX 2: REDUCED DM CHAT PADDING TO 5 ===
     local dmChatLayout = Instance.new("UIListLayout", dmChatFrame)
     dmChatLayout.SortOrder = Enum.SortOrder.LayoutOrder
-    dmChatLayout.Padding = UDim.new(0, 5)
+    dmChatLayout.Padding = UDim.new(0, 3) -- FIXED GAP HERE (Was 10)
 
     local isStickerPanelOpen = false
     local stickerPanel
@@ -2277,8 +2273,7 @@ local function startMainChat()
             -- MASTER CONTAINER - yeh poora message ka wrapper hai
             -- ================================================================= --
             local masterContainer = Instance.new("Frame", targetFrame)
-            -- === FIX 3: CHANGE MASTER CONTAINER BASE SIZE FROM 20 TO 0 ===
-            masterContainer.Size = UDim2.new(1, 0, 0, 0)
+            masterContainer.Size = UDim2.new(1, 0, 0, 0) -- CHANGED FROM 20 TO 0 SO IT HUGS CONTENT TIGHTLY
             masterContainer.AutomaticSize = Enum.AutomaticSize.Y
             masterContainer.BackgroundTransparency = 1
             masterContainer.LayoutOrder = messageCount
@@ -2349,7 +2344,7 @@ local function startMainChat()
 
             local masterLayout = Instance.new("UIListLayout", masterContainer)
             masterLayout.FillDirection = Enum.FillDirection.Vertical
-            masterLayout.Padding = UDim.new(0, 2)
+            masterLayout.Padding = UDim.new(0, 1) -- REDUCED INTERNAL PADDING TO 1
 
             if replyCtx then
                 local replyBlock = Instance.new("Frame", masterContainer)
@@ -2567,11 +2562,10 @@ local function startMainChat()
             end
 
             -- ================================================================= --
-            -- SWIPE ZONE OVERLAY - TRANSPARENT BLOCK UPAR SE COVER KARTA HAI
+            -- SWIPE ZONE OVERLAY
             -- ================================================================= --
             local function attachSwipeAndHoldToMaster(containerFrame, senderName2, messageText2, contextType2)
 
-                -- DM convo key
                 local convoKeyLocal = ""
                 if chatType == "DM" and activeDmUserId then
                     convoKeyLocal = getDmConvoKey(myUserId, activeDmUserId)
@@ -2579,16 +2573,13 @@ local function startMainChat()
                 local storedFbKey = masterContainer:GetAttribute("FBKey") or fbKey or ""
                 local isMyMsg2 = isMyMessage
 
-                -- Variables for tracking gesture
                 local touchStart = nil
-                local origCanvasPos = nil
                 local isSwiping = false
                 local hasMoved = false
                 local holdTimer = nil
                 local isHolding = false
-                local swipeOffset = 0  -- current bubble X shift in pixels
+                local swipeOffset = 0 
 
-                -- Reply arrow indicator (shows during swipe)
                 local replyArrow = Instance.new("TextLabel", containerFrame)
                 replyArrow.Text = isRightAligned and "↩️" or "↪️"
                 replyArrow.TextSize = 18
