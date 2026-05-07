@@ -1,7 +1,7 @@
 -- ========================================================== --
--- ZAYN UI LAB - CLEAN PREMIUM EDITION (V48.0 FIXED)          --
+-- ZAYN UI LAB - CLEAN PREMIUM EDITION (V48.1 FIXED)          --
 -- THEME: SLEEK MIDNIGHT GLASS & iOS STYLE CHAT               --
--- FIX: DJ PERMS | BUBBLE SWIPE | LIVE UNSEND SYNC (HOLD FIX) --
+-- FIX: MEDIA CODE ISSUE & LOCAL UNSEND DELETION              --
 -- ========================================================== --
 
 local TweenService = game:GetService("TweenService")
@@ -110,7 +110,7 @@ HubTitle.TextXAlignment = Enum.TextXAlignment.Center
 HubTitle.Parent = Halo
 
 local HubTitleStroke = Instance.new("UIStroke")
-HubTitleStroke.Color = Color3.fromRGB(0, 122, 255) -- iOS Blue edge
+HubTitleStroke.Color = Color3.fromRGB(0, 122, 255)
 HubTitleStroke.Thickness = 1
 HubTitleStroke.Transparency = 1
 HubTitleStroke.Parent = HubTitle
@@ -273,7 +273,7 @@ local function startMainChat()
     if cleanMyName == "" then cleanMyName = myUser end
 
     -- ================================================================= --
-    -- parseMessage FUNCTION
+    -- parseMessage FUNCTION (FIXED: TRAILING SPACES FOR MEDIA)
     -- ================================================================= --
     local function parseMessage(mtext)
         local senderPart, msgPart, uidPart = mtext:match("^(.-):%s(.+)%s*||([%w_:]+)$")
@@ -281,6 +281,10 @@ local function startMainChat()
             senderPart, msgPart, uidPart = mtext:match("^(.-):%s(.+)%s*||([%w_]+)$")
         end
         if not senderPart then return nil, nil, nil, nil end
+        
+        -- STRICT TRIM: Yeh spaces hata dega taaki receivers ko properly "[STICKER:xx]" mile code ke bajaye
+        if msgPart then msgPart = msgPart:match("^%s*(.-)%s*$") or msgPart end
+        
         local uid = uidPart and uidPart:match("^([%w_]+)") or uidPart
         local cleanN = senderPart:gsub("^%[[^%]]+%]%s*", ""):gsub("^[👑💎🎧]%s*", "")
         return senderPart, msgPart, uid, cleanN
@@ -477,7 +481,6 @@ local function startMainChat()
 
     local function getPlayerTitle(userId, playerName) local uIdStr = tostring(userId); if uIdStr == "10432865434" then return {text="CREATOR", color="RGB", expire=0} end; local t = _internalTitles[uIdStr]; if t then return t end return nil end
     
-    -- FIXED: TAGDA TITLE COLORS
     local function getColorFromName(cName) 
         cName = cName:lower()
         local cols = {
@@ -494,21 +497,18 @@ local function startMainChat()
         return cols[cName] or nil 
     end
     
-    -- ================================================================= --
-    -- CLEAN PREMIUM COLOR PALETTE (IOS STYLE)
-    -- ================================================================= --
     local Colors = {
-        Primary = Color3.fromRGB(0, 122, 255), -- iOS Blue
-        Secondary = Color3.fromRGB(255, 255, 255), -- Clean White
-        Accent = Color3.fromRGB(0, 255, 150), -- Mint Green Accent
+        Primary = Color3.fromRGB(0, 122, 255),
+        Secondary = Color3.fromRGB(255, 255, 255),
+        Accent = Color3.fromRGB(0, 255, 150),
         Glow = Color3.fromRGB(255, 255, 255),
-        Dark = Color3.fromRGB(30, 30, 35), -- Soft Dark Slate
-        Darker = Color3.fromRGB(18, 18, 24), -- Midnight Glass
+        Dark = Color3.fromRGB(30, 30, 35),
+        Darker = Color3.fromRGB(18, 18, 24),
         Light = Color3.fromRGB(245, 245, 250),
         Text = Color3.fromRGB(255, 255, 255),
         TextDim = Color3.fromRGB(160, 160, 170),
         SystemYellow = Color3.fromRGB(255, 204, 0),
-        NeonPink = Color3.fromRGB(255, 45, 85), -- iOS Pink
+        NeonPink = Color3.fromRGB(255, 45, 85),
         Cyan = Color3.fromRGB(90, 200, 250),
         Gold = Color3.fromRGB(255, 215, 0)
     }
@@ -525,7 +525,6 @@ local function startMainChat()
         titleLabel.TextSize = 11
         titleLabel.TextYAlignment = Enum.TextYAlignment.Top
         
-        -- PREMIUM TITLE GLOW/STROKE
         local titleStroke = Instance.new("UIStroke", titleLabel)
         titleStroke.Thickness = 1
         titleStroke.Transparency = 0.2
@@ -550,9 +549,6 @@ local function startMainChat()
         return titleLabel
     end
 
-    -- ================================================================= --
-    -- CLEAN MAIN GUI SETUP (FROSTED GLASS)
-    -- ================================================================= --
     local sg = Instance.new("ScreenGui"); sg.Name = "ZAYN_OMNI_GUI"; sg.ZIndexBehavior = Enum.ZIndexBehavior.Sibling; sg.ResetOnSpawn = false; sg.IgnoreGuiInset = true
     if syn and syn.protect_gui then pcall(function() syn.protect_gui(sg) end) end
     sg.Parent = UI_PARENT
@@ -562,7 +558,7 @@ local function startMainChat()
     main.AnchorPoint = Vector2.new(0.5, 0.5)
     main.Position = UDim2.new(0.5, 0, 0.5, 0)
     main.BackgroundColor3 = Colors.Darker
-    main.BackgroundTransparency = 0.2 -- Clean Frost
+    main.BackgroundTransparency = 0.2
     main.BorderSizePixel = 0
     Instance.new("UICorner", main).CornerRadius = UDim.new(0, 16)
     
@@ -570,7 +566,7 @@ local function startMainChat()
     mainStroke.Thickness = 1.2
     mainStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
     mainStroke.Transparency = 0.8
-    mainStroke.Color = Colors.Secondary -- Sleek white/silver edge
+    mainStroke.Color = Colors.Secondary
 
     local isUiOpen = true
     local uiTweenInfo = TweenInfo.new(0.35, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out)
@@ -586,7 +582,6 @@ local function startMainChat()
         end
     end
 
-    -- Title Bar (Clean)
     local titleBar = Instance.new("Frame", main); titleBar.Size = UDim2.new(1, 0, 0, 48); titleBar.BackgroundTransparency = 1
     
     local separator = Instance.new("Frame", titleBar)
@@ -664,9 +659,6 @@ local function startMainChat()
     local voiceScroll = Instance.new("ScrollingFrame", voiceContainer); voiceScroll.Size = UDim2.new(1, -20, 1, -10); voiceScroll.Position = UDim2.new(0, 10, 0, 8); DecorateScroll(voiceScroll)
     local voiceLayout = Instance.new("UIListLayout", voiceScroll); voiceLayout.Padding = UDim.new(0, 10); voiceLayout.SortOrder = Enum.SortOrder.LayoutOrder
 
-    -- ================================================================= --
-    -- DM INBOX PAGE (CLEAN)
-    -- ================================================================= --
     local dmInboxContainer = Instance.new("Frame", main)
     dmInboxContainer.Size = UDim2.new(1, 0, 1, -48)
     dmInboxContainer.Position = UDim2.new(0, 0, 0, 48)
@@ -793,7 +785,7 @@ local function startMainChat()
     end
 
     -- ================================================================= --
-    -- DM CONTACT WIDGET (CLEAN - FIXED CLICK ANYWHERE ISSUE)
+    -- DM CONTACT WIDGET (CLEAN - FIXED CLICK ISSUE)
     -- ================================================================= --
     local function createOrUpdateDmContactWidget(uid, data)
         local uidStr = tostring(uid)
@@ -900,8 +892,8 @@ local function startMainChat()
             if loadDmHistory then loadDmHistory(parsedUid) end
         end
 
+        -- NOTE: Fixed the bug here! It only opens DM when Chat button is clicked.
         dmOpenBtn.MouseButton1Click:Connect(openDmChat)
-        -- FIX: Removed card.InputBegan so clicking the whole box doesn't open DMs anymore.
 
         dmContactWidgets[uidStr] = card
         card:SetAttribute("ContactUid", uidStr)
@@ -915,6 +907,7 @@ local function startMainChat()
         end
         refreshDmInboxEmpty()
     end)
+
     -- ================================================================= --
     -- LOAD DM HISTORY
     -- ================================================================= --
@@ -1881,7 +1874,7 @@ local function startMainChat()
     end
 
     -- ================================================================= --
-    -- MESSAGE CONTEXT MENU (CLEAN)
+    -- MESSAGE CONTEXT MENU (CLEAN & FIXED LOCAL UNSEND)
     -- ================================================================= --
     local function openMessageContextMenu(labelObj, messageText, senderName, contextType, containerFrame, isMyMsg, fbKey, chatTypeLocal, dmConvoKey)
         if UI_PARENT:FindFirstChild("ZaynMsgContext") then UI_PARENT.ZaynMsgContext:Destroy() end
@@ -1951,8 +1944,16 @@ local function startMainChat()
                         end
                     end)
                 end
+                
+                -- PROPER LOCAL DELETION FIX
                 if containerFrame and containerFrame.Parent then
-                    safeTween(containerFrame, {GroupTransparency = 1}, 0.25)
+                    for _, v in ipairs(containerFrame:GetDescendants()) do
+                        if v:IsA("TextLabel") or v:IsA("TextButton") then pcall(function() safeTween(v, {TextTransparency = 1}, 0.25) end)
+                        elseif v:IsA("ImageLabel") or v:IsA("ImageButton") then pcall(function() safeTween(v, {ImageTransparency = 1}, 0.25) end)
+                        elseif v:IsA("UIStroke") then pcall(function() safeTween(v, {Transparency = 1}, 0.25) end)
+                        elseif v:IsA("Frame") then pcall(function() safeTween(v, {BackgroundTransparency = 1}, 0.25) end) end
+                    end
+                    safeTween(containerFrame, {BackgroundTransparency = 1}, 0.25)
                     task.delay(0.3, function() pcall(function() containerFrame:Destroy() end) end)
                 end
             end)
