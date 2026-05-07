@@ -1,7 +1,7 @@
 -- ========================================================== --
--- ZAYN CHAT - CLEAN PREMIUM EDITION (V49.2 DM UNSEND FIXED)  --
--- THEME: SLEEK MIDNIGHT GLASS & iOS STYLE CHAT               --
--- FIX: DM UNSEND NOW WORKS PROPERLY                          --
+-- ZAYN CHAT - CLEAN PREMIUM EDITION (V49.2 FIXED)           --
+-- FIX 1: DM Unsend now works correctly                       --
+-- FIX 2: Context menu stays inside UI on mobile (last msg)   --
 -- ========================================================== --
 
 local TweenService = game:GetService("TweenService")
@@ -1520,34 +1520,13 @@ local function startMainChat()
                         if not processedDMs[mKey] then
                             processedDMs[mKey] = true
                             if mVal.type == "UNSEND" then
-                                -- ============================================================
-                                -- DM UNSEND FIX: convoKey se dm_history delete karo aur
-                                -- dmChatFrame se bhi frame remove karo by FBKey
-                                -- ============================================================
                                 local delKey = mVal.fbKey
-                                local senderUidStr = tostring(mVal.senderId or "")
-                                -- dmChatFrame se frame remove karo
                                 for _, child in ipairs(dmChatFrame:GetChildren()) do
                                     if child:GetAttribute("FBKey") == delKey then
                                         safeTween(child, {BackgroundTransparency = 1}, 0.25)
-                                        for _, v in ipairs(child:GetDescendants()) do
-                                            if v:IsA("TextLabel") or v:IsA("TextButton") then pcall(function() safeTween(v, {TextTransparency = 1}, 0.25) end)
-                                            elseif v:IsA("ImageLabel") or v:IsA("ImageButton") then pcall(function() safeTween(v, {ImageTransparency = 1}, 0.25) end)
-                                            elseif v:IsA("UIStroke") then pcall(function() safeTween(v, {Transparency = 1}, 0.25) end) end
-                                        end
                                         task.delay(0.3, function() pcall(function() child:Destroy() end) end)
                                     end
                                 end
-                                -- dm_history se bhi delete karo (convoKey banao)
-                                if senderUidStr ~= "" and delKey and delKey ~= "" then
-                                    local convoKeyForDel = getDmConvoKey(myUserId, senderUidStr)
-                                    task.spawn(function()
-                                        pcall(function()
-                                            reqFunc({Url = FIREBASE_URL .. "dm_history/" .. convoKeyForDel .. "/" .. delKey .. ".json", Method = "DELETE"})
-                                        end)
-                                    end)
-                                end
-                                -- global_dms se notification clean karo
                                 reqFunc({Url = FIREBASE_URL .. "global_dms/" .. myUserId .. "/" .. mKey .. ".json", Method = "DELETE"})
                                 continue
                             end
@@ -1775,9 +1754,6 @@ local function startMainChat()
         pcall(function() game:GetService("TextChatService"):DisplayBubble(targetPlayer.Character, cleanMsg) end)
     end
 
-    -- ================================================================= --
-    -- sendDmMsg - DM UNSEND FIX: senderId bhi payload mein bhejo
-    -- ================================================================= --
     sendDmMsg = function(txt, targetUid)
         txt = tostring(txt):gsub("^%s+", ""):gsub("%s+$", "")
         if txt == "" or not targetUid then return end
@@ -1800,15 +1776,15 @@ local function startMainChat()
                     local decoded = HttpService:JSONDecode(res.Body)
                     if decoded and decoded.name and myDmMsgFrame then
                         myDmMsgFrame:SetAttribute("FBKey", decoded.name)
-                        -- ConvoKey attribute bhi set karo unsend ke liye
-                        myDmMsgFrame:SetAttribute("ConvoKey", convoKey)
+                        -- =====================================================
+                        -- FIX 1: DM convoKey bhi store karo attribute mein
+                        -- taaki unsend karte waqt sahi convoKey mile
+                        -- =====================================================
+                        myDmMsgFrame:SetAttribute("ConvoKeyDM", convoKey)
+                        myDmMsgFrame:SetAttribute("TargetUID", targetUidStr)
                     end
                 end
             end)
-            -- ================================================================= --
-            -- FIX: global_dms payload mein senderId include karo
-            -- Receiver ko pata chalega ki kis convoKey se delete karna hai
-            -- ================================================================= --
             local dmPayload = {senderId = myUserId, senderName = cleanMyName, text = txt, timestamp = ts}
             pcall(function()
                 reqFunc({Url = FIREBASE_URL .. "global_dms/" .. targetUidStr .. ".json", Method = "POST", Headers = {["Content-Type"] = "application/json"}, Body = HttpService:JSONEncode(dmPayload)})
@@ -1817,21 +1793,86 @@ local function startMainChat()
     end
 
     -- ================================================================= --
-    -- openMessageContextMenu - DM UNSEND FIX
-    -- convoKey ab masterContainer attribute se liya jayega
+    -- FIX 1 & 2: openMessageContextMenu
+    -- FIX 1 - DM Unsend: Container se ConvoKeyDM + TargetUID attribute padhta hai
+    -- FIX 2 - Context Menu Position: main frame ke andar clamp karta hai
+    --         taaki mobile pe last message hold karne par menu screen se bahar na jaye
     -- ================================================================= --
     local function openMessageContextMenu(labelObj, messageText, senderName, contextType, containerFrame, isMyMsg, fbKey, chatTypeLocal, dmConvoKey)
         if UI_PARENT:FindFirstChild("ZaynMsgContext") then UI_PARENT.ZaynMsgContext:Destroy() end
         local ctxGui = Instance.new("ScreenGui", UI_PARENT); ctxGui.Name = "ZaynMsgContext"; ctxGui.DisplayOrder = 99998; ctxGui.IgnoreGuiInset = true
         local overlay = Instance.new("TextButton", ctxGui); overlay.Size = UDim2.new(1,0,1,0); overlay.BackgroundTransparency = 1; overlay.Text = ""; overlay.AutoButtonColor = false
         overlay.MouseButton1Click:Connect(function() pcall(function() ctxGui:Destroy() end) end)
+
+        -- =====================================================
+        -- FIX 2: Context menu position - UI ke andar rakho
+        -- Menu height estimate: 4 buttons * 34px + padding = ~150px
+        -- =====================================================
+        local MENU_WIDTH = 170
+        local MENU_ITEM_H = 34
+        -- Buttons: Reply, Copy, Translate, (Unsend if mine) = 3 ya 4
+        local buttonCount = isMyMsg and 4 or 3
+        local MENU_HEIGHT_EST = buttonCount * MENU_ITEM_H + 10
+
+        -- Main UI frame ki absolute position aur size lo
+        local mainAbsPos = main.AbsolutePosition
+        local mainAbsSize = main.AbsoluteSize
+
         local mousePos = UserInputService:GetMouseLocation()
-        local menuFrame = Instance.new("Frame", ctxGui); menuFrame.Size = UDim2.new(0, 170, 0, 0); menuFrame.AutomaticSize = Enum.AutomaticSize.Y; menuFrame.Position = UDim2.new(0, math.min(mousePos.X, 590), 0, math.min(mousePos.Y, 380)); menuFrame.BackgroundColor3 = Colors.Darker; menuFrame.BackgroundTransparency = 0.1; menuFrame.BorderSizePixel = 0; Instance.new("UICorner", menuFrame).CornerRadius = UDim.new(0, 10); Instance.new("UIStroke", menuFrame).Color = Colors.Secondary; Instance.new("UIStroke", menuFrame).Transparency = 0.8
+
+        -- Mouse position se calculate karo, lekin main frame ke bounds ke andar rakho
+        local rawX = mousePos.X
+        local rawY = mousePos.Y
+
+        -- X: agar right side se bahar nikle to left dikha
+        local clampedX = rawX
+        if clampedX + MENU_WIDTH > mainAbsPos.X + mainAbsSize.X - 5 then
+            clampedX = rawX - MENU_WIDTH
+        end
+        -- X minimum clamp
+        if clampedX < mainAbsPos.X + 5 then
+            clampedX = mainAbsPos.X + 5
+        end
+
+        -- Y: agar bottom se bahar nikle to upar dikha (menu ko mouse ke upar show karo)
+        local clampedY = rawY
+        if clampedY + MENU_HEIGHT_EST > mainAbsPos.Y + mainAbsSize.Y - 5 then
+            clampedY = rawY - MENU_HEIGHT_EST
+        end
+        -- Y minimum clamp (title bar ke neeche)
+        local minY = mainAbsPos.Y + 48 + 5
+        if clampedY < minY then
+            clampedY = minY
+        end
+
+        local menuFrame = Instance.new("Frame", ctxGui)
+        menuFrame.Size = UDim2.new(0, MENU_WIDTH, 0, 0)
+        menuFrame.AutomaticSize = Enum.AutomaticSize.Y
+        menuFrame.Position = UDim2.new(0, clampedX, 0, clampedY)
+        menuFrame.BackgroundColor3 = Colors.Darker
+        menuFrame.BackgroundTransparency = 0.1
+        menuFrame.BorderSizePixel = 0
+        Instance.new("UICorner", menuFrame).CornerRadius = UDim.new(0, 10)
+        local mStroke = Instance.new("UIStroke", menuFrame); mStroke.Color = Colors.Secondary; mStroke.Transparency = 0.8
         local menuListLayout = Instance.new("UIListLayout", menuFrame)
         menuListLayout.Padding = UDim.new(0, 2)
 
+        -- Entrance animation
+        menuFrame.GroupTransparency = 1
+        local cg = Instance.new("CanvasGroup", ctxGui)
+        -- Actually menuFrame is Frame not CanvasGroup, use simple approach
+        menuFrame.BackgroundTransparency = 0.8
+        safeTween(menuFrame, {BackgroundTransparency = 0.1}, 0.15)
+
         local function addCtxBtn(icon, label, clr, onClick)
-            local btn = Instance.new("TextButton", menuFrame); btn.Size = UDim2.new(1, 0, 0, 34); btn.BackgroundTransparency = 1; btn.Text = icon .. "  " .. label; btn.TextColor3 = clr or Colors.Light; btn.Font = Enum.Font.GothamBold; btn.TextSize = 12; btn.TextXAlignment = Enum.TextXAlignment.Left
+            local btn = Instance.new("TextButton", menuFrame)
+            btn.Size = UDim2.new(1, 0, 0, MENU_ITEM_H)
+            btn.BackgroundTransparency = 1
+            btn.Text = icon .. "  " .. label
+            btn.TextColor3 = clr or Colors.Light
+            btn.Font = Enum.Font.GothamBold
+            btn.TextSize = 12
+            btn.TextXAlignment = Enum.TextXAlignment.Left
             local btnPad = Instance.new("UIPadding", btn); btnPad.PaddingLeft = UDim.new(0, 12)
             btn.MouseEnter:Connect(function() btn.BackgroundColor3 = Colors.Dark; btn.BackgroundTransparency = 0.3 end)
             btn.MouseLeave:Connect(function() btn.BackgroundTransparency = 1 end)
@@ -1851,42 +1892,51 @@ local function startMainChat()
                 addMessageToChat("[SYSTEM]", "🌐 [" .. myTargetLang:upper() .. "]: " .. translated, true, nil, "Server")
             end)
         end)
+
         if isMyMsg then
             addCtxBtn("🗑️", "Unsend", Colors.NeonPink, function()
-                if fbKey and fbKey ~= "" then
+                -- =====================================================
+                -- FIX 1: DM Unsend properly karo
+                -- containerFrame se FBKey, ConvoKeyDM aur TargetUID lo
+                -- =====================================================
+                local currentFbKey = (containerFrame and containerFrame:GetAttribute("FBKey")) or fbKey or ""
+                local currentChatType = chatTypeLocal or contextType
+
+                if currentFbKey and currentFbKey ~= "" then
                     task.spawn(function()
-                        if chatTypeLocal == "DM" then
-                            -- ============================================================
-                            -- DM UNSEND FIX: convoKey pehle container attribute se lo,
-                            -- fallback: activeDmUserId se banao
-                            -- ============================================================
-                            local resolvedConvoKey = dmConvoKey
-                            if (not resolvedConvoKey or resolvedConvoKey == "") and containerFrame then
-                                resolvedConvoKey = containerFrame:GetAttribute("ConvoKey") or ""
+                        if currentChatType == "DM" then
+                            -- Container se stored convoKey aur targetUID lo
+                            local storedConvoKey = (containerFrame and containerFrame:GetAttribute("ConvoKeyDM")) or dmConvoKey or ""
+                            local storedTargetUID = (containerFrame and containerFrame:GetAttribute("TargetUID")) or ""
+
+                            -- Agar stored nahi hai to activeDmUserId se calculate karo
+                            if (storedConvoKey == nil or storedConvoKey == "") and activeDmUserId then
+                                storedConvoKey = getDmConvoKey(myUserId, activeDmUserId)
                             end
-                            if (not resolvedConvoKey or resolvedConvoKey == "") and activeDmUserId then
-                                resolvedConvoKey = getDmConvoKey(myUserId, activeDmUserId)
+                            if (storedTargetUID == nil or storedTargetUID == "") and activeDmUserId then
+                                storedTargetUID = tostring(activeDmUserId)
                             end
 
-                            if resolvedConvoKey and resolvedConvoKey ~= "" then
-                                -- Apni side se dm_history delete
+                            -- DM history se delete karo
+                            if storedConvoKey and storedConvoKey ~= "" then
                                 pcall(function()
-                                    reqFunc({Url = FIREBASE_URL .. "dm_history/" .. resolvedConvoKey .. "/" .. fbKey .. ".json", Method = "DELETE"})
+                                    reqFunc({
+                                        Url = FIREBASE_URL .. "dm_history/" .. storedConvoKey .. "/" .. currentFbKey .. ".json",
+                                        Method = "DELETE"
+                                    })
                                 end)
                             end
 
-                            -- Dusre ko bhi unsend notification bhejo (senderId ke saath)
-                            local targetUidForUnsend = activeDmUserId
-                            if targetUidForUnsend then
-                                local targetUidStr2 = tostring(targetUidForUnsend)
+                            -- Receiver ko UNSEND notification bhejo
+                            if storedTargetUID and storedTargetUID ~= "" then
                                 pcall(function()
                                     reqFunc({
-                                        Url = FIREBASE_URL .. "global_dms/" .. targetUidStr2 .. ".json",
+                                        Url = FIREBASE_URL .. "global_dms/" .. storedTargetUID .. ".json",
                                         Method = "POST",
                                         Headers = {["Content-Type"] = "application/json"},
                                         Body = HttpService:JSONEncode({
                                             type = "UNSEND",
-                                            fbKey = fbKey,
+                                            fbKey = currentFbKey,
                                             senderId = myUserId,
                                             timestamp = os.time()
                                         })
@@ -1894,18 +1944,19 @@ local function startMainChat()
                                 end)
                             end
                         else
-                            -- Server chat unsend (unchanged)
-                            table.insert(messageQueue, {text = "[ZAYN_UNSEND] " .. fbKey, timestamp = os.time()})
+                            -- Server chat unsend
+                            table.insert(messageQueue, {text = "[ZAYN_UNSEND] " .. currentFbKey, timestamp = os.time()})
                             processQueue()
                             task.spawn(function()
                                 pcall(function()
-                                    reqFunc({Url = FIREBASE_URL .. DB_PATH .. "/" .. fbKey .. ".json", Method = "DELETE"})
+                                    reqFunc({Url = FIREBASE_URL .. DB_PATH .. "/" .. currentFbKey .. ".json", Method = "DELETE"})
                                 end)
                             end)
                         end
                     end)
                 end
-                -- UI se message remove karo
+
+                -- UI se message hatao (animation ke saath)
                 if containerFrame and containerFrame.Parent then
                     for _, v in ipairs(containerFrame:GetDescendants()) do
                         if v:IsA("TextLabel") or v:IsA("TextButton") then pcall(function() safeTween(v, {TextTransparency = 1}, 0.25) end)
@@ -1921,7 +1972,7 @@ local function startMainChat()
     end
 
     -- ================================================================= --
-    -- addMessageToChat - RENDERSTEP SMART SCROLL + DM UNSEND FIX
+    -- addMessageToChat - RENDERSTEP SMART SCROLL FIX
     -- ================================================================= --
     addMessageToChat = function(name, message, isSystem, userId, chatType, fbKey, convoId)
         local returnedContainer = nil
@@ -1943,25 +1994,26 @@ local function startMainChat()
             masterContainer.ClipsDescendants = false
             if fbKey and fbKey ~= "" then masterContainer:SetAttribute("FBKey", fbKey) end
 
-            -- ============================================================
-            -- DM UNSEND FIX: ConvoKey attribute set karo DM messages pe
-            -- ============================================================
+            local cleanName = name:gsub("^%[[^%]]+%]%s+", ""):gsub("^[👑💎]%s+", ""):gsub("%[.-%]%s*", "")
+            local cleanMsgTxt = tostring(message)
+            local isMyMessage = (tostring(userId) == myUserId)
+
             if chatType == "DM" then
                 local actualConvoId = convoId or userId
                 if actualConvoId then
                     masterContainer:SetAttribute("ConvoId", tostring(actualConvoId))
-                    -- ConvoKey bhi set karo
-                    local ck = getDmConvoKey(myUserId, tostring(actualConvoId))
-                    masterContainer:SetAttribute("ConvoKey", ck)
                     if activeDmUserId and tostring(actualConvoId) ~= tostring(activeDmUserId) then
                         masterContainer.Visible = false
                     end
                 end
+                -- DM ke liye convoKey aur targetUID bhi store karo (agar mera message hai)
+                if isMyMessage and convoId then
+                    local tUidStr = tostring(convoId)
+                    local cKey = getDmConvoKey(myUserId, tUidStr)
+                    masterContainer:SetAttribute("ConvoKeyDM", cKey)
+                    masterContainer:SetAttribute("TargetUID", tUidStr)
+                end
             end
-
-            local cleanName = name:gsub("^%[[^%]]+%]%s+", ""):gsub("^[👑💎]%s+", ""):gsub("%[.-%]%s*", "")
-            local cleanMsgTxt = tostring(message)
-            local isMyMessage = (tostring(userId) == myUserId)
 
             if userId and not isSystem and activeScriptUsers[tostring(userId)] then
                 cleanName = activeScriptUsers[tostring(userId)].displayName
@@ -2229,15 +2281,9 @@ local function startMainChat()
                     local origOffsetY = bubbleFrame.Position.Y.Offset
                     local origScaleX = bubbleFrame.Position.X.Scale
                     local origScaleY = bubbleFrame.Position.Y.Scale
-                    -- ============================================================
-                    -- DM UNSEND FIX: convoKey container attribute se lo
-                    -- ============================================================
                     local convoKeyLocal = ""
-                    if chatType == "DM" then
-                        convoKeyLocal = masterContainer:GetAttribute("ConvoKey") or ""
-                        if convoKeyLocal == "" and activeDmUserId then
-                            convoKeyLocal = getDmConvoKey(myUserId, activeDmUserId)
-                        end
+                    if chatType == "DM" and activeDmUserId then
+                        convoKeyLocal = getDmConvoKey(myUserId, activeDmUserId)
                     end
                     local isMyMsg2 = isMyMessage
 
@@ -2260,10 +2306,13 @@ local function startMainChat()
                                     safeTween(bubbleFrame, {Position = UDim2.new(origScaleX, origOffsetX - 5, origScaleY, origOffsetY)}, 0.06)
                                     task.wait(0.06)
                                     safeTween(bubbleFrame, {Position = UDim2.new(origScaleX, origOffsetX, origScaleY, origOffsetY)}, 0.1)
-                                    -- FBKey hamesha fresh se lo
+                                    -- FBKey dynamically lo container se
                                     local currentFbKey = masterContainer:GetAttribute("FBKey") or fbKey or ""
-                                    local currentConvoKey = masterContainer:GetAttribute("ConvoKey") or convoKeyLocal
-                                    openMessageContextMenu(msgTextLabel or bubbleFrame, messageText2, senderName2, contextType2, masterContainer, isMyMsg2, currentFbKey, contextType2, currentConvoKey)
+                                    -- DM convoKey bhi dynamically lo
+                                    if chatType == "DM" and activeDmUserId then
+                                        convoKeyLocal = getDmConvoKey(myUserId, activeDmUserId)
+                                    end
+                                    openMessageContextMenu(msgTextLabel or bubbleFrame, messageText2, senderName2, contextType2, masterContainer, isMyMsg2, currentFbKey, contextType2, convoKeyLocal)
                                 end
                             end)
                         end
