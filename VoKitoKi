@@ -2825,7 +2825,7 @@ local function startMainChat()
     local toggleBtn = Instance.new("TextButton", sg)
     toggleBtn.Size = UDim2.new(0, 50, 0, 50)
     toggleBtn.Position = UDim2.new(0.02, 0, 0.5, -27)
-    toggleBtn.Text = "💬"; toggleBtn.TextColor3 = Colors.Primary; toggleBtn.Font = Enum.Font.GothamBold; toggleBtn.TextSize = 24
+    toggleBtn.Text = "☁️"; toggleBtn.TextColor3 = Colors.Primary; toggleBtn.Font = Enum.Font.GothamBold; toggleBtn.TextSize = 24
     toggleBtn.BackgroundColor3 = Colors.Darker; toggleBtn.BackgroundTransparency = 0.2; toggleBtn.ZIndex = 20
     toggleBtn.AnchorPoint = Vector2.new(0, 0.5); toggleBtn.BorderSizePixel = 0
     Instance.new("UICorner", toggleBtn).CornerRadius = UDim.new(1, 0)
