@@ -1,7 +1,9 @@
 -- ========================================================== --
--- ZAYN CHAT - CLEAN PREMIUM EDITION (V49.2 FIXED)           --
+-- ZAYN CHAT - CLEAN PREMIUM EDITION (V49.3 FIXED)           --
 -- FIX 1: DM Unsend now works correctly                       --
 -- FIX 2: Context menu stays inside UI on mobile (last msg)   --
+-- FIX 3: Hold context menu (Reply/Copy/Translate/Unsend)     --
+--         ab properly show hota hai                          --
 -- ========================================================== --
 
 local TweenService = game:GetService("TweenService")
@@ -1776,10 +1778,7 @@ local function startMainChat()
                     local decoded = HttpService:JSONDecode(res.Body)
                     if decoded and decoded.name and myDmMsgFrame then
                         myDmMsgFrame:SetAttribute("FBKey", decoded.name)
-                        -- =====================================================
-                        -- FIX 1: DM convoKey bhi store karo attribute mein
-                        -- taaki unsend karte waqt sahi convoKey mile
-                        -- =====================================================
+                        -- FIX 1: ConvoKeyDM aur TargetUID store karo
                         myDmMsgFrame:SetAttribute("ConvoKeyDM", convoKey)
                         myDmMsgFrame:SetAttribute("TargetUID", targetUidStr)
                     end
@@ -1793,57 +1792,50 @@ local function startMainChat()
     end
 
     -- ================================================================= --
-    -- FIX 1 & 2: openMessageContextMenu
-    -- FIX 1 - DM Unsend: Container se ConvoKeyDM + TargetUID attribute padhta hai
-    -- FIX 2 - Context Menu Position: main frame ke andar clamp karta hai
-    --         taaki mobile pe last message hold karne par menu screen se bahar na jaye
+    -- FIX 1, 2, 3: openMessageContextMenu
+    -- preX, preY = hold se pre-calculated position (touch safe)
     -- ================================================================= --
-    local function openMessageContextMenu(labelObj, messageText, senderName, contextType, containerFrame, isMyMsg, fbKey, chatTypeLocal, dmConvoKey)
+    local function openMessageContextMenu(labelObj, messageText, senderName, contextType, containerFrame, isMyMsg, fbKey, chatTypeLocal, dmConvoKey, preX, preY)
         if UI_PARENT:FindFirstChild("ZaynMsgContext") then UI_PARENT.ZaynMsgContext:Destroy() end
         local ctxGui = Instance.new("ScreenGui", UI_PARENT); ctxGui.Name = "ZaynMsgContext"; ctxGui.DisplayOrder = 99998; ctxGui.IgnoreGuiInset = true
         local overlay = Instance.new("TextButton", ctxGui); overlay.Size = UDim2.new(1,0,1,0); overlay.BackgroundTransparency = 1; overlay.Text = ""; overlay.AutoButtonColor = false
         overlay.MouseButton1Click:Connect(function() pcall(function() ctxGui:Destroy() end) end)
 
-        -- =====================================================
-        -- FIX 2: Context menu position - UI ke andar rakho
-        -- Menu height estimate: 4 buttons * 34px + padding = ~150px
-        -- =====================================================
         local MENU_WIDTH = 170
         local MENU_ITEM_H = 34
-        -- Buttons: Reply, Copy, Translate, (Unsend if mine) = 3 ya 4
         local buttonCount = isMyMsg and 4 or 3
         local MENU_HEIGHT_EST = buttonCount * MENU_ITEM_H + 10
 
-        -- Main UI frame ki absolute position aur size lo
         local mainAbsPos = main.AbsolutePosition
         local mainAbsSize = main.AbsoluteSize
 
-        local mousePos = UserInputService:GetMouseLocation()
+        -- FIX 3: Agar preX/preY diya hai (hold se) to use karo, warna mouse se lo
+        local rawX, rawY
+        if preX and preY then
+            rawX = preX
+            rawY = preY
+        else
+            local mousePos = UserInputService:GetMouseLocation()
+            rawX = mousePos.X
+            rawY = mousePos.Y
+        end
 
-        -- Mouse position se calculate karo, lekin main frame ke bounds ke andar rakho
-        local rawX = mousePos.X
-        local rawY = mousePos.Y
-
-        -- X: agar right side se bahar nikle to left dikha
+        -- X clamp
         local clampedX = rawX
         if clampedX + MENU_WIDTH > mainAbsPos.X + mainAbsSize.X - 5 then
             clampedX = rawX - MENU_WIDTH
         end
-        -- X minimum clamp
         if clampedX < mainAbsPos.X + 5 then
             clampedX = mainAbsPos.X + 5
         end
 
-        -- Y: agar bottom se bahar nikle to upar dikha (menu ko mouse ke upar show karo)
+        -- Y clamp (FIX 2: bottom pe menu screen se bahar na jaye)
         local clampedY = rawY
         if clampedY + MENU_HEIGHT_EST > mainAbsPos.Y + mainAbsSize.Y - 5 then
             clampedY = rawY - MENU_HEIGHT_EST
         end
-        -- Y minimum clamp (title bar ke neeche)
         local minY = mainAbsPos.Y + 48 + 5
-        if clampedY < minY then
-            clampedY = minY
-        end
+        if clampedY < minY then clampedY = minY end
 
         local menuFrame = Instance.new("Frame", ctxGui)
         menuFrame.Size = UDim2.new(0, MENU_WIDTH, 0, 0)
@@ -1857,11 +1849,6 @@ local function startMainChat()
         local menuListLayout = Instance.new("UIListLayout", menuFrame)
         menuListLayout.Padding = UDim.new(0, 2)
 
-        -- Entrance animation
-        menuFrame.GroupTransparency = 1
-        local cg = Instance.new("CanvasGroup", ctxGui)
-        -- Actually menuFrame is Frame not CanvasGroup, use simple approach
-        menuFrame.BackgroundTransparency = 0.8
         safeTween(menuFrame, {BackgroundTransparency = 0.1}, 0.15)
 
         local function addCtxBtn(icon, label, clr, onClick)
@@ -1895,21 +1882,16 @@ local function startMainChat()
 
         if isMyMsg then
             addCtxBtn("🗑️", "Unsend", Colors.NeonPink, function()
-                -- =====================================================
-                -- FIX 1: DM Unsend properly karo
-                -- containerFrame se FBKey, ConvoKeyDM aur TargetUID lo
-                -- =====================================================
+                -- FIX 1: DM unsend - containerFrame se sahi attributes lo
                 local currentFbKey = (containerFrame and containerFrame:GetAttribute("FBKey")) or fbKey or ""
                 local currentChatType = chatTypeLocal or contextType
 
                 if currentFbKey and currentFbKey ~= "" then
                     task.spawn(function()
                         if currentChatType == "DM" then
-                            -- Container se stored convoKey aur targetUID lo
                             local storedConvoKey = (containerFrame and containerFrame:GetAttribute("ConvoKeyDM")) or dmConvoKey or ""
                             local storedTargetUID = (containerFrame and containerFrame:GetAttribute("TargetUID")) or ""
 
-                            -- Agar stored nahi hai to activeDmUserId se calculate karo
                             if (storedConvoKey == nil or storedConvoKey == "") and activeDmUserId then
                                 storedConvoKey = getDmConvoKey(myUserId, activeDmUserId)
                             end
@@ -1917,7 +1899,6 @@ local function startMainChat()
                                 storedTargetUID = tostring(activeDmUserId)
                             end
 
-                            -- DM history se delete karo
                             if storedConvoKey and storedConvoKey ~= "" then
                                 pcall(function()
                                     reqFunc({
@@ -1927,7 +1908,6 @@ local function startMainChat()
                                 end)
                             end
 
-                            -- Receiver ko UNSEND notification bhejo
                             if storedTargetUID and storedTargetUID ~= "" then
                                 pcall(function()
                                     reqFunc({
@@ -1944,7 +1924,6 @@ local function startMainChat()
                                 end)
                             end
                         else
-                            -- Server chat unsend
                             table.insert(messageQueue, {text = "[ZAYN_UNSEND] " .. currentFbKey, timestamp = os.time()})
                             processQueue()
                             task.spawn(function()
@@ -1956,7 +1935,6 @@ local function startMainChat()
                     end)
                 end
 
-                -- UI se message hatao (animation ke saath)
                 if containerFrame and containerFrame.Parent then
                     for _, v in ipairs(containerFrame:GetDescendants()) do
                         if v:IsA("TextLabel") or v:IsA("TextButton") then pcall(function() safeTween(v, {TextTransparency = 1}, 0.25) end)
@@ -1972,7 +1950,7 @@ local function startMainChat()
     end
 
     -- ================================================================= --
-    -- addMessageToChat - RENDERSTEP SMART SCROLL FIX
+    -- addMessageToChat
     -- ================================================================= --
     addMessageToChat = function(name, message, isSystem, userId, chatType, fbKey, convoId)
         local returnedContainer = nil
@@ -2006,7 +1984,7 @@ local function startMainChat()
                         masterContainer.Visible = false
                     end
                 end
-                -- DM ke liye convoKey aur targetUID bhi store karo (agar mera message hai)
+                -- DM mera message hai to ConvoKeyDM + TargetUID store karo
                 if isMyMessage and convoId then
                     local tUidStr = tostring(convoId)
                     local cKey = getDmConvoKey(myUserId, tUidStr)
@@ -2270,6 +2248,11 @@ local function startMainChat()
                     end)
                 end
 
+                -- ================================================================= --
+                -- FIX 3: makeBubbleSwipeAndHold - Hold context menu FIXED
+                -- lastInputPos track karta hai continuously taaki hold ke waqt
+                -- sahi position mile context menu ke liye
+                -- ================================================================= --
                 local function makeBubbleSwipeAndHold(bubbleFrame, senderName2, messageText2, contextType2)
                     local startPos = nil
                     local isSwiping = false
@@ -2281,6 +2264,7 @@ local function startMainChat()
                     local origOffsetY = bubbleFrame.Position.Y.Offset
                     local origScaleX = bubbleFrame.Position.X.Scale
                     local origScaleY = bubbleFrame.Position.Y.Scale
+                    local lastInputPos = Vector2.new(0, 0)  -- FIX 3: track karo
                     local convoKeyLocal = ""
                     if chatType == "DM" and activeDmUserId then
                         convoKeyLocal = getDmConvoKey(myUserId, activeDmUserId)
@@ -2290,6 +2274,7 @@ local function startMainChat()
                     bubbleFrame.InputBegan:Connect(function(input)
                         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
                             startPos = input.Position
+                            lastInputPos = input.Position  -- initial position save karo
                             origOffsetX = bubbleFrame.Position.X.Offset
                             origOffsetY = bubbleFrame.Position.Y.Offset
                             origScaleX = bubbleFrame.Position.X.Scale
@@ -2300,19 +2285,69 @@ local function startMainChat()
                                 if isHolding and not hasMoved and (tick() - holdStart) >= 0.45 then
                                     isHolding = false
                                     if holdConn then holdConn:Disconnect(); holdConn = nil end
-                                    pcall(function() local sfx = Instance.new("Sound", UI_PARENT); sfx.SoundId = "rbxassetid://6895088918"; sfx.Volume = 0.5; sfx:Play(); task.wait(0.3); sfx:Destroy() end)
+
+                                    -- Haptic/sound feedback
+                                    pcall(function()
+                                        local sfx = Instance.new("Sound", UI_PARENT)
+                                        sfx.SoundId = "rbxassetid://6895088918"
+                                        sfx.Volume = 0.5
+                                        sfx:Play()
+                                        task.wait(0.3)
+                                        sfx:Destroy()
+                                    end)
+
+                                    -- Shake animation
                                     safeTween(bubbleFrame, {Position = UDim2.new(origScaleX, origOffsetX + 5, origScaleY, origOffsetY)}, 0.06)
                                     task.wait(0.06)
                                     safeTween(bubbleFrame, {Position = UDim2.new(origScaleX, origOffsetX - 5, origScaleY, origOffsetY)}, 0.06)
                                     task.wait(0.06)
                                     safeTween(bubbleFrame, {Position = UDim2.new(origScaleX, origOffsetX, origScaleY, origOffsetY)}, 0.1)
-                                    -- FBKey dynamically lo container se
+
+                                    -- FBKey dynamically lo
                                     local currentFbKey = masterContainer:GetAttribute("FBKey") or fbKey or ""
-                                    -- DM convoKey bhi dynamically lo
+                                    -- DM convoKey update karo
                                     if chatType == "DM" and activeDmUserId then
                                         convoKeyLocal = getDmConvoKey(myUserId, activeDmUserId)
                                     end
-                                    openMessageContextMenu(msgTextLabel or bubbleFrame, messageText2, senderName2, contextType2, masterContainer, isMyMsg2, currentFbKey, contextType2, convoKeyLocal)
+
+                                    -- FIX 3: lastInputPos se menu position calculate karo (touch safe)
+                                    local menuX = lastInputPos.X
+                                    local menuY = lastInputPos.Y
+
+                                    local MENU_WIDTH_LOCAL = 170
+                                    local bCount = isMyMsg2 and 4 or 3
+                                    local MENU_H_EST = bCount * 34 + 10
+
+                                    local mAbsPos = main.AbsolutePosition
+                                    local mAbsSize = main.AbsoluteSize
+
+                                    local cX = menuX
+                                    if cX + MENU_WIDTH_LOCAL > mAbsPos.X + mAbsSize.X - 5 then
+                                        cX = menuX - MENU_WIDTH_LOCAL
+                                    end
+                                    if cX < mAbsPos.X + 5 then cX = mAbsPos.X + 5 end
+
+                                    local cY = menuY
+                                    if cY + MENU_H_EST > mAbsPos.Y + mAbsSize.Y - 5 then
+                                        cY = menuY - MENU_H_EST
+                                    end
+                                    local mMinY = mAbsPos.Y + 48 + 5
+                                    if cY < mMinY then cY = mMinY end
+
+                                    -- Pre-calculated position pass karo
+                                    openMessageContextMenu(
+                                        msgTextLabel or bubbleFrame,
+                                        messageText2,
+                                        senderName2,
+                                        contextType2,
+                                        masterContainer,
+                                        isMyMsg2,
+                                        currentFbKey,
+                                        contextType2,
+                                        convoKeyLocal,
+                                        cX,   -- preX
+                                        cY    -- preY
+                                    )
                                 end
                             end)
                         end
@@ -2320,6 +2355,7 @@ local function startMainChat()
 
                     bubbleFrame.InputChanged:Connect(function(input)
                         if startPos and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+                            lastInputPos = input.Position  -- FIX 3: continuously update karo
                             local delta = input.Position - startPos
                             local absDX = math.abs(delta.X); local absDY = math.abs(delta.Y)
                             if delta.Magnitude > 5 then
@@ -2346,7 +2382,14 @@ local function startMainChat()
                                     local swipeText = isSnap and "[Snap 🔥]" or cleanMsgTxt
                                     if contextType2 == "DM" then updateDmReplyState(senderName2, swipeText)
                                     elseif contextType2 == "Server" then updateServerReplyState(senderName2, swipeText) end
-                                    pcall(function() local sfx = Instance.new("Sound", UI_PARENT); sfx.SoundId = "rbxassetid://6895088918"; sfx.Volume = 0.4; sfx:Play(); task.wait(0.5); sfx:Destroy() end)
+                                    pcall(function()
+                                        local sfx = Instance.new("Sound", UI_PARENT)
+                                        sfx.SoundId = "rbxassetid://6895088918"
+                                        sfx.Volume = 0.4
+                                        sfx:Play()
+                                        task.wait(0.5)
+                                        sfx:Destroy()
+                                    end)
                                     local direction = delta.X > 0 and 1 or -1
                                     safeTween(bubbleFrame, {Position = UDim2.new(origScaleX, origOffsetX + direction * 30, origScaleY, origOffsetY)}, 0.1, Enum.EasingStyle.Back, Enum.EasingDirection.In)
                                     task.wait(0.1)
@@ -2377,18 +2420,13 @@ local function startMainChat()
                 end
             end
 
-            -- ============================================================
-            -- RENDERSTEP SMART SCROLL
-            -- ============================================================
+            -- Smart scroll
             task.spawn(function()
                 if not targetFrame or masterContainer.Visible == false then return end
-
                 local wasNearBottom = targetFrame.CanvasPosition.Y >=
                     (targetLayout.AbsoluteContentSize.Y - targetFrame.AbsoluteWindowSize.Y - 160)
                 local isMine = tostring(userId) == myUserId
-
                 if not (wasNearBottom or isMine) then return end
-
                 local lastH = 0
                 local sameCount = 0
                 local scrollConn
@@ -2408,11 +2446,9 @@ local function startMainChat()
                         lastH = h
                     end
                 end)
-
                 task.delay(2, function()
                     pcall(function() scrollConn:Disconnect() end)
                 end)
-
                 local messages = {}
                 for _, child in ipairs(targetFrame:GetChildren()) do if child:IsA("Frame") then table.insert(messages, child) end end
                 if #messages > MAX_MESSAGES_ON_SCREEN then
