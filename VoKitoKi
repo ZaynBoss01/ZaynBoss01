@@ -2419,21 +2419,41 @@ local function startMainChat()
             end
 
            -- FIXED SCROLLING CALCULATION
-            task.spawn(function()
-                -- Smart scroll: AutomaticSize fully settle hone tak wait karo
-                local prevHeight = 0
-                local stableCount = 0
-                for _ = 1, 20 do
-                    task.wait(0.05)
-                    local newHeight = targetLayout.AbsoluteContentSize.Y
-                    if math.abs(newHeight - prevHeight) < 2 then
-                        stableCount = stableCount + 1
-                        if stableCount >= 2 then break end
+           task.spawn(function()
+                if not targetFrame or masterContainer.Visible == false then return end
+                
+                local wasNearBottom = targetFrame.CanvasPosition.Y >= 
+                    (targetLayout.AbsoluteContentSize.Y - targetFrame.AbsoluteWindowSize.Y - 150)
+                local isMine = tostring(userId) == myUserId
+                
+                if not (wasNearBottom or isMine) then return end
+
+                -- Height stable hone tak wait (RenderStepped based)
+                local lastH = 0
+                local sameCount = 0
+                local conn
+                conn = RunService.RenderStepped:Connect(function()
+                    local h = targetLayout.AbsoluteContentSize.Y
+                    if h == lastH then
+                        sameCount = sameCount + 1
                     else
-                        stableCount = 0
+                        sameCount = 0
+                        lastH = h
                     end
-                    prevHeight = newHeight
-                end
+                    if sameCount >= 3 then
+                        conn:Disconnect()
+                        local maxScroll = h - targetFrame.AbsoluteWindowSize.Y + 60
+                        if maxScroll > 0 then
+                            safeTween(targetFrame, {CanvasPosition = Vector2.new(0, maxScroll)}, 0.3, Enum.EasingStyle.Sine)
+                        end
+                    end
+                end)
+                
+                -- Safety: 2 second baad bhi disconnect
+                task.delay(2, function()
+                    pcall(function() conn:Disconnect() end)
+                end)
+            end)
 
                 if not targetFrame then return end
                 if masterContainer.Visible == false then return end
