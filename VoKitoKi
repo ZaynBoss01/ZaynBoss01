@@ -10,7 +10,6 @@
 -- SECURE 1: TitanGuard V11 Extreme Anti-Dump & Hook Injected --
 -- SECURE 2: Dynamic XOR String Encryption Added              --
 -- SECURE 3: Active CoreGui/UI Anti-Tamper & Spy Checks Added --
--- SECURE 4: Firebase Custom Auth Rule Integration            --
 -- ========================================================== --
 
 local TweenService = game:GetService("TweenService")
@@ -312,14 +311,6 @@ local function startMainChat()
         return res
     end
 
-    -- Dynamically secure the new Firebase URL into the XOR memory table
-    local _RAW_FB = "https://fakelinkchat1-default-rtdb.asia-southeast1.firebasedatabase.app/"
-    local _ENC_FB = {}
-    for i = 1, #_RAW_FB do
-        local keyByte = string.byte(XOR_KEY, ((i-1) % #XOR_KEY) + 1)
-        _ENC_FB[i] = bit32.bxor(string.byte(_RAW_FB, i), keyByte)
-    end
-
     local _RAW_API = "097446f512mshd8abf5f58ef31b1p10a0d0jsn08925256e226"
     local _ENC_API = {}
     for i = 1, #_RAW_API do
@@ -328,13 +319,11 @@ local function startMainChat()
     end
 
     -- Decrypt dynamically at runtime
-    local FIREBASE_URL = XorDecrypt(_ENC_FB)
+    local FIREBASE_URL = "https://fakelinkchat1-default-rtdb.asia-southeast1.firebasedatabase.app/"
     local RAPID_API_KEY = XorDecrypt(_ENC_API)
     
-    -- Wipe raw arrays from memory completely
-    _RAW_FB = nil
+    -- Wipe raw/legacy arrays from memory completely
     _RAW_API = nil
-    _ENC_FB = nil
     _ENC_API = nil
     -- ================================================================= --
 
@@ -1869,7 +1858,7 @@ local function startMainChat()
             task.spawn(function()
                 if reqFunc then
                     reqFunc({Url = FIREBASE_URL .. "profiles/" .. myUserId .. ".json", Method = "PUT", Headers = {["Content-Type"] = "application/json"}, Body = HttpService:JSONEncode(customProfiles[myUserId])})
-                    table.insert(messageQueue, {text="[ZAYN_PROFILE_SYNC] " .. myUserId, timestamp=os.time()}); processQueue()
+                    table.insert(messageQueue, {text="[ZAYN_PROFILE_SYNC] " .. myUserId, timestamp=os.time(), zayn_auth="ZAYN_TITAN_SECURE_9988"}); processQueue()
                 end
             end)
             saveBtn.Text = "SAVED! ✔️"; task.wait(1); closeBtn2.MouseButton1Click:Fire()
@@ -2096,7 +2085,7 @@ local function startMainChat()
                                 end)
                             end
                         else
-                            table.insert(messageQueue, {text = "[ZAYN_UNSEND] " .. currentFbKey, timestamp = os.time()})
+                            table.insert(messageQueue, {text = "[ZAYN_UNSEND] " .. currentFbKey, timestamp = os.time(), zayn_auth = "ZAYN_TITAN_SECURE_9988"})
                             processQueue()
                             task.spawn(function()
                                 pcall(function()
