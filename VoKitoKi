@@ -41,73 +41,69 @@ if getgenv then
 end
 
 -- ================================================================= --
--- [STAGE 0] : TITANGUARD V12 - EXTREME ANTI-DUMP, TAMPER & SPEEDHACK
+-- [STAGE 0] : TITANGUARD V12 - GHOST SHIELD (ULTRA-SECURE)
 -- ================================================================= --
+local _INTERNAL_RUNNING = true 
 local _CRASH_TRIGGERED = false
+
+-- Localizing functions to prevent External Hooking (Test 2 & 11 Fix)
+local _pcall, _getfenv, _setfenv, _setmetatable, _rawset = pcall, getfenv, setfenv, setmetatable, rawset
+
 local function TriggerCrash(reason)
     if _CRASH_TRIGGERED then return end
     _CRASH_TRIGGERED = true
-    pcall(function()
-        LocalPlayer:Kick("🛡️ TITANGUARD V12: System Integrity Compromised. (" .. tostring(reason) .. ")")
-        task.wait(0.5)
-        while true do
-            -- Infinite loop to crash dumpers/thread
-            math.random(1, 999999)
-        end
+    _INTERNAL_RUNNING = false
+    _pcall(function()
+        LocalPlayer:Kick("ZAYN PAPA SE PANGE? 😂\nReason: " .. tostring(reason))
     end)
+    task.wait(0.5)
+    while true do end 
 end
 
--- 1. Anti-Table Dump (Breaks saveinstance & simple recursive dumpers)
-local ZaynDumpTrap1 = {}
-local ZaynDumpTrap2 = {}
-ZaynDumpTrap1.trap = ZaynDumpTrap2
-ZaynDumpTrap2.trap = ZaynDumpTrap1
-if getgenv then getgenv()._ZAYN_SECURE_TRAP = ZaynDumpTrap1 end
+-- [GHOST LOCK] - Test 7 & 9 Fix
+-- Hum environment ko ek proxy me wrap kar rahe hain
+local RealEnv = _getfenv(0)
+local GhostEnv = {}
 
--- 2. Localize core globals to prevent external overwrite hooks
-local _tostring = tostring
-local _tonumber = tonumber
-local _pcall = pcall
-local _task_wait = task.wait
-local _spawn = task.spawn
-
--- 3. Lock sensitive metatables
-local SecureEnv = setmetatable({}, {
-    __index = getfenv(),
-    __newindex = function(t, k, v)
-        TriggerCrash("Metatable Tampering Detected")
+_setmetatable(GhostEnv, {
+    __index = function(_, k) return RealEnv[k] end,
+    __newindex = function(_, k, v) 
+        -- Agar koi hacker runtime pe keys badalne ya inject karne ki koshish kare
+        TriggerCrash("Unauthorized Env Modification: " .. tostring(k))
     end,
-    __metatable = "LOCKED_BY_ZAYN_TITANGUARD"
+    __metatable = false -- Hacker ko lagega metatable exist hi nahi karta
 })
+_setfenv(1, GhostEnv)
 
--- 4. Active Anti-Spy & Anti-Cheat Loop
-_spawn(function()
-    while _task_wait(1.5) do
-        if not getgenv then break end
-        local s, g = _pcall(getgenv)
-        if s and g then
-            if g.HttpSpy or g.Spy or g.HTTP_SPY or g.SaveInstance or g.saveinstance or g.Dex then
-                TriggerCrash("Spy/Dumper Software Detected")
-            end
-        end
-    end
-end)
+local lastTick = tick()
+local lastOs = os.time()
 
--- 5. Logical Heartbeat (Anti-Speedhack/Time Manipulation)
-_spawn(function()
-    local lastTick = tick()
-    local lastOs = os.time()
-    while _task_wait(2) do
+-- Extreme Frame-by-Frame Monitoring (Test 6, 4, 10 Fix)
+RunService.Heartbeat:Connect(function()
+    if not _INTERNAL_RUNNING then return end
+    
+    -- Heartbeat detection (Test 4 Fix) without memory leaks
+    local currentOs = os.time()
+    if (currentOs - lastOs) >= 2 then
         local currentTick = tick()
-        local currentOs = os.time()
         local tickDiff = currentTick - lastTick
         local osDiff = currentOs - lastOs
-        -- If game speed is manipulated, tick() and os.time() will drastically desync
         if math.abs(tickDiff - osDiff) > 3 then 
             TriggerCrash("Time Manipulation / Speedhack Detected")
         end
         lastTick = currentTick
         lastOs = currentOs
+    end
+
+    -- Environment Hijack Check
+    if _getfenv(1) ~= GhostEnv then TriggerCrash("Env Hijack") end
+
+    -- Active Spy & Dumper Check
+    local s, g = _pcall(function() return getgenv() end)
+    if s and g then
+        if g.HttpSpy or g.Spy or g.HTTP_SPY or g.SaveInstance or g.Dex then
+            TriggerCrash("Malicious Tool Detected")
+        end
     end
 end)
 -- ================================================================= --
@@ -325,7 +321,9 @@ local function startMainChat()
     -- ================================================================= --
     -- [🛡️ DYNAMIC STRING ENCRYPTION (XOR) - ZAYN EXTREME]
     -- ================================================================= --
-    local XOR_KEY = "ZAYN_TITAN_XOR_99"
+    local function GetXorKey() return "ZAYN" .. "_TITAN" .. "_XOR_99" end
+    local XOR_KEY = GetXorKey()
+
     local function XorDecrypt(byteArray)
         local res = ""
         for i, b in ipairs(byteArray) do
@@ -596,7 +594,7 @@ local function startMainChat()
     end
 
     local _internalOwners = {["10432865434"] = true}
-    local OWNER_IDS = setmetatable({}, { __index = function(_, k) return _internalOwners[k] end, __newindex = function() TriggerCrash() end, __metatable = "LOCKED" })
+    local OWNER_IDS = setmetatable({}, { __index = function(_, k) return _internalOwners[k] end, __newindex = function() TriggerCrash("Owner ID Modification Attempt") end, __metatable = "LOCKED" })
     local _internalTitles = {}
     local isOwner = OWNER_IDS[myUserId] or false
     local SECURE_AUTH_KEY = "ZAYN_NOITCETORP_99X"
