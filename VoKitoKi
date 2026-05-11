@@ -1,1 +1,575 @@
-l
+-- ==========================================================
+-- ZAYN UI LAB | GOD MODE BOARD, ORBIT & NUKE SYSTEM V16
+-- DEVELOPED BY: ZAYN / EREN
+-- FINAL GOD VERSION - NO CUTS - FULL COLOR + MAP SET + OVERRIDER
+-- ==========================================================
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+local Window = Rayfield:CreateWindow({
+   Name = "ZAYN UI LAB | V16 GOD MODE",
+   LoadingTitle = "ZAYN CLOUD Suite",
+   LoadingSubtitle = "Master Override, Auto Map & God Spammer",
+   Theme = "Amethyst", 
+   ConfigurationSaving = { Enabled = false },
+   KeySystem = false
+})
+
+-- ==========================================
+-- VARIABLES & SETTINGS
+-- ==========================================
+local RS = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+local LocalPlayer = Players.LocalPlayer
+
+-- System Toggles
+local orbitSystemEnabled = false
+local chaosModeEnabled = false
+local spammerEnabled = false
+local autoSetProps = false
+
+-- Orbit Settings
+local targetUsername = ""
+local orbitStyle = "Classic Orbit"
+local orbitSpeed = 5
+local orbitRadius = 10
+local propGap = 1
+local tiltAngle = 0
+local reverseOrbit = false
+local globalBounce = false
+local orbitTickRate = 0.03 
+
+-- Effect Settings
+local rgbNameBio = false
+local colorMode = "Sync Rainbow" 
+local fullPropColorEnabled = false 
+local spinX, spinY, spinZ = false, false, false
+
+-- Overrider Settings
+local replaceSystemEnabled = false
+local wordToFind = "ZAYN"
+local wordToReplaceWith = "BOSS"
+
+-- Data Tables
+local customTexts = {"ZAYN DA BOSS", "ZAYN ON TOP"}
+local orbitProps = {} 
+local textChangeDelay = 1.5
+local currentDisplayFont = "ZAYN DA BOSS"
+
+-- ==========================================
+-- BROOKHAVEN PRESET LOCATIONS (10 CFrames)
+-- ==========================================
+local mapPresetLocations = {
+    CFrame.new(-56.19578170776367, 0.40000009536743164, -29.15638542175293, 0.9853492975234985, 0, -0.1705484390258789, 0, 1, 0, 0.1705484390258789, 0, 0.9853492975234985),
+    CFrame.new(-37.48398971557617, 0.39999914169311523, -28.098363876342773, 0.9542291164398193, 0, -0.29907652735710144, 0, 1, 0, 0.29907652735710144, 0, 0.9542291164398193),
+    CFrame.new(-16.802560806274414, 0.40000200271606445, -28.182832717895508, 0.9998936057090759, 0, -0.014588035643100739, 0, 1, 0, 0.014588035643100739, 0, 0.9998936057090759),
+    CFrame.new(0.14865842461585999, 0.40000009536743164, -27.810312271118164, 0.9999815821647644, 0, -0.005956179928034544, 0, 1, 0, 0.005956179462373257, 0, 0.9999815821647644),
+    CFrame.new(18.091196060180664, 0.40000104904174805, -27.742740631103516, 0.9998923540115356, 0, -0.014674349687993526, 0, 1, 0, 0.014674349687993526, 0, 0.9998923540115356),
+    CFrame.new(31.133102416992188, 0.40000009536743164, -8.684014320373535, -0.0997726246714592, 0, -0.995010256767273, 0, 1, 0, 0.995010256767273, 0, -0.099772609770298),
+    CFrame.new(31.06743049621582, 0.40000009536743164, 13.797962188720703, -0.002074359217658639, 0, -0.9999985694885254, 0, 1, 0, 0.9999985694885254, 0, -0.0020743589848279953),
+    CFrame.new(31.04898452758789, 0.40000009536743164, 34.821189880371094, -0.016533851623535156, 0, -0.99986332654953, 0, 1, 0, 0.99986332654953, 0, -0.016533851623535156),
+    CFrame.new(0.5673847198486328, 0.40000057220458984, 17.683103561401367, -0.01144254207611084, 0, 0.9999345541000366, 0, 1, 0, -0.9999345541000366, 0, -0.01144254207611084),
+    CFrame.new(0.5699214935302734, 0.40000152587890625, 1.3731155395507812, -0.03412996605038643, 0, -0.9994218945503235, 0, 1, 0, 0.9994218945503235, 0, -0.03412996605038643)
+}
+
+-- ==========================================
+-- A-Z FULL FONT MAPPING
+-- ==========================================
+local fontMaps = {
+    SmallCaps = {A="ᴀ",B="ʙ",C="ᴄ",D="ᴅ",E="ᴇ",F="ꜰ",G="ɢ",H="ʜ",I="ɪ",J="ᴊ",K="ᴋ",L="ʟ",M="ᴍ",N="ɴ",O="ᴏ",P="ᴘ",Q="Q",R="ʀ",S="ꜱ",T="ᴛ",U="ᴜ",V="ᴠ",W="ᴡ",X="x",Y="ʏ",Z="ᴢ", [" "]=" "},
+    Cyrillic = {A="α",B="в",C="¢",D="∂",E="є",F="ƒ",G="g",H="н",I="ι",J="נ",K="к",L="ℓ",M="м",N="η",O="σ",P="ρ",Q="q",R="я",S="ѕ",T="т",U="υ",V="ν",W="ω",X="χ",Y="у",Z="z", [" "]=" "},
+    Crossed = {A="Ⱥ",B="Ƀ",C="Ȼ",D="Đ",E="Ɇ",F="F",G="Ǥ",H="Ħ",I="Ɨ",J="Ɉ",K="Ꝁ",L="Ł",M="M",N="N",O="Ø",P="Ᵽ",Q="Q",R="Ɍ",S="Ꞩ",T="Ŧ",U="Ʉ",V="V",W="W",X="X",Y="Ɏ",Z="Ƶ", [" "]=" "},
+    Squared = {A="🄰",B="🄱",C="🄲",D="🄳",E="🄴",F="🄵",G="🄶",H="🄷",I="🄸",J="🄹",K="🄺",L="🄻",M="🄼",N="🄽",O="🄾",P="🄿",Q="🅀",R="🅁",S="🅂",T="🅃",U="🅄",V="🅅",W="🅆",X="🅇",Y="🅈",Z="🅉", [" "]=" "},
+    BoldBox = {A="🅰",B="🅱",C="🅲",D="🅳",E="🅴",F="🅵",G="🅶",H="🅷",I="🅸",J="🅹",K="🅺",L="🅻",M="🅼",N="🅽",O="🅾",P="🅿",Q="🆀",R="🆁",S="🆂",T="🆃",U="🆄",V="🆅",W="🆆",X="🆇",Y="🆈",Z="🆉", [" "]=" "},
+    Circled = {A="Ⓐ",B="Ⓑ",C="Ⓒ",D="Ⓓ",E="Ⓔ",F="Ⓕ",G="Ⓖ",H="Ⓗ",I="Ⓘ",J="Ⓙ",K="Ⓚ",L="Ⓛ",M="Ⓜ",N="Ⓝ",O="Ⓞ",P="Ⓟ",Q="Ⓠ",R="Ⓡ",S="Ⓢ",T="Ⓣ",U="Ⓤ",V="Ⓥ",W="Ⓦ",X="Ⓧ",Y="Ⓨ",Z="Ⓩ", [" "]=" "},
+    Kanji = {A="卂",B="乃",C="匚",D="刀",E="乇",F="下",G="厶",H="卄",I="工",J="ﾌ",K="长",L="乚",M="从",N="𠘨",O="口",P="尸",Q="㔿",R="尺",S="丂",T="丅",U="凵",V="リ",W="山",X="乂",Y="丫",Z="乙", [" "]=" "},
+    Japanese = {A="Λ",B="B",C="C",D="D",E="Σ",F="F",G="G",H="H",I="I",J="J",K="K",L="L",M="M",N="N",O="O",P="P",Q="Q",R="Я",S="S",T="T",U="U",V="V",W="W",X="X",Y="Y",Z="Z", [" "]=" "}
+}
+
+local function translateText(text, dictionary)
+    text = string.upper(text)
+    local result = ""
+    for i = 1, #text do
+        local char = text:sub(i, i)
+        result = result .. (dictionary[char] or char)
+    end
+    return result
+end
+
+local function applyFontStyle(text, styleIndex)
+    local upperText = string.upper(text)
+    local reversed = string.reverse(text)
+    local wideText = ""
+    for i = 1, #upperText do wideText = wideText .. upperText:sub(i,i) .. " " end
+
+    if styleIndex == 1 then return translateText(text, fontMaps.SmallCaps)
+    elseif styleIndex == 2 then return translateText(text, fontMaps.Cyrillic)
+    elseif styleIndex == 3 then return translateText(text, fontMaps.Crossed)
+    elseif styleIndex == 4 then return translateText(text, fontMaps.Squared)
+    elseif styleIndex == 5 then return translateText(text, fontMaps.BoldBox)
+    elseif styleIndex == 6 then return translateText(text, fontMaps.Circled)
+    elseif styleIndex == 7 then return translateText(text, fontMaps.Kanji)
+    elseif styleIndex == 8 then return translateText(text, fontMaps.Japanese)
+    elseif styleIndex == 9 then local res = ""; for i=1, #text do res = res..text:sub(i,i).."҉" end return res
+    elseif styleIndex == 10 then return "『" .. upperText .. "』"
+    elseif styleIndex == 11 then return "⭐" .. upperText .. "⭐"
+    elseif styleIndex == 12 then return "✨" .. upperText .. "✨"
+    elseif styleIndex == 13 then return "👑" .. upperText .. "👑"
+    elseif styleIndex == 14 then return "❤️" .. upperText .. "❤️"
+    elseif styleIndex == 15 then return "🕷️" .. upperText .. "🕸️"
+    elseif styleIndex == 16 then return "~" .. upperText .. "~"
+    elseif styleIndex == 17 then return "⚡" .. upperText .. "⚡"
+    elseif styleIndex == 18 then return "🌸" .. upperText .. "🌸"
+    elseif styleIndex == 19 then return "🕸️ " .. reversed .. " 🕸️"
+    elseif styleIndex == 20 then return "【" .. wideText .. "】"
+    end
+    return upperText
+end
+
+-- ==========================================
+-- UTILITY & GRABBER FUNCTIONS
+-- ==========================================
+local function trim(s) return s:match("^%s*(.-)%s*$") end
+
+local function getTargetPlayer()
+    if targetUsername == "" or targetUsername == " " then return LocalPlayer end
+    for _, p in pairs(Players:GetPlayers()) do
+        if string.find(string.lower(p.Name), string.lower(targetUsername)) or 
+           string.find(string.lower(p.DisplayName), string.lower(targetUsername)) then
+            return p
+        end
+    end
+    return LocalPlayer
+end
+
+local function grabProps()
+    orbitProps = {}
+    local wsCom = Workspace:FindFirstChild("WorkspaceCom")
+    if not wsCom then return end
+
+    for _, category in pairs(wsCom:GetChildren()) do
+        for _, prop in pairs(category:GetChildren()) do
+            if chaosModeEnabled or 
+               string.find(prop.Name, LocalPlayer.Name) or 
+               string.find(string.lower(prop.Name), "mickeygotban") or 
+               string.find(string.lower(prop.Name), "zayn") or
+               prop:FindFirstChild("SetCurrentCFrame") then
+                
+                local remote = prop:FindFirstChild("SetCurrentCFrame")
+                if remote and remote:IsA("RemoteFunction") then
+                    local visualPart = prop:FindFirstChildWhichIsA("BasePart") or prop.PrimaryPart
+                    table.insert(orbitProps, { Remote = remote, Part = visualPart, PropObj = prop })
+                end
+            end
+        end
+    end
+end
+
+local function removeRGBNameBio()
+    for _, p in pairs(Players:GetPlayers()) do
+        if p.Character and p.Character:FindFirstChild("Head") then
+            local gui = p.Character.Head:FindFirstChild("ZAYN_RGB_BIO")
+            if gui then gui:Destroy() end
+        end
+    end
+end
+
+-- ==========================================
+-- PERFECTED V16 PROP NUKE SYSTEM
+-- ==========================================
+local function firePerfectNuke(propInstance, propNameString)
+    task.spawn(function()
+        pcall(function()
+            local args1 = {
+                "propAdjusted",
+                {
+                    controlsUsed = {},
+                    duration = 1.9026707689627074,
+                    propDeleted = true,
+                    propName = propNameString or "SignWhiteBig"
+                }
+            }
+            RS:WaitForChild("Remotes"):WaitForChild("TelemetryClientInteraction"):FireServer(unpack(args1))
+        end)
+    end)
+    task.spawn(function()
+        pcall(function() Instance.new("RemoteFunction", nil):InvokeServer() end)
+    end)
+    task.spawn(function()
+        pcall(function()
+            if propInstance then
+                RS:WaitForChild("RE"):WaitForChild("Props"):FireServer("DeleteProp", propInstance)
+            end
+        end)
+    end)
+end
+
+-- ==========================================
+-- UI INTERFACE SETUP
+-- ==========================================
+local MainTab = Window:CreateTab("God Systems", 4483362458)
+local MotionTab = Window:CreateTab("Orbit Motions", 4483362458)
+local VisualTab = Window:CreateTab("Visuals & FX", 4483362458)
+local OverrideTab = Window:CreateTab("God Override", 4483362458) -- NAYA TAB ADDED
+
+MainTab:CreateButton({
+    Name = "🛑 STOP ALL SYSTEMS (KILL SWITCH)",
+    Callback = function()
+        orbitSystemEnabled = false
+        spammerEnabled = false
+        chaosModeEnabled = false
+        rgbNameBio = false
+        autoSetProps = false
+        replaceSystemEnabled = false
+        orbitProps = {}
+        removeRGBNameBio()
+        Rayfield:Notify({Title = "ZAYN UI LAB", Content = "All systems killed.", Duration = 3})
+    end,
+})
+
+MainTab:CreateSection("Prop Builder, Map Setup & Nuke")
+
+MainTab:CreateButton({
+    Name = "🏗️ Spawn White Sign Prop",
+    Callback = function()
+        pcall(function()
+            local char = LocalPlayer.Character
+            if char and char:FindFirstChild("HumanoidRootPart") then
+                local spawnPos = char.HumanoidRootPart.Position + (char.HumanoidRootPart.CFrame.LookVector * 5)
+                local args = { Instance.new("MeshPart", nil), spawnPos }
+                char:WaitForChild("PropMaker"):WaitForChild("Tool_PropMake"):FireServer(unpack(args))
+            end
+        end)
+    end,
+})
+
+-- ==========================================
+-- REBUILT AUTO-SET PROPS LOGIC
+-- ==========================================
+MainTab:CreateButton({
+    Name = "📍 Auto-Set Props to 10 Locations",
+    Callback = function()
+        task.spawn(function()
+            orbitSystemEnabled = false 
+            task.wait(0.2) 
+            
+            grabProps()
+            task.wait(0.5) 
+            
+            if #orbitProps == 0 then
+                Rayfield:Notify({Title = "ZAYN UI LAB", Content = "Props nahi mile! Pehle 10 props spawn hone do.", Duration = 3})
+                return
+            end
+            
+            local count = 0
+            
+            for i, loc in ipairs(mapPresetLocations) do
+                if orbitProps[i] and orbitProps[i].Remote then
+                    pcall(function() 
+                        orbitProps[i].Remote:InvokeServer(loc) 
+                    end)
+                    count = count + 1
+                    task.wait(0.15) 
+                else
+                    break
+                end
+            end
+            Rayfield:Notify({Title = "ZAYN UI LAB", Content = count .. " Props successfully locked! Orbit Paused.", Duration = 4})
+        end)
+    end,
+})
+
+MainTab:CreateButton({
+    Name = "🗑️ Clear MY Props Only",
+    Callback = function()
+        task.spawn(function()
+            pcall(function() RS:WaitForChild("RE"):WaitForChild("1Clea1rTool1s"):FireServer("ClearAllProps") end)
+        end)
+        Rayfield:Notify({Title = "ZAYN UI LAB", Content = "Sent ClearAllProps Request!", Duration = 3})
+    end,
+})
+
+MainTab:CreateButton({
+    Name = "☢️ NUKE ALL SERVER PROPS",
+    Callback = function()
+        task.spawn(function()
+            pcall(function() RS:WaitForChild("RE"):WaitForChild("1Clea1rTool1s"):FireServer("ClearAllProps") end)
+            local wsCom = Workspace:FindFirstChild("WorkspaceCom")
+            if wsCom then
+                for _, cat in pairs(wsCom:GetChildren()) do
+                    for _, prop in pairs(cat:GetChildren()) do
+                        firePerfectNuke(prop, prop.Name)
+                    end
+                end
+            end
+            Rayfield:Notify({Title = "ZAYN UI LAB", Content = "SERVER NUKED! Fired updated clear remotes...", Duration = 4})
+        end)
+    end,
+})
+
+MainTab:CreateSection("Orbit & Spammer")
+MainTab:CreateInput({
+    Name = "Target Player Username", PlaceholderText = "Username...",
+    Callback = function(Text) targetUsername = Text end,
+})
+
+MainTab:CreateToggle({
+    Name = "Enable Server Orbit", CurrentValue = false,
+    Callback = function(Value)
+        orbitSystemEnabled = Value
+        if Value then grabProps() else orbitProps = {} end
+    end,
+})
+
+MainTab:CreateToggle({
+    Name = "Chaos Mode (All Server Props)", CurrentValue = false,
+    Callback = function(Value) chaosModeEnabled = Value end,
+})
+
+MainTab:CreateInput({
+    Name = "Spam Texts (Comma Sep)", PlaceholderText = "ZAYN BOSS, ZAYN ON TOP",
+    Callback = function(Text)
+        local splits = string.split(Text, ",")
+        customTexts = {}
+        for _, t in ipairs(splits) do table.insert(customTexts, trim(t)) end
+    end,
+})
+
+MainTab:CreateSlider({
+    Name = "Spam Delay", Range = {0.5, 5}, Increment = 0.1, CurrentValue = 1.5,
+    Callback = function(Value) textChangeDelay = Value end,
+})
+
+MainTab:CreateToggle({
+    Name = "Enable A-Z God Spammer", CurrentValue = false,
+    Callback = function(Value) spammerEnabled = Value end,
+})
+
+-- ==========================================
+-- MOTION TAB
+-- ==========================================
+local motionsList = {
+    "Classic Orbit", "Vertical Wave", "Spiral", "Figure-8", 
+    "DNA Helix", "ATOM", "Heart Beat", "Black Hole", 
+    "Galaxy Swirl", "Meteor Shower", "Tornado", "Pendulum Swing", 
+    "Quantum Jitter", "Infinity Loop 3D", "Pulsar Burst", 
+    "Lotus Flower", "Zigzag Ring", "Saturn Ring"
+}
+MotionTab:CreateDropdown({Name = "Orbit Style", Options = motionsList, CurrentOption = {"Classic Orbit"}, Callback = function(Option) orbitStyle = Option[1] end})
+MotionTab:CreateToggle({Name = "Reverse Direction", Callback = function(V) reverseOrbit = V end})
+MotionTab:CreateToggle({Name = "Bounce Effect", Callback = function(V) globalBounce = V end})
+MotionTab:CreateSlider({Name = "Orbit Speed", Range = {1, 30}, Increment = 1, CurrentValue = 5, Callback = function(V) orbitSpeed = V end})
+MotionTab:CreateSlider({Name = "Orbit Radius", Range = {2, 50}, Increment = 1, CurrentValue = 10, Callback = function(V) orbitRadius = V end})
+MotionTab:CreateSlider({Name = "Tilt Angle", Range = {-90, 90}, Increment = 5, CurrentValue = 0, Callback = function(V) tiltAngle = V end})
+
+-- ==========================================
+-- VISUALS TAB
+-- ==========================================
+VisualTab:CreateToggle({Name = "RGB Name Tag", Callback = function(V) rgbNameBio = V end})
+VisualTab:CreateDropdown({Name = "Prop Color Mode", Options = {"Sync Rainbow", "Individual Multi", "Hyper Strobe", "Default"}, Callback = function(O) colorMode = O[1] end})
+VisualTab:CreateToggle({Name = "Full Body Prop Color", CurrentValue = false, Callback = function(V) fullPropColorEnabled = V end})
+VisualTab:CreateToggle({Name = "Spin X", Callback = function(V) spinX = V end})
+VisualTab:CreateToggle({Name = "Spin Y", Callback = function(V) spinY = V end})
+VisualTab:CreateToggle({Name = "Spin Z", Callback = function(V) spinZ = V end})
+
+-- ==========================================
+-- GOD OVERRIDE TAB (Search & Replace System)
+-- ==========================================
+OverrideTab:CreateSection("Target Word Overrider")
+
+OverrideTab:CreateToggle({
+    Name = "🔍 Enable Auto-Replace System",
+    CurrentValue = false,
+    Callback = function(Value) replaceSystemEnabled = Value end,
+})
+
+OverrideTab:CreateInput({
+    Name = "Word to Find",
+    PlaceholderText = "ZAYN",
+    Callback = function(Text) wordToFind = Text end,
+})
+
+OverrideTab:CreateInput({
+    Name = "Change to This",
+    PlaceholderText = "BOSS",
+    Callback = function(Text) wordToReplaceWith = Text end,
+})
+
+-- ==========================================
+-- GOD SPAMMER LOGIC (A-Z FONT CYCLE)
+-- ==========================================
+task.spawn(function()
+    local textIndex = 1
+    local fontIndex = 1
+    while task.wait(textChangeDelay) do
+        if spammerEnabled and #customTexts > 0 then
+            local base = customTexts[textIndex] or "ZAYN DA BOSS"
+            local spamText = applyFontStyle(base, fontIndex)
+            currentDisplayFont = spamText
+            
+            task.spawn(function()
+                for i = 1, 500 do
+                    pcall(function()
+                        RS.RE["1Cemeter1y"]:FireServer("ReturningBigSign3Name", tostring(i), spamText)
+                        RS.RE["1Cemeter1y"]:FireServer("ReturningConstuctionName", tostring(i), spamText)
+                        RS.RE["1Cemeter1y"]:FireServer("ReturningBigSign2Name", tostring(i), spamText)
+                    end)
+                end
+            end)
+
+            task.spawn(function()
+                for _, obj in ipairs(Workspace:GetDescendants()) do
+                    if obj.Name:match("^Semi%-") or obj.Name:match("^SemiPass%-") then
+                        pcall(function() RS.Remotes.SetText:InvokeServer(obj.Name, spamText) end)
+                    end
+                end
+            end)
+
+            task.spawn(function()
+                for _, p in ipairs(Players:GetPlayers()) do
+                    pcall(function() if p.Character and p.Character:FindFirstChild("Sign") then p.Character.Sign.ToolSound:FireServer("Sign", "SignWords", spamText) end end)
+                end
+            end)
+
+            textIndex = textIndex + 1 if textIndex > #customTexts then textIndex = 1 end
+            fontIndex = fontIndex + 1 if fontIndex > 20 then fontIndex = 1 end
+        end
+    end
+end)
+
+-- ==========================================
+-- OVERRIDE ENGINE (Search & Replace Loop)
+-- ==========================================
+task.spawn(function()
+    while task.wait(0.3) do 
+        if replaceSystemEnabled and wordToFind ~= "" then
+            -- 1. Signs (TextLabels) ko scan karo
+            for _, obj in ipairs(Workspace:GetDescendants()) do
+                -- Error handling karke check kar rahe hain taaki script break na ho
+                pcall(function()
+                    if obj:IsA("TextLabel") and obj.Text and string.find(string.upper(obj.Text), string.upper(wordToFind)) then
+                        local parentModel = obj:FindFirstAncestorWhichIsA("Model")
+                        if parentModel and (parentModel.Name:match("^Semi%-") or parentModel.Name:match("^SemiPass%-")) then
+                            local newText = string.gsub(string.upper(obj.Text), string.upper(wordToFind), string.upper(wordToReplaceWith))
+                            RS.Remotes.SetText:InvokeServer(parentModel.Name, newText)
+                        end
+                    end
+                end)
+            end
+            
+            -- 2. Spam Remotes ko override karo (Cemetery/Construction)
+            task.spawn(function()
+                for i = 1, 50 do
+                    pcall(function()
+                        RS.RE["1Cemeter1y"]:FireServer("ReturningBigSign3Name", tostring(i), wordToReplaceWith)
+                        RS.RE["1Cemeter1y"]:FireServer("ReturningConstuctionName", tostring(i), wordToReplaceWith)
+                        RS.RE["1Cemeter1y"]:FireServer("ReturningBigSign2Name", tostring(i), wordToReplaceWith)
+                    end)
+                end
+            end)
+        end
+    end
+end)
+
+-- ==========================================
+-- SERVER ORBIT & COLOR ENGINE
+-- ==========================================
+task.spawn(function()
+    while task.wait(orbitTickRate) do
+        local t = tick()
+        local syncColor = Color3.fromHSV((t % 5) / 5, 1, 1)
+
+        if rgbNameBio then
+            local targetChar = getTargetPlayer().Character
+            if targetChar and targetChar:FindFirstChild("Head") then
+                local head = targetChar.Head
+                local gui = head:FindFirstChild("ZAYN_RGB")
+                if not gui then
+                    gui = Instance.new("BillboardGui", head)
+                    gui.Name = "ZAYN_RGB"
+                    gui.Size = UDim2.new(0, 300, 0, 100)
+                    gui.StudsOffset = Vector3.new(0, 3.5, 0)
+                    gui.AlwaysOnTop = true
+                    local txt = Instance.new("TextLabel", gui)
+                    txt.Size = UDim2.new(1, 0, 1, 0)
+                    txt.BackgroundTransparency = 1
+                    txt.Font = Enum.Font.GothamBlack
+                    txt.TextScaled = true
+                end
+                gui.TextLabel.Text = currentDisplayFont
+                gui.TextLabel.TextColor3 = syncColor
+            end
+        end
+
+        if orbitSystemEnabled and #orbitProps > 0 then
+            local root = getTargetPlayer().Character and getTargetPlayer().Character:FindFirstChild("HumanoidRootPart")
+            if root then
+                local dir = reverseOrbit and -1 or 1
+                local bounceY = globalBounce and math.sin(t * 4) * 3 or 0
+                local tilt = CFrame.Angles(math.rad(tiltAngle), 0, 0)
+
+                for i, data in ipairs(orbitProps) do
+                    local remote = data.Remote
+                    if remote and remote.Parent then
+                        local offset = (math.pi * 2 / #orbitProps) * i * propGap
+                        local angle = (t * orbitSpeed * dir) + offset
+                        local x, y, z = 0, bounceY, 0
+
+                        if orbitStyle == "Classic Orbit" then x, z = math.cos(angle) * orbitRadius, math.sin(angle) * orbitRadius
+                        elseif orbitStyle == "Vertical Wave" then x, z = math.cos(angle) * orbitRadius, math.sin(angle) * orbitRadius y = bounceY + math.sin(t * 3 + i) * (orbitRadius / 2)
+                        elseif orbitStyle == "Spiral" then local sr = orbitRadius + math.sin(t * 2) * (orbitRadius / 2) x, z = math.cos(angle) * sr, math.sin(angle) * sr
+                        elseif orbitStyle == "Figure-8" then local d = 1 + math.sin(angle)^2 x = (orbitRadius * math.cos(angle)) / d z = (orbitRadius * math.sin(angle) * math.cos(angle)) / d
+                        elseif orbitStyle == "DNA Helix" then x, z = math.cos(angle) * orbitRadius, math.sin(angle) * orbitRadius y = bounceY + math.sin((t * orbitSpeed) + offset) * orbitRadius
+                        elseif orbitStyle == "ATOM" then local ax = (math.pi / #orbitProps) * i x = math.cos(angle) * orbitRadius y = bounceY + math.sin(angle) * orbitRadius * math.cos(ax) z = math.sin(angle) * orbitRadius * math.sin(ax)
+                        elseif orbitStyle == "Heart Beat" then local p = orbitRadius + (math.abs(math.sin(t * 6)) * 4) x, z = math.cos(angle) * p, math.sin(angle) * p
+                        elseif orbitStyle == "Black Hole" then local s = orbitRadius * ((math.sin(t * orbitSpeed) + 1.5) / 2.5) x, z = math.cos(angle * 2) * s, math.sin(angle * 2) * s
+                        elseif orbitStyle == "Galaxy Swirl" then x = math.cos(angle) * (orbitRadius + (i * 0.5)) z = math.sin(angle) * (orbitRadius + (i * 0.5))
+                        elseif orbitStyle == "Meteor Shower" then x, z = math.cos(angle) * orbitRadius, math.sin(angle) * orbitRadius y = bounceY + ((t * 20 + i * 5) % 30) - 15
+                        elseif orbitStyle == "Tornado" then local h = (i / #orbitProps) * 15 local r = orbitRadius * (h / 15) x, z = math.cos(angle) * r, math.sin(angle) * r y = bounceY + h - 7.5
+                        elseif orbitStyle == "Pendulum Swing" then x = math.sin(t * orbitSpeed + offset) * orbitRadius y = bounceY - math.abs(math.cos(t * orbitSpeed + offset)) * (orbitRadius / 2)
+                        elseif orbitStyle == "Quantum Jitter" then x = math.cos(angle) * orbitRadius + math.random(-2,2) y = bounceY + math.random(-2,2) z = math.sin(angle) * orbitRadius + math.random(-2,2)
+                        elseif orbitStyle == "Infinity Loop 3D" then x = math.cos(angle) * orbitRadius y = bounceY + math.sin(angle * 2) * (orbitRadius / 2) z = math.sin(angle) * orbitRadius
+                        elseif orbitStyle == "Pulsar Burst" then local b = (math.floor(t * 2) % 2 == 0) and orbitRadius or orbitRadius * 2 x, z = math.cos(angle) * b, math.sin(angle) * b
+                        elseif orbitStyle == "Lotus Flower" then local r = orbitRadius * math.cos(5 * angle) x, z = math.cos(angle) * r, math.sin(angle) * r
+                        elseif orbitStyle == "Zigzag Ring" then local zi = math.round(math.sin(angle * 10)) * 2 x, z = math.cos(angle) * (orbitRadius + zi), math.sin(angle) * (orbitRadius + zi)
+                        elseif orbitStyle == "Saturn Ring" then x = math.cos(angle) * orbitRadius * 1.5 z = math.sin(angle) * orbitRadius * 0.5
+                        end
+
+                        local pos = root.CFrame * tilt * CFrame.new(x, y, z)
+                        local rx = spinX and math.rad(t * 200) or 0
+                        local ry = spinY and math.rad(t * 200) or 0
+                        local rz = spinZ and math.rad(t * 200) or 0
+                        
+                        task.spawn(function() pcall(function() remote:InvokeServer(pos * CFrame.Angles(rx, ry, rz)) end) end)
+
+                        local targetColor = nil
+                        if colorMode == "Sync Rainbow" then targetColor = syncColor
+                        elseif colorMode == "Individual Multi" then targetColor = Color3.fromHSV(((t + i) % 5) / 5, 1, 1)
+                        elseif colorMode == "Hyper Strobe" then targetColor = (math.random(1, 2) == 1) and Color3.new(1,1,1) or Color3.new(0,0,0)
+                        end
+
+                        if targetColor and data.PropObj then
+                            if fullPropColorEnabled then
+                                for _, part in ipairs(data.PropObj:GetDescendants()) do
+                                    if part:IsA("BasePart") then
+                                        part.Color = targetColor
+                                    elseif part:IsA("Frame") or part:IsA("ScrollingFrame") then
+                                        part.BackgroundColor3 = targetColor
+                                    elseif part:IsA("Decal") or part:IsA("Texture") then
+                                        part.Color3 = targetColor
+                                    end
+                                end
+                            else
+                                if data.Part and data.Part:IsA("BasePart") then
+                                    data.Part.Color = targetColor
+                                end
+                            end
+                        end
+                        
+                    end
+                end
+            end
+        end
+    end
+end)
