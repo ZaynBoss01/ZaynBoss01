@@ -1,7 +1,7 @@
 -- ========================================================== --
--- NEXUS CHAT V3.3 (FINAL PREMIUM EDITION)
+-- NEXUS CHAT V3.4 (FINAL PREMIUM EDITION)
 -- CORE: 100% GLOBAL CHAT & DM COMMUNICATION
--- FIXED: REMOVED JOB_ID, PURE JSON SYNC EVERYWHERE
+-- FIXED: FIREBASE PERMISSION RULES BYPASS
 -- UI: EXACT 340x320 | RIGHT(YOU) & LEFT(OTHERS) BUBBLES
 -- ========================================================== --
 
@@ -25,7 +25,7 @@ getgenv().NEXUS_CHAT_RUNNING = true
 -- [🔥 PROXY SETUP]
 -- ================================================================= --
 -- Yahan apna Google Apps Script URL daalein
-local PROXY_URL = "https://script.google.com/macros/s/AKfycbyVieioJBi1x7X0Cotib6t8H7Dh6_cVjFpdkOdWYJfdexLHCQOgWa588Wi482wpRYhQ/exec" 
+local PROXY_URL = "https://script.google.com/macros/s/AKfycbwEejyQDI2nQt1H7icls1f-ndcXV0GJabPGuS1PBusQn66USIOs2HAFXUK1gUeVK5sg/exec" 
 local SECRET_KEY = "NEXUS_PREMIUM_KEY_7788"
 
 local request_func = (syn and syn.request) or (http and http.request) or http_request or (fluxus and fluxus.request) or request
@@ -52,7 +52,7 @@ local function reqFunc(options)
     if s and r and r.Body and r.Body ~= "ACCESS_DENIED" and not r.Body:match("^ERROR") then
         return {Success = true, Body = r.Body}
     end
-    return {Success = false, Body = "null"}
+    return {Success = false, Body = (r and r.Body) or "Request Failed"}
 end
 
 -- ================================================================= --
@@ -100,9 +100,10 @@ local function E2EE_Decrypt(text, key)
 end
 
 -- ================================================================= --
--- [🌐 GLOBAL PATH SETUP (NO MORE JOB_ID)]
+-- [🌐 GLOBAL PATH (FIXED RULES ISSUE)]
 -- ================================================================= --
-local DB_PATH = "nexus_global_chat/messages"
+-- Ab yeh 'servers' folder use karega jo Firebase rules me ALLOWED hai!
+local DB_PATH = "servers/global_chat/messages"
 local myUserId = tostring(LocalPlayer.UserId)
 local cleanMyName = LocalPlayer.DisplayName
 local messageQueue = {}
@@ -274,7 +275,6 @@ ServerTab.MouseButton1Click:Connect(function() SwitchTab("Server") end)
 DMTab.MouseButton1Click:Connect(function() SwitchTab("DM") end)
 SwitchTab("Server")
 
--- Smooth Dragging Logic
 local dragging, dragInput, dragStart, startPos
 TopBar.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -324,7 +324,6 @@ DMTargetBox.FocusLost:Connect(function()
 end)
 
 local function BuildMessageBubble(container, name, text, isMine)
-    -- Wrapper (takes 100% width)
     local wrapper = Instance.new("Frame", container)
     wrapper.Size = UDim2.new(1, 0, 0, 0) 
     wrapper.AutomaticSize = Enum.AutomaticSize.Y
@@ -369,7 +368,6 @@ local function BuildMessageBubble(container, name, text, isMine)
     local constraint = Instance.new("UISizeConstraint", txt)
     constraint.MaxSize = Vector2.new(230, 9999)
 
-    -- Pop-in Animation
     wrapper.Size = UDim2.new(0,0,0,0)
     TweenService:Create(wrapper, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, 0)}):Play()
     
@@ -378,11 +376,19 @@ local function BuildMessageBubble(container, name, text, isMine)
     end)
 end
 
+-- QUEUE PROCESSOR WITH ERROR LOGGING
 local function ProcessQueue()
     task.spawn(function()
         while #messageQueue > 0 do
-            local msg = table.remove(messageQueue, 1)
-            pcall(reqFunc, {UrlParams = DB_PATH .. ".json", Method = "POST", Body = HttpService:JSONEncode(msg)})
+            local msg = messageQueue[1]
+            local res = reqFunc({UrlParams = DB_PATH .. ".json", Method = "POST", Body = HttpService:JSONEncode(msg)})
+            
+            if res.Success then
+                table.remove(messageQueue, 1) -- Success, remove from queue
+            else
+                warn("NEXUS CHAT: Firebase Failed -> " .. tostring(res.Body))
+                task.wait(1) -- Wait before retrying
+            end
             task.wait(0.2)
         end
     end)
@@ -404,16 +410,10 @@ local function SendMsg()
         table.insert(messageQueue, payload)
         ProcessQueue()
         BuildMessageBubble(ServerScroll, cleanMyName, txt, true)
-        
     elseif activeTab == "DM" and activeDmTarget then
         local dmKey = getDmConvoKey(myUserId, activeDmTarget) .. "_DM_SECURE"
         local enc = E2EE_Encrypt(txt, dmKey)
-        local payload = {
-            senderId = myUserId,
-            senderName = cleanMyName,
-            text = enc,
-            timestamp = os.time()
-        }
+        local payload = {senderId = myUserId, senderName = cleanMyName, text = enc, timestamp = os.time()}
         task.spawn(function()
             pcall(reqFunc, {UrlParams = "global_dms/" .. activeDmTarget .. ".json", Method = "POST", Body = HttpService:JSONEncode(payload)})
         end)
@@ -441,7 +441,6 @@ task.spawn(function()
                         if not processedServerIds[key] then
                             processedServerIds[key] = true
                             
-                            -- Ignore our own messages from polling (already rendered locally)
                             if type(msgData) == "table" and msgData.senderId and tostring(msgData.senderId) ~= myUserId then
                                 local decMsg = E2EE_Decrypt(msgData.text, SERVER_E2EE_KEY)
                                 BuildMessageBubble(ServerScroll, msgData.senderName or "User", decMsg, false)
@@ -479,6 +478,5 @@ task.spawn(function()
     end
 end)
 
--- Initial Startup Animation
 MainFrame.Size = UDim2.new(0, 0, 0, 0)
 TweenService:Create(MainFrame, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Size = UDim2.new(0, 340, 0, 320)}):Play()
