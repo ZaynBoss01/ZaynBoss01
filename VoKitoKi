@@ -1,8 +1,7 @@
 -- ========================================================== --
--- NEXUS CHAT V4.2 (ULTIMATE SYNC EDITION)
--- CORE: 100% GLOBAL CHAT
--- FIXED: FIREBASE 'NOCACHE' REJECTION ERROR
--- UI: 340x320 | RIGHT/LEFT BUBBLES | STATUS DOT ADDED
+-- NEXUS CHAT V4.3 (ULTIMATE FIX EDITION)
+-- CORE: 100% GLOBAL CHAT + ANTI-EXECUTOR CACHE
+-- UI: 340x320 | RIGHT/LEFT BUBBLES | UISCALE ANIMATION
 -- ========================================================== --
 
 local TweenService = game:GetService("TweenService")
@@ -23,7 +22,7 @@ getgenv().NEXUS_CHAT_RUNNING = true
 getgenv().QUEUE_PROCESSING = false
 
 -- ================================================================= --
--- [🔥 PROXY SETUP]
+-- [🔥 PROXY SETUP + ANTI-CACHE]
 -- ================================================================= --
 local PROXY_URL = "https://script.google.com/macros/s/AKfycbyVieioJBi1x7X0Cotib6t8H7Dh6_cVjFpdkOdWYJfdexLHCQOgWa588Wi482wpRYhQ/exec" 
 local SECRET_KEY = "NEXUS_PREMIUM_KEY_7788"
@@ -39,12 +38,18 @@ local function reqFunc(options)
     local requestData = {
         Url = PROXY_URL,
         Method = "POST", 
-        Headers = { ["Content-Type"] = "application/json", ["User-Agent"] = "Roblox/NexusChat" },
+        Headers = { 
+            ["Content-Type"] = "application/json", 
+            ["User-Agent"] = "Roblox/NexusChat",
+            ["Cache-Control"] = "no-cache"
+        },
         Body = HttpService:JSONEncode({
             secret_key = SECRET_KEY,
             method = method,
             path = options.UrlParams,
-            body = options.Body
+            body = options.Body,
+            -- 🔥 CACHE BUSTER: Forces Mobile Executors to fetch NEW data every time!
+            _executor_cache_buster = tostring(tick()) .. tostring(math.random(10000, 99999))
         })
     }
     
@@ -162,7 +167,7 @@ Title.TextXAlignment = Enum.TextXAlignment.Left
 local StatusDot = Instance.new("Frame", TopBar)
 StatusDot.Size = UDim2.new(0, 8, 0, 8)
 StatusDot.Position = UDim2.new(1, -65, 0.5, -4)
-StatusDot.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Starts Red
+StatusDot.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
 Instance.new("UICorner", StatusDot).CornerRadius = UDim.new(1, 0)
 
 local CloseBtn = Instance.new("TextButton", TopBar)
@@ -278,6 +283,7 @@ ServerTab.MouseButton1Click:Connect(function() SwitchTab("Server") end)
 DMTab.MouseButton1Click:Connect(function() SwitchTab("DM") end)
 SwitchTab("Server")
 
+-- Smooth Dragging
 local dragging, dragInput, dragStart, startPos
 TopBar.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -308,10 +314,14 @@ Instance.new("UIStroke", ToggleIcon).Color = Colors.Accent
 ToggleIcon.MouseButton1Click:Connect(function() 
     MainFrame.Visible = not MainFrame.Visible 
     if MainFrame.Visible then
-        MainFrame.Size = UDim2.new(0,0,0,0)
-        TweenService:Create(MainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Size = UDim2.new(0,340,0,320)}):Play()
+        local uiScale = MainFrame:FindFirstChild("UIScale") or Instance.new("UIScale", MainFrame)
+        uiScale.Scale = 0
+        MainFrame.Size = UDim2.new(0, 340, 0, 320)
+        TweenService:Create(uiScale, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale = 1}):Play()
     end
 end)
+local mScale = Instance.new("UIScale", MainFrame)
+mScale.Scale = 0
 
 -- ================================================================= --
 -- [🚀 CHAT SYSTEM & BUBBLES]
@@ -346,7 +356,6 @@ local function BuildMessageBubble(container, name, text, isMine)
     bStroke.Thickness = 1
     bStroke.Transparency = 0.3
 
-    -- RIGHT for You, LEFT for Others
     if isMine then
         bubble.AnchorPoint = Vector2.new(1, 0)
         bubble.Position = UDim2.new(1, 0, 0, 0)
@@ -371,15 +380,16 @@ local function BuildMessageBubble(container, name, text, isMine)
     local constraint = Instance.new("UISizeConstraint", txt)
     constraint.MaxSize = Vector2.new(230, 9999)
 
-    wrapper.Size = UDim2.new(0,0,0,0)
-    TweenService:Create(wrapper, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, 0)}):Play()
+    -- 🔥 FIX: UIScale removes layout rendering bugs for incoming messages
+    local bScale = Instance.new("UIScale", wrapper)
+    bScale.Scale = 0
+    TweenService:Create(bScale, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale = 1}):Play()
     
     task.delay(0.1, function()
         container.CanvasPosition = Vector2.new(0, container.AbsoluteWindowSize.Y + 9999)
     end)
 end
 
--- QUEUE PROCESSOR
 local function ProcessQueue()
     if getgenv().QUEUE_PROCESSING then return end
     getgenv().QUEUE_PROCESSING = true
@@ -434,7 +444,6 @@ local processedDmIds = {}
 task.spawn(function()
     while getgenv().NEXUS_CHAT_RUNNING do
         pcall(function()
-            -- Pure JSON fetch without 'orderBy' or 'nocache' causing Firebase 400 Errors
             local sRes = reqFunc({UrlParams = DB_PATH .. '.json', Method = "GET"})
             
             if sRes.Success then
@@ -449,6 +458,7 @@ task.spawn(function()
                             if not processedServerIds[key] then
                                 processedServerIds[key] = true
                                 
+                                -- Sirf dusre account ke message idhar aayenge
                                 if type(msgData) == "table" and msgData.senderId and tostring(msgData.senderId) ~= myUserId then
                                     local decMsg = E2EE_Decrypt(msgData.text, SERVER_E2EE_KEY)
                                     BuildMessageBubble(ServerScroll, msgData.senderName or "User", decMsg, false)
@@ -489,5 +499,4 @@ task.spawn(function()
     end
 end)
 
-MainFrame.Size = UDim2.new(0, 0, 0, 0)
-TweenService:Create(MainFrame, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Size = UDim2.new(0, 340, 0, 320)}):Play()
+TweenService:Create(mScale, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale = 1}):Play()
