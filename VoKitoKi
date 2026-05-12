@@ -1,12 +1,66 @@
+-- ========================================================== --
+-- NEXUS CHAT V1.0 (PREMIUM EDITION) - DEBUG MODE
+-- CORE: STRICTLY SERVER & DM COMMUNICATION
+-- ========================================================== --
+
+local TweenService = game:GetService("TweenService")
+local CoreGui = game:GetService("CoreGui")
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local RunService = game:GetService("RunService")
+local HttpService = game:GetService("HttpService")
+local UserInputService = game:GetService("UserInputService")
+
+local UI_PARENT = (gethui and gethui()) or CoreGui
+
+if getgenv().NEXUS_CHAT_RUNNING then
+    getgenv().NEXUS_CHAT_RUNNING = false
+    task.wait(0.3)
+end
+getgenv().NEXUS_CHAT_RUNNING = true
+
+-- [🔥 GOOGLE PROXY SETUP & AUTH]
+local PROXY_URL = "https://script.google.com/macros/s/AKfycbwEejyQDI2nQt1H7icls1f-ndcXV0GJabPGuS1PBusQn66USIOs2HAFXUK1gUeVK5sg/exec" 
+local SECRET_KEY = "NEXUS_PREMIUM_KEY_7788"
+
+local _EXEC_REQ = (syn and syn.request) or (http and http.request) or http_request or request or (fluxus and fluxus.request)
+if not _EXEC_REQ then 
+    warn("Executor not supported") 
+    return 
+end
+
+local function reqFunc(options)
+    local method = options.Method or "GET"
+    local path = options.UrlParams
+
+    local requestData = {
+        Url = PROXY_URL,
+        Method = "POST", 
+        Headers = {["Content-Type"] = "application/json"},
+        Body = HttpService:JSONEncode({
+            secret_key = SECRET_KEY,
+            method = method,
+            path = path,
+            body = options.Body
+        })
+    }
+
+    local s, r = pcall(_EXEC_REQ, requestData)
+    
+    if s and r then
+        return r
+    else
+        return {Success = false, Body = "REQUEST_FAILED"}
+    end
+end
+
 -- ================================================================= --
--- [🛡️ DEBUG WHITELIST CHECK]
+-- [🛡️ ADVANCED WHITELIST CHECK (ANTI-KICK DEBUG)]
 -- ================================================================= --
 local myUserId = tostring(LocalPlayer.UserId)
 local cleanMyName = LocalPlayer.DisplayName
 
 local function CheckWhitelist()
-    print("Checking Whitelist for ID:", myUserId)
-    
     local res = reqFunc({
         UrlParams = "whitelist/" .. myUserId .. ".json",
         Method = "GET"
@@ -16,19 +70,461 @@ local function CheckWhitelist()
         print("✅ NEXUS: Whitelist Verified!")
         return true
     else
-        -- KICK HATA DIYA HAI, AB SCREEN PAR ERROR DIKHEGA
-        warn("❌ WHITELIST CHECK FAILED!")
-        warn("Response Success:", res.Success)
-        warn("Response Body:", res.Body)
+        -- KICK KI JAGAH SCREEN PAR ERROR DIKHAYEGA
+        local errorMsg = "UNKNOWN ERROR"
+        if not res.Success or res.Body == "REQUEST_FAILED" then
+            errorMsg = "Roblox executor request failed!"
+        elseif res.Body == "ACCESS_DENIED" then
+            errorMsg = "Secret Key mismatch in Google Script!"
+        elseif res.Body == "FORBIDDEN_PATH" then
+            errorMsg = "Google Script blocked the path!"
+        elseif tostring(res.Body):match("html") then
+            errorMsg = "Google Script deployment error! Set access to 'Anyone'."
+        elseif res.Body == "null" then
+            errorMsg = "Your UserID ("..myUserId..") is NOT in Firebase whitelist!"
+        else
+            errorMsg = "Proxy returned: " .. tostring(res.Body)
+        end
+
+        local sg = Instance.new("ScreenGui", UI_PARENT)
+        local tl = Instance.new("TextLabel", sg)
+        tl.Size = UDim2.new(1, 0, 0, 60)
+        tl.Position = UDim2.new(0, 0, 0, 0)
+        tl.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
+        tl.TextColor3 = Color3.fromRGB(255, 255, 255)
+        tl.TextSize = 20
+        tl.Font = Enum.Font.GothamBold
+        tl.Text = "❌ WHITELIST ERROR: " .. errorMsg
         
-        -- Screen par message dikhane ke liye
-        local msg = Instance.new("Message", CoreGui)
-        msg.Text = "Nexus Error: " .. tostring(res.Body)
-        task.wait(6)
-        msg:Destroy()
-        
-        return false -- Script aage nahi badhegi par game crash nahi hoga
+        task.wait(10)
+        pcall(function() sg:Destroy() end)
+        return false
     end
 end
 
 if not CheckWhitelist() then return end
+
+-- ================================================================= --
+-- [🔐 E2EE ENCRYPTION]
+-- ================================================================= --
+local B64_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
+local function B64Encode(data)
+    return ((data:gsub('.', function(x)
+        local r,b='',string.byte(x)
+        for i=8,1,-1 do r=r..(b%2^i-b%2^(i-1)>0 and '1' or '0') end
+        return r;
+    end)..'0000'):gsub('%d%d%d?%d?%d?%d?', function(x)
+        if (#x < 6) then return '' end
+        local c=0
+        for i=1,6 do c=c+(x:sub(i,i)=='1' and 2^(6-i) or 0) end
+        return string.sub(B64_CHARS, c+1, c+1)
+    end)..({ '', '==', '=' })[#data%3+1])
+end
+local function B64Decode(data)
+    data = string.gsub(data, '[^'..B64_CHARS..'=]', '')
+    return (data:gsub('.', function(x)
+        if (x == '=') then return '' end
+        local r,f='', (string.find(B64_CHARS, x)-1)
+        for i=6,1,-1 do r=r..(f%2^i-f%2^(i-1)>0 and '1' or '0') end
+        return r;
+    end):gsub('%d%d%d?%d?%d?%d?%d?%d?', function(x)
+        if (#x ~= 8) then return '' end
+        local c=0
+        for i=1,8 do c=c+(string.sub(x,i,i)=='1' and 2^(8-i) or 0) end
+        return string.char(c)
+    end))
+end
+
+local SERVER_E2EE_KEY = "NEXUS_SERVER_SECURE_101"
+local function E2EE_Encrypt(text, key)
+    if not text or not key then return text end
+    local res = ""
+    for i = 1, #text do res = res .. string.char(bit32.bxor(string.byte(text, i), string.byte(key, ((i - 1) % #key) + 1))) end
+    return "E2EE::" .. B64Encode(res)
+end
+local function E2EE_Decrypt(text, key)
+    if not text or not key or not tostring(text):match("^E2EE::") then return text end
+    local decoded = B64Decode(text:gsub("^E2EE::", ""))
+    local res = ""
+    for i = 1, #decoded do res = res .. string.char(bit32.bxor(string.byte(decoded, i), string.byte(key, ((i - 1) % #key) + 1))) end
+    return res
+end
+
+-- Variables
+local SERVER_ID = (game.JobId ~= "" and string.sub(game.JobId, 1, 8)) or string.sub(tostring(game.PlaceId), 1, 8)
+local DB_PATH = "servers/" .. SERVER_ID .. "/messages"
+local messageQueue = {}
+
+local function getDmConvoKey(uid1, uid2)
+    local n1, n2 = tonumber(uid1), tonumber(uid2)
+    if n1 and n2 then return n1 < n2 and tostring(n1).."_"..tostring(n2) or tostring(n2).."_"..tostring(n1) end
+    return tostring(uid1).."_"..tostring(uid2)
+end
+
+-- ================================================================= --
+-- [🎨 BRAND NEW UI : NEXUS (SIDE-NAV DESIGN)]
+-- ================================================================= --
+if UI_PARENT:FindFirstChild("NexusChat_GUI") then UI_PARENT.NexusChat_GUI:Destroy() end
+
+local NexusGui = Instance.new("ScreenGui", UI_PARENT)
+NexusGui.Name = "NexusChat_GUI"
+NexusGui.ResetOnSpawn = false
+if syn and syn.protect_gui then pcall(syn.protect_gui, NexusGui) end
+
+local Colors = {
+    BgDark = Color3.fromRGB(15, 15, 18),
+    Sidebar = Color3.fromRGB(22, 22, 26),
+    Primary = Color3.fromRGB(80, 140, 255),
+    BubbleMe = Color3.fromRGB(40, 90, 180),
+    BubbleOther = Color3.fromRGB(35, 35, 40),
+    TextWhite = Color3.fromRGB(240, 240, 240),
+    TextDim = Color3.fromRGB(140, 140, 150)
+}
+
+local MainFrame = Instance.new("Frame", NexusGui)
+MainFrame.Size = UDim2.new(0, 550, 0, 360)
+MainFrame.Position = UDim2.new(0.5, -275, 0.5, -180)
+MainFrame.BackgroundColor3 = Colors.BgDark
+MainFrame.BorderSizePixel = 0
+MainFrame.ClipsDescendants = true
+Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 12)
+Instance.new("UIStroke", MainFrame).Color = Color3.fromRGB(50, 50, 60)
+
+-- Sidebar
+local Sidebar = Instance.new("Frame", MainFrame)
+Sidebar.Size = UDim2.new(0, 140, 1, 0)
+Sidebar.BackgroundColor3 = Colors.Sidebar
+Sidebar.BorderSizePixel = 0
+
+local AppTitle = Instance.new("TextLabel", Sidebar)
+AppTitle.Size = UDim2.new(1, 0, 0, 50)
+AppTitle.Text = "NEXUS CHAT"
+AppTitle.Font = Enum.Font.GothamBlack
+AppTitle.TextSize = 14
+AppTitle.TextColor3 = Colors.Primary
+AppTitle.BackgroundTransparency = 1
+
+local function CreateTabBtn(text, yPos)
+    local btn = Instance.new("TextButton", Sidebar)
+    btn.Size = UDim2.new(1, -20, 0, 35)
+    btn.Position = UDim2.new(0, 10, 0, yPos)
+    btn.Text = text
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 12
+    btn.TextColor3 = Colors.TextDim
+    btn.BackgroundColor3 = Colors.BgDark
+    btn.BackgroundTransparency = 1
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
+    return btn
+end
+
+local TabServer = CreateTabBtn("🌍 Server", 60)
+local TabDM = CreateTabBtn("📩 Messages", 100)
+
+local CloseBtn = Instance.new("TextButton", Sidebar)
+CloseBtn.Size = UDim2.new(1, -20, 0, 35)
+CloseBtn.Position = UDim2.new(0, 10, 1, -45)
+CloseBtn.Text = "Close"
+CloseBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+CloseBtn.TextColor3 = Colors.TextWhite
+CloseBtn.Font = Enum.Font.GothamBold
+CloseBtn.TextSize = 12
+Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(0, 8)
+CloseBtn.MouseButton1Click:Connect(function() MainFrame.Visible = false end)
+
+-- Content Area
+local ContentArea = Instance.new("Frame", MainFrame)
+ContentArea.Size = UDim2.new(1, -140, 1, 0)
+ContentArea.Position = UDim2.new(0, 140, 0, 0)
+ContentArea.BackgroundTransparency = 1
+
+-- Server Chat UI
+local ServerFrame = Instance.new("Frame", ContentArea)
+ServerFrame.Size = UDim2.new(1, 0, 1, 0)
+ServerFrame.BackgroundTransparency = 1
+
+local ServerScroll = Instance.new("ScrollingFrame", ServerFrame)
+ServerScroll.Size = UDim2.new(1, -20, 1, -60)
+ServerScroll.Position = UDim2.new(0, 10, 0, 10)
+ServerScroll.BackgroundTransparency = 1
+ServerScroll.ScrollBarThickness = 2
+ServerScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+local ServerLayout = Instance.new("UIListLayout", ServerScroll)
+ServerLayout.Padding = UDim.new(0, 8)
+ServerLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+local ServerInputBg = Instance.new("Frame", ServerFrame)
+ServerInputBg.Size = UDim2.new(1, -20, 0, 35)
+ServerInputBg.Position = UDim2.new(0, 10, 1, -45)
+ServerInputBg.BackgroundColor3 = Colors.Sidebar
+Instance.new("UICorner", ServerInputBg).CornerRadius = UDim.new(0, 8)
+
+local ServerInput = Instance.new("TextBox", ServerInputBg)
+ServerInput.Size = UDim2.new(1, -50, 1, 0)
+ServerInput.Position = UDim2.new(0, 10, 0, 0)
+ServerInput.BackgroundTransparency = 1
+ServerInput.Text = ""
+ServerInput.PlaceholderText = "Message Server..."
+ServerInput.TextColor3 = Colors.TextWhite
+ServerInput.Font = Enum.Font.Gotham
+ServerInput.TextSize = 12
+ServerInput.TextXAlignment = Enum.TextXAlignment.Left
+
+local ServerSendBtn = Instance.new("TextButton", ServerInputBg)
+ServerSendBtn.Size = UDim2.new(0, 35, 0, 35)
+ServerSendBtn.Position = UDim2.new(1, -35, 0, 0)
+ServerSendBtn.Text = "➤"
+ServerSendBtn.TextColor3 = Colors.Primary
+ServerSendBtn.BackgroundTransparency = 1
+ServerSendBtn.Font = Enum.Font.GothamBold
+ServerSendBtn.TextSize = 16
+
+-- DM Chat UI (Simplified List & Chat unified)
+local DMFrame = Instance.new("Frame", ContentArea)
+DMFrame.Size = UDim2.new(1, 0, 1, 0)
+DMFrame.BackgroundTransparency = 1
+DMFrame.Visible = false
+
+local DMTopBar = Instance.new("TextLabel", DMFrame)
+DMTopBar.Size = UDim2.new(1, -20, 0, 30)
+DMTopBar.Position = UDim2.new(0, 10, 0, 10)
+DMTopBar.Text = "Active DMs (Target ID required to start)"
+DMTopBar.TextColor3 = Colors.Primary
+DMTopBar.Font = Enum.Font.GothamBold
+DMTopBar.TextSize = 12
+DMTopBar.BackgroundTransparency = 1
+DMTopBar.TextXAlignment = Enum.TextXAlignment.Left
+
+local DMTargetInput = Instance.new("TextBox", DMFrame)
+DMTargetInput.Size = UDim2.new(1, -20, 0, 30)
+DMTargetInput.Position = UDim2.new(0, 10, 0, 40)
+DMTargetInput.PlaceholderText = "Enter Target UserID to DM..."
+DMTargetInput.BackgroundColor3 = Colors.Sidebar
+DMTargetInput.TextColor3 = Colors.TextWhite
+DMTargetInput.Font = Enum.Font.Gotham
+DMTargetInput.TextSize = 12
+Instance.new("UICorner", DMTargetInput).CornerRadius = UDim.new(0, 6)
+
+local DMScroll = Instance.new("ScrollingFrame", DMFrame)
+DMScroll.Size = UDim2.new(1, -20, 1, -130)
+DMScroll.Position = UDim2.new(0, 10, 0, 80)
+DMScroll.BackgroundTransparency = 1
+DMScroll.ScrollBarThickness = 2
+DMScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+local DMLayout = Instance.new("UIListLayout", DMScroll)
+DMLayout.Padding = UDim.new(0, 8)
+DMLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+local DMInputBg = Instance.new("Frame", DMFrame)
+DMInputBg.Size = UDim2.new(1, -20, 0, 35)
+DMInputBg.Position = UDim2.new(0, 10, 1, -45)
+DMInputBg.BackgroundColor3 = Colors.Sidebar
+Instance.new("UICorner", DMInputBg).CornerRadius = UDim.new(0, 8)
+
+local DMInput = Instance.new("TextBox", DMInputBg)
+DMInput.Size = UDim2.new(1, -50, 1, 0)
+DMInput.Position = UDim2.new(0, 10, 0, 0)
+DMInput.BackgroundTransparency = 1
+DMInput.Text = ""
+DMInput.PlaceholderText = "Send DM..."
+DMInput.TextColor3 = Colors.TextWhite
+DMInput.Font = Enum.Font.Gotham
+DMInput.TextSize = 12
+DMInput.TextXAlignment = Enum.TextXAlignment.Left
+
+local DMSendBtn = Instance.new("TextButton", DMInputBg)
+DMSendBtn.Size = UDim2.new(0, 35, 0, 35)
+DMSendBtn.Position = UDim2.new(1, -35, 0, 0)
+DMSendBtn.Text = "➤"
+DMSendBtn.TextColor3 = Colors.Primary
+DMSendBtn.BackgroundTransparency = 1
+DMSendBtn.Font = Enum.Font.GothamBold
+DMSendBtn.TextSize = 16
+
+-- Toggle Logic
+local activeTab = "Server"
+local function SwitchTab(tab)
+    activeTab = tab
+    if tab == "Server" then
+        ServerFrame.Visible = true; DMFrame.Visible = false
+        TweenService:Create(TabServer, TweenInfo.new(0.2), {BackgroundTransparency = 0}):Play()
+        TweenService:Create(TabDM, TweenInfo.new(0.2), {BackgroundTransparency = 1}):Play()
+    else
+        ServerFrame.Visible = false; DMFrame.Visible = true
+        TweenService:Create(TabServer, TweenInfo.new(0.2), {BackgroundTransparency = 1}):Play()
+        TweenService:Create(TabDM, TweenInfo.new(0.2), {BackgroundTransparency = 0}):Play()
+    end
+end
+TabServer.MouseButton1Click:Connect(function() SwitchTab("Server") end)
+TabDM.MouseButton1Click:Connect(function() SwitchTab("DM") end)
+SwitchTab("Server")
+
+-- Dragging
+local dragging, dragInput, dragStart, startPos
+Sidebar.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = true; dragStart = input.Position; startPos = MainFrame.Position
+    end
+end)
+UserInputService.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement and dragging then
+        local delta = input.Position - dragStart
+        MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end)
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end
+end)
+
+local ToggleUIBtn = Instance.new("TextButton", NexusGui)
+ToggleUIBtn.Size = UDim2.new(0, 40, 0, 40)
+ToggleUIBtn.Position = UDim2.new(0, 10, 0.5, -20)
+ToggleUIBtn.Text = "💬"
+ToggleUIBtn.BackgroundColor3 = Colors.Primary
+ToggleUIBtn.TextColor3 = Colors.TextWhite
+ToggleUIBtn.TextSize = 20
+Instance.new("UICorner", ToggleUIBtn).CornerRadius = UDim.new(1, 0)
+ToggleUIBtn.MouseButton1Click:Connect(function() MainFrame.Visible = not MainFrame.Visible end)
+
+-- ================================================================= --
+-- [🚀 CHAT LOGIC]
+-- ================================================================= --
+local activeDmTarget = nil
+DMTargetInput.FocusLost:Connect(function()
+    local uid = tonumber(DMTargetInput.Text)
+    if uid then
+        activeDmTarget = tostring(uid)
+        DMTopBar.Text = "Chatting with: " .. activeDmTarget
+        -- Clear old DM UI messages
+        for _,v in ipairs(DMScroll:GetChildren()) do if v:IsA("Frame") then v:Destroy() end end
+    end
+end)
+
+local function BuildMessageBubble(container, name, text, isMine)
+    local frame = Instance.new("Frame", container)
+    frame.Size = UDim2.new(1, 0, 0, 0)
+    frame.AutomaticSize = Enum.AutomaticSize.Y
+    frame.BackgroundTransparency = 1
+
+    local bubble = Instance.new("Frame", frame)
+    bubble.BackgroundColor3 = isMine and Colors.BubbleMe or Colors.BubbleOther
+    bubble.AutomaticSize = Enum.AutomaticSize.XY
+    Instance.new("UICorner", bubble).CornerRadius = UDim.new(0, 8)
+    local pad = Instance.new("UIPadding", bubble)
+    pad.PaddingTop = UDim.new(0,6); pad.PaddingBottom = UDim.new(0,6); pad.PaddingLeft = UDim.new(0,10); pad.PaddingRight = UDim.new(0,10)
+
+    if isMine then
+        bubble.AnchorPoint = Vector2.new(1, 0)
+        bubble.Position = UDim2.new(1, 0, 0, 0)
+    end
+
+    local txt = Instance.new("TextLabel", bubble)
+    txt.BackgroundTransparency = 1
+    txt.Text = "<b>" .. name .. "</b>\n" .. text
+    txt.RichText = true
+    txt.Font = Enum.Font.Gotham
+    txt.TextSize = 12
+    txt.TextColor3 = Colors.TextWhite
+    txt.TextXAlignment = isMine and Enum.TextXAlignment.Right or Enum.TextXAlignment.Left
+    txt.AutomaticSize = Enum.AutomaticSize.XY
+    txt.TextWrapped = true
+    
+    local constraint = Instance.new("UISizeConstraint", txt)
+    constraint.MaxSize = Vector2.new(250, 9999)
+    
+    -- Auto scroll
+    task.delay(0.1, function()
+        container.CanvasPosition = Vector2.new(0, container.AbsoluteWindowSize.Y + 9999)
+    end)
+end
+
+local function ProcessQueue()
+    task.spawn(function()
+        while #messageQueue > 0 do
+            local msg = table.remove(messageQueue, 1)
+            pcall(reqFunc, {UrlParams = DB_PATH .. ".json", Method = "POST", Body = HttpService:JSONEncode(msg)})
+            task.wait(0.2)
+        end
+    end)
+end
+
+-- Sending Logic
+local function SendServerMsg()
+    local txt = ServerInput.Text
+    if txt == "" then return end
+    ServerInput.Text = ""
+    local enc = E2EE_Encrypt(txt, SERVER_E2EE_KEY)
+    local payload = cleanMyName .. ": " .. enc .. " ||" .. myUserId
+    table.insert(messageQueue, {text = payload, timestamp = os.time()})
+    ProcessQueue()
+    BuildMessageBubble(ServerScroll, cleanMyName, txt, true)
+end
+ServerSendBtn.MouseButton1Click:Connect(SendServerMsg)
+ServerInput.FocusLost:Connect(function(e) if e then SendServerMsg() end end)
+
+local function SendDMMsg()
+    local txt = DMInput.Text
+    if txt == "" or not activeDmTarget then return end
+    DMInput.Text = ""
+    local dmKey = getDmConvoKey(myUserId, activeDmTarget) .. "_DM_SECURE"
+    local enc = E2EE_Encrypt(txt, dmKey)
+    local payload = {senderId = myUserId, senderName = cleanMyName, text = enc, timestamp = os.time()}
+    
+    task.spawn(function()
+        pcall(reqFunc, {UrlParams = "global_dms/" .. activeDmTarget .. ".json", Method = "POST", Body = HttpService:JSONEncode(payload)})
+    end)
+    BuildMessageBubble(DMScroll, cleanMyName, txt, true)
+end
+DMSendBtn.MouseButton1Click:Connect(SendDMMsg)
+DMInput.FocusLost:Connect(function(e) if e then SendDMMsg() end end)
+
+-- Polling Loops
+local processedServerIds = {}
+local processedDmIds = {}
+
+task.spawn(function()
+    while getgenv().NEXUS_CHAT_RUNNING do
+        pcall(function()
+            -- Poll Server
+            local sRes = reqFunc({UrlParams = DB_PATH .. '.json?orderBy="$key"&limitToLast=15', Method = "GET"})
+            if sRes.Success and sRes.Body ~= "null" then
+                local data = HttpService:JSONDecode(sRes.Body)
+                for key, msgData in pairs(data) do
+                    if not processedServerIds[key] then
+                        processedServerIds[key] = true
+                        local mtext = msgData.text
+                        local senderPart, msgPart, uidPart = mtext:match("^(.-):%s(.+)%s*||([%w_]+)$")
+                        if senderPart and msgPart and uidPart ~= myUserId then
+                            local decMsg = E2EE_Decrypt(msgPart, SERVER_E2EE_KEY)
+                            BuildMessageBubble(ServerScroll, senderPart, decMsg, false)
+                        end
+                    end
+                end
+            end
+            
+            -- Poll DMs
+            local dRes = reqFunc({UrlParams = "global_dms/" .. myUserId .. ".json", Method = "GET"})
+            if dRes.Success and dRes.Body ~= "null" then
+                local dms = HttpService:JSONDecode(dRes.Body)
+                for mKey, mVal in pairs(dms) do
+                    if not processedDmIds[mKey] then
+                        processedDmIds[mKey] = true
+                        local sUid = tostring(mVal.senderId)
+                        local dmKey = getDmConvoKey(myUserId, sUid) .. "_DM_SECURE"
+                        local decText = E2EE_Decrypt(mVal.text, dmKey)
+                        
+                        if activeTab == "DM" and activeDmTarget == sUid then
+                            BuildMessageBubble(DMScroll, mVal.senderName, decText, false)
+                        else
+                            -- Show tiny notification on button if not viewing
+                            TabDM.Text = "📩 Messages (*)"
+                            task.delay(3, function() TabDM.Text = "📩 Messages" end)
+                        end
+                        reqFunc({UrlParams = "global_dms/" .. myUserId .. "/" .. mKey .. ".json", Method = "DELETE"})
+                    end
+                end
+            end
+        end)
+        task.wait(2)
+    end
+end)
