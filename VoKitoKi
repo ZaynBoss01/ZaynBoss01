@@ -1,7 +1,7 @@
 -- ========================================================== --
--- NEXUS CHAT V3.4 (FINAL PREMIUM EDITION)
+-- NEXUS CHAT V4.0 (FINAL PREMIUM EDITION)
 -- CORE: 100% GLOBAL CHAT & DM COMMUNICATION
--- FIXED: FIREBASE PERMISSION RULES BYPASS
+-- FIXED: NEW PROXY LINK + JSON SYNC
 -- UI: EXACT 340x320 | RIGHT(YOU) & LEFT(OTHERS) BUBBLES
 -- ========================================================== --
 
@@ -22,10 +22,10 @@ end
 getgenv().NEXUS_CHAT_RUNNING = true
 
 -- ================================================================= --
--- [🔥 PROXY SETUP]
+-- [🔥 NAYA PROXY SETUP]
 -- ================================================================= --
--- Yahan apna Google Apps Script URL daalein
-local PROXY_URL = "https://script.google.com/macros/s/AKfycbwEejyQDI2nQt1H7icls1f-ndcXV0GJabPGuS1PBusQn66USIOs2HAFXUK1gUeVK5sg/exec" 
+-- Aapka naya Google Proxy Link yahan set hai
+local PROXY_URL = "https://script.google.com/macros/s/AKfycbyVieioJBi1x7X0Cotib6t8H7Dh6_cVjFpdkOdWYJfdexLHCQOgWa588Wi482wpRYhQ/exec" 
 local SECRET_KEY = "NEXUS_PREMIUM_KEY_7788"
 
 local request_func = (syn and syn.request) or (http and http.request) or http_request or (fluxus and fluxus.request) or request
@@ -100,9 +100,8 @@ local function E2EE_Decrypt(text, key)
 end
 
 -- ================================================================= --
--- [🌐 GLOBAL PATH (FIXED RULES ISSUE)]
+-- [🌐 GLOBAL PATH SETUP]
 -- ================================================================= --
--- Ab yeh 'servers' folder use karega jo Firebase rules me ALLOWED hai!
 local DB_PATH = "servers/global_chat/messages"
 local myUserId = tostring(LocalPlayer.UserId)
 local cleanMyName = LocalPlayer.DisplayName
@@ -275,6 +274,7 @@ ServerTab.MouseButton1Click:Connect(function() SwitchTab("Server") end)
 DMTab.MouseButton1Click:Connect(function() SwitchTab("DM") end)
 SwitchTab("Server")
 
+-- Smooth Dragging
 local dragging, dragInput, dragStart, startPos
 TopBar.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -376,18 +376,14 @@ local function BuildMessageBubble(container, name, text, isMine)
     end)
 end
 
--- QUEUE PROCESSOR WITH ERROR LOGGING
+-- QUEUE PROCESSOR
 local function ProcessQueue()
     task.spawn(function()
         while #messageQueue > 0 do
             local msg = messageQueue[1]
             local res = reqFunc({UrlParams = DB_PATH .. ".json", Method = "POST", Body = HttpService:JSONEncode(msg)})
-            
             if res.Success then
-                table.remove(messageQueue, 1) -- Success, remove from queue
-            else
-                warn("NEXUS CHAT: Firebase Failed -> " .. tostring(res.Body))
-                task.wait(1) -- Wait before retrying
+                table.remove(messageQueue, 1) 
             end
             task.wait(0.2)
         end
@@ -423,16 +419,15 @@ end
 SendBtn.MouseButton1Click:Connect(SendMsg)
 ChatBox.FocusLost:Connect(function(e) if e then SendMsg() end end)
 
--- FIXED GLOBAL POLLING LOGIC
+-- FIXED RAW POLLING LOGIC
 local processedServerIds = {}
 local processedDmIds = {}
 
 task.spawn(function()
     while getgenv().NEXUS_CHAT_RUNNING do
         pcall(function()
-            -- Server Polling
-            local sQuery = DB_PATH .. '.json?orderBy=%22%24key%22&limitToLast=15'
-            local sRes = reqFunc({UrlParams = sQuery, Method = "GET"})
+            -- RAW GET REQUEST 
+            local sRes = reqFunc({UrlParams = DB_PATH .. '.json', Method = "GET"})
             
             if sRes.Success and sRes.Body and sRes.Body ~= "null" then
                 local s, data = pcall(function() return HttpService:JSONDecode(sRes.Body) end)
@@ -441,6 +436,7 @@ task.spawn(function()
                         if not processedServerIds[key] then
                             processedServerIds[key] = true
                             
+                            -- IMPORTANT: Yeh ensure karta hai ki doosre account ke message hi dikhein
                             if type(msgData) == "table" and msgData.senderId and tostring(msgData.senderId) ~= myUserId then
                                 local decMsg = E2EE_Decrypt(msgData.text, SERVER_E2EE_KEY)
                                 BuildMessageBubble(ServerScroll, msgData.senderName or "User", decMsg, false)
@@ -474,7 +470,7 @@ task.spawn(function()
                 end
             end
         end)
-        task.wait(2)
+        task.wait(2.5) 
     end
 end)
 
