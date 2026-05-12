@@ -1,8 +1,7 @@
 -- ========================================================== --
--- NEXUS CHAT V4.0 (FINAL PREMIUM EDITION)
--- CORE: 100% GLOBAL CHAT & DM COMMUNICATION
--- FIXED: NEW PROXY LINK + JSON SYNC
--- UI: EXACT 340x320 | RIGHT(YOU) & LEFT(OTHERS) BUBBLES
+-- NEXUS CHAT V4.1 (ULTIMATE SYNC EDITION)
+-- CORE: 100% GLOBAL CHAT + ANTI-CACHE SYSTEM
+-- UI: 340x320 | RIGHT/LEFT BUBBLES | STATUS DOT ADDED
 -- ========================================================== --
 
 local TweenService = game:GetService("TweenService")
@@ -20,11 +19,11 @@ if getgenv().NEXUS_CHAT_RUNNING then
     task.wait(0.3)
 end
 getgenv().NEXUS_CHAT_RUNNING = true
+getgenv().QUEUE_PROCESSING = false
 
 -- ================================================================= --
--- [🔥 NAYA PROXY SETUP]
+-- [🔥 PROXY SETUP]
 -- ================================================================= --
--- Aapka naya Google Proxy Link yahan set hai
 local PROXY_URL = "https://script.google.com/macros/s/AKfycbyVieioJBi1x7X0Cotib6t8H7Dh6_cVjFpdkOdWYJfdexLHCQOgWa588Wi482wpRYhQ/exec" 
 local SECRET_KEY = "NEXUS_PREMIUM_KEY_7788"
 
@@ -49,7 +48,7 @@ local function reqFunc(options)
     }
     
     local s, r = pcall(request_func, requestData)
-    if s and r and r.Body and r.Body ~= "ACCESS_DENIED" and not r.Body:match("^ERROR") then
+    if s and r and r.Body and r.Body ~= "ACCESS_DENIED" and not string.match(r.Body, "^ERROR") then
         return {Success = true, Body = r.Body}
     end
     return {Success = false, Body = (r and r.Body) or "Request Failed"}
@@ -99,9 +98,6 @@ local function E2EE_Decrypt(text, key)
     return res
 end
 
--- ================================================================= --
--- [🌐 GLOBAL PATH SETUP]
--- ================================================================= --
 local DB_PATH = "servers/global_chat/messages"
 local myUserId = tostring(LocalPlayer.UserId)
 local cleanMyName = LocalPlayer.DisplayName
@@ -152,7 +148,7 @@ local TopCorner = Instance.new("UICorner", TopBar); TopCorner.CornerRadius = UDi
 local TopFix = Instance.new("Frame", TopBar); TopFix.Size = UDim2.new(1, 0, 0, 10); TopFix.Position = UDim2.new(0, 0, 1, -10); TopFix.BackgroundColor3 = Colors.TopBar; TopFix.BorderSizePixel = 0
 
 local Title = Instance.new("TextLabel", TopBar)
-Title.Size = UDim2.new(1, -40, 1, 0)
+Title.Size = UDim2.new(1, -70, 1, 0)
 Title.Position = UDim2.new(0, 15, 0, 0)
 Title.Text = "⚡ NEXUS CHAT"
 Title.Font = Enum.Font.GothamBlack
@@ -160,6 +156,13 @@ Title.TextSize = 13
 Title.TextColor3 = Colors.Text
 Title.BackgroundTransparency = 1
 Title.TextXAlignment = Enum.TextXAlignment.Left
+
+-- 🟢 STATUS DOT (Connection Tracker)
+local StatusDot = Instance.new("Frame", TopBar)
+StatusDot.Size = UDim2.new(0, 8, 0, 8)
+StatusDot.Position = UDim2.new(1, -65, 0.5, -4)
+StatusDot.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Starts Red
+Instance.new("UICorner", StatusDot).CornerRadius = UDim.new(1, 0)
 
 local CloseBtn = Instance.new("TextButton", TopBar)
 CloseBtn.Size = UDim2.new(0, 25, 0, 25)
@@ -343,7 +346,6 @@ local function BuildMessageBubble(container, name, text, isMine)
     bStroke.Thickness = 1
     bStroke.Transparency = 0.3
 
-    -- RIGHT for You, LEFT for Others
     if isMine then
         bubble.AnchorPoint = Vector2.new(1, 0)
         bubble.Position = UDim2.new(1, 0, 0, 0)
@@ -376,8 +378,10 @@ local function BuildMessageBubble(container, name, text, isMine)
     end)
 end
 
--- QUEUE PROCESSOR
+-- FIXED QUEUE PROCESSOR
 local function ProcessQueue()
+    if getgenv().QUEUE_PROCESSING then return end
+    getgenv().QUEUE_PROCESSING = true
     task.spawn(function()
         while #messageQueue > 0 do
             local msg = messageQueue[1]
@@ -385,8 +389,9 @@ local function ProcessQueue()
             if res.Success then
                 table.remove(messageQueue, 1) 
             end
-            task.wait(0.2)
+            task.wait(0.5)
         end
+        getgenv().QUEUE_PROCESSING = false
     end)
 end
 
@@ -419,35 +424,44 @@ end
 SendBtn.MouseButton1Click:Connect(SendMsg)
 ChatBox.FocusLost:Connect(function(e) if e then SendMsg() end end)
 
--- FIXED RAW POLLING LOGIC
+-- ================================================================= --
+-- [📡 FIXED ANTI-CACHE POLLING LOGIC]
+-- ================================================================= --
 local processedServerIds = {}
 local processedDmIds = {}
 
 task.spawn(function()
     while getgenv().NEXUS_CHAT_RUNNING do
         pcall(function()
-            -- RAW GET REQUEST 
-            local sRes = reqFunc({UrlParams = DB_PATH .. '.json', Method = "GET"})
+            -- ANTI-CACHE: Added '?nocache=random' so Firebase NEVER returns old saved data
+            local sQuery = DB_PATH .. '.json?orderBy=%22%24key%22&limitToLast=20&nocache=' .. math.random(100000, 999999)
+            local sRes = reqFunc({UrlParams = sQuery, Method = "GET"})
             
-            if sRes.Success and sRes.Body and sRes.Body ~= "null" then
-                local s, data = pcall(function() return HttpService:JSONDecode(sRes.Body) end)
-                if s and type(data) == "table" then
-                    for key, msgData in pairs(data) do
-                        if not processedServerIds[key] then
-                            processedServerIds[key] = true
-                            
-                            -- IMPORTANT: Yeh ensure karta hai ki doosre account ke message hi dikhein
-                            if type(msgData) == "table" and msgData.senderId and tostring(msgData.senderId) ~= myUserId then
-                                local decMsg = E2EE_Decrypt(msgData.text, SERVER_E2EE_KEY)
-                                BuildMessageBubble(ServerScroll, msgData.senderName or "User", decMsg, false)
+            if sRes.Success then
+                if sRes.Body == "null" then
+                    StatusDot.BackgroundColor3 = Color3.fromRGB(255, 255, 0) -- Yellow (Empty Database)
+                else
+                    StatusDot.BackgroundColor3 = Color3.fromRGB(0, 255, 0) -- Green (Connected & Reading)
+                    local s, data = pcall(function() return HttpService:JSONDecode(sRes.Body) end)
+                    if s and type(data) == "table" then
+                        for key, msgData in pairs(data) do
+                            if not processedServerIds[key] then
+                                processedServerIds[key] = true
+                                
+                                if type(msgData) == "table" and msgData.senderId and tostring(msgData.senderId) ~= myUserId then
+                                    local decMsg = E2EE_Decrypt(msgData.text, SERVER_E2EE_KEY)
+                                    BuildMessageBubble(ServerScroll, msgData.senderName or "User", decMsg, false)
+                                end
                             end
                         end
                     end
                 end
+            else
+                StatusDot.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Red (Proxy/Internet Error)
             end
             
-            -- DM Polling
-            local dRes = reqFunc({UrlParams = "global_dms/" .. myUserId .. ".json", Method = "GET"})
+            -- DM Polling (Anti-Cache)
+            local dRes = reqFunc({UrlParams = "global_dms/" .. myUserId .. ".json?nocache=" .. math.random(100000,999999), Method = "GET"})
             if dRes.Success and dRes.Body and dRes.Body ~= "null" then
                 local s, dms = pcall(function() return HttpService:JSONDecode(dRes.Body) end)
                 if s and type(dms) == "table" then
@@ -470,7 +484,7 @@ task.spawn(function()
                 end
             end
         end)
-        task.wait(2.5) 
+        task.wait(2) 
     end
 end)
 
