@@ -25,7 +25,7 @@ getgenv().NEXUS_CHAT_RUNNING = true
 -- [🔥 PROXY SETUP]
 -- ================================================================= --
 -- Yahan apna Google Apps Script URL daalein
-local PROXY_URL = "https://script.google.com/macros/s/AKfycbwEejyQDI2nQt1H7icls1f-ndcXV0GJabPGuS1PBusQn66USIOs2HAFXUK1gUeVK5sg/exec" 
+local PROXY_URL = "https://script.google.com/macros/s/AKfycbyVieioJBi1x7X0Cotib6t8H7Dh6_cVjFpdkOdWYJfdexLHCQOgWa588Wi482wpRYhQ/exec" 
 local SECRET_KEY = "NEXUS_PREMIUM_KEY_7788"
 
 local request_func = (syn and syn.request) or (http and http.request) or http_request or (fluxus and fluxus.request) or request
