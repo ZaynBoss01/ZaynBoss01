@@ -1,6 +1,7 @@
 -- ========================================================== --
--- NEXUS CHAT V4.1 (ULTIMATE SYNC EDITION)
--- CORE: 100% GLOBAL CHAT + ANTI-CACHE SYSTEM
+-- NEXUS CHAT V4.2 (ULTIMATE SYNC EDITION)
+-- CORE: 100% GLOBAL CHAT
+-- FIXED: FIREBASE 'NOCACHE' REJECTION ERROR
 -- UI: 340x320 | RIGHT/LEFT BUBBLES | STATUS DOT ADDED
 -- ========================================================== --
 
@@ -157,7 +158,7 @@ Title.TextColor3 = Colors.Text
 Title.BackgroundTransparency = 1
 Title.TextXAlignment = Enum.TextXAlignment.Left
 
--- 🟢 STATUS DOT (Connection Tracker)
+-- 🟢 STATUS DOT 
 local StatusDot = Instance.new("Frame", TopBar)
 StatusDot.Size = UDim2.new(0, 8, 0, 8)
 StatusDot.Position = UDim2.new(1, -65, 0.5, -4)
@@ -277,7 +278,6 @@ ServerTab.MouseButton1Click:Connect(function() SwitchTab("Server") end)
 DMTab.MouseButton1Click:Connect(function() SwitchTab("DM") end)
 SwitchTab("Server")
 
--- Smooth Dragging
 local dragging, dragInput, dragStart, startPos
 TopBar.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -346,6 +346,7 @@ local function BuildMessageBubble(container, name, text, isMine)
     bStroke.Thickness = 1
     bStroke.Transparency = 0.3
 
+    -- RIGHT for You, LEFT for Others
     if isMine then
         bubble.AnchorPoint = Vector2.new(1, 0)
         bubble.Position = UDim2.new(1, 0, 0, 0)
@@ -378,7 +379,7 @@ local function BuildMessageBubble(container, name, text, isMine)
     end)
 end
 
--- FIXED QUEUE PROCESSOR
+-- QUEUE PROCESSOR
 local function ProcessQueue()
     if getgenv().QUEUE_PROCESSING then return end
     getgenv().QUEUE_PROCESSING = true
@@ -425,7 +426,7 @@ SendBtn.MouseButton1Click:Connect(SendMsg)
 ChatBox.FocusLost:Connect(function(e) if e then SendMsg() end end)
 
 -- ================================================================= --
--- [📡 FIXED ANTI-CACHE POLLING LOGIC]
+-- [📡 PERFECT POLLING LOGIC]
 -- ================================================================= --
 local processedServerIds = {}
 local processedDmIds = {}
@@ -433,17 +434,17 @@ local processedDmIds = {}
 task.spawn(function()
     while getgenv().NEXUS_CHAT_RUNNING do
         pcall(function()
-            -- ANTI-CACHE: Added '?nocache=random' so Firebase NEVER returns old saved data
-            local sQuery = DB_PATH .. '.json?orderBy=%22%24key%22&limitToLast=20&nocache=' .. math.random(100000, 999999)
-            local sRes = reqFunc({UrlParams = sQuery, Method = "GET"})
+            -- Pure JSON fetch without 'orderBy' or 'nocache' causing Firebase 400 Errors
+            local sRes = reqFunc({UrlParams = DB_PATH .. '.json', Method = "GET"})
             
             if sRes.Success then
                 if sRes.Body == "null" then
-                    StatusDot.BackgroundColor3 = Color3.fromRGB(255, 255, 0) -- Yellow (Empty Database)
+                    StatusDot.BackgroundColor3 = Color3.fromRGB(255, 255, 0) -- Yellow
                 else
-                    StatusDot.BackgroundColor3 = Color3.fromRGB(0, 255, 0) -- Green (Connected & Reading)
+                    StatusDot.BackgroundColor3 = Color3.fromRGB(0, 255, 0) -- Green
                     local s, data = pcall(function() return HttpService:JSONDecode(sRes.Body) end)
-                    if s and type(data) == "table" then
+                    
+                    if s and type(data) == "table" and not data.error then
                         for key, msgData in pairs(data) do
                             if not processedServerIds[key] then
                                 processedServerIds[key] = true
@@ -457,11 +458,11 @@ task.spawn(function()
                     end
                 end
             else
-                StatusDot.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Red (Proxy/Internet Error)
+                StatusDot.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Red
             end
             
-            -- DM Polling (Anti-Cache)
-            local dRes = reqFunc({UrlParams = "global_dms/" .. myUserId .. ".json?nocache=" .. math.random(100000,999999), Method = "GET"})
+            -- DM Polling
+            local dRes = reqFunc({UrlParams = "global_dms/" .. myUserId .. ".json", Method = "GET"})
             if dRes.Success and dRes.Body and dRes.Body ~= "null" then
                 local s, dms = pcall(function() return HttpService:JSONDecode(dRes.Body) end)
                 if s and type(dms) == "table" then
@@ -484,7 +485,7 @@ task.spawn(function()
                 end
             end
         end)
-        task.wait(2) 
+        task.wait(2.5) 
     end
 end)
 
