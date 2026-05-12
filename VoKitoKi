@@ -1,7 +1,8 @@
 -- ========================================================== --
--- NEXUS CHAT V3.1 (COMPACT 340x320)
--- FIXED: GOOGLE PROXY SYNC ERROR & JSON PARSING
--- FEATURES: RIGHT BUBBLES (YOU) | LEFT BUBBLES (OTHERS)
+-- NEXUS CHAT V3.3 (FINAL PREMIUM EDITION)
+-- CORE: 100% GLOBAL CHAT & DM COMMUNICATION
+-- FIXED: REMOVED JOB_ID, PURE JSON SYNC EVERYWHERE
+-- UI: EXACT 340x320 | RIGHT(YOU) & LEFT(OTHERS) BUBBLES
 -- ========================================================== --
 
 local TweenService = game:GetService("TweenService")
@@ -23,7 +24,8 @@ getgenv().NEXUS_CHAT_RUNNING = true
 -- ================================================================= --
 -- [🔥 PROXY SETUP]
 -- ================================================================= --
-local PROXY_URL = "https://script.google.com/macros/s/AKfycbxKBdkELBG0I0Bz3GN1F-ptoMO0h1ovgXUTvLDWcTHuYWYjC05TAmzbtU9XGLKhwIB-/exec" 
+-- Yahan apna Google Apps Script URL daalein
+local PROXY_URL = "https://script.google.com/macros/s/AKfycbwEejyQDI2nQt1H7icls1f-ndcXV0GJabPGuS1PBusQn66USIOs2HAFXUK1gUeVK5sg/exec" 
 local SECRET_KEY = "NEXUS_PREMIUM_KEY_7788"
 
 local request_func = (syn and syn.request) or (http and http.request) or http_request or (fluxus and fluxus.request) or request
@@ -97,8 +99,10 @@ local function E2EE_Decrypt(text, key)
     return res
 end
 
-local SERVER_ID = (game.JobId ~= "" and string.sub(game.JobId, 1, 8)) or string.sub(tostring(game.PlaceId), 1, 8)
-local DB_PATH = "servers/" .. SERVER_ID .. "/messages"
+-- ================================================================= --
+-- [🌐 GLOBAL PATH SETUP (NO MORE JOB_ID)]
+-- ================================================================= --
+local DB_PATH = "nexus_global_chat/messages"
 local myUserId = tostring(LocalPlayer.UserId)
 local cleanMyName = LocalPlayer.DisplayName
 local messageQueue = {}
@@ -184,7 +188,7 @@ local function CreateTab(name, xPos)
     btn.BackgroundTransparency = 1
     return btn
 end
-local ServerTab = CreateTab("🌍 SERVER", 0)
+local ServerTab = CreateTab("🌍 GLOBAL", 0)
 local DMTab = CreateTab("📩 DM", 0.5)
 
 local ChatContainer = Instance.new("Frame", MainFrame)
@@ -242,6 +246,7 @@ ChatBox.TextColor3 = Colors.Text
 ChatBox.Font = Enum.Font.Gotham
 ChatBox.TextSize = 11
 ChatBox.TextXAlignment = Enum.TextXAlignment.Left
+ChatBox.ClearTextOnFocus = false
 
 local SendBtn = Instance.new("TextButton", InputArea)
 SendBtn.Size = UDim2.new(0, 25, 0, 25)
@@ -269,6 +274,7 @@ ServerTab.MouseButton1Click:Connect(function() SwitchTab("Server") end)
 DMTab.MouseButton1Click:Connect(function() SwitchTab("DM") end)
 SwitchTab("Server")
 
+-- Smooth Dragging Logic
 local dragging, dragInput, dragStart, startPos
 TopBar.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -318,6 +324,7 @@ DMTargetBox.FocusLost:Connect(function()
 end)
 
 local function BuildMessageBubble(container, name, text, isMine)
+    -- Wrapper (takes 100% width)
     local wrapper = Instance.new("Frame", container)
     wrapper.Size = UDim2.new(1, 0, 0, 0) 
     wrapper.AutomaticSize = Enum.AutomaticSize.Y
@@ -362,6 +369,7 @@ local function BuildMessageBubble(container, name, text, isMine)
     local constraint = Instance.new("UISizeConstraint", txt)
     constraint.MaxSize = Vector2.new(230, 9999)
 
+    -- Pop-in Animation
     wrapper.Size = UDim2.new(0,0,0,0)
     TweenService:Create(wrapper, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, 0)}):Play()
     
@@ -396,10 +404,16 @@ local function SendMsg()
         table.insert(messageQueue, payload)
         ProcessQueue()
         BuildMessageBubble(ServerScroll, cleanMyName, txt, true)
+        
     elseif activeTab == "DM" and activeDmTarget then
         local dmKey = getDmConvoKey(myUserId, activeDmTarget) .. "_DM_SECURE"
         local enc = E2EE_Encrypt(txt, dmKey)
-        local payload = {senderId = myUserId, senderName = cleanMyName, text = enc, timestamp = os.time()}
+        local payload = {
+            senderId = myUserId,
+            senderName = cleanMyName,
+            text = enc,
+            timestamp = os.time()
+        }
         task.spawn(function()
             pcall(reqFunc, {UrlParams = "global_dms/" .. activeDmTarget .. ".json", Method = "POST", Body = HttpService:JSONEncode(payload)})
         end)
@@ -409,7 +423,7 @@ end
 SendBtn.MouseButton1Click:Connect(SendMsg)
 ChatBox.FocusLost:Connect(function(e) if e then SendMsg() end end)
 
--- FIXED POLLING LOGIC
+-- FIXED GLOBAL POLLING LOGIC
 local processedServerIds = {}
 local processedDmIds = {}
 
@@ -421,12 +435,13 @@ task.spawn(function()
             local sRes = reqFunc({UrlParams = sQuery, Method = "GET"})
             
             if sRes.Success and sRes.Body and sRes.Body ~= "null" then
-                -- Safe JSON parsing
                 local s, data = pcall(function() return HttpService:JSONDecode(sRes.Body) end)
                 if s and type(data) == "table" then
                     for key, msgData in pairs(data) do
                         if not processedServerIds[key] then
                             processedServerIds[key] = true
+                            
+                            -- Ignore our own messages from polling (already rendered locally)
                             if type(msgData) == "table" and msgData.senderId and tostring(msgData.senderId) ~= myUserId then
                                 local decMsg = E2EE_Decrypt(msgData.text, SERVER_E2EE_KEY)
                                 BuildMessageBubble(ServerScroll, msgData.senderName or "User", decMsg, false)
@@ -464,5 +479,6 @@ task.spawn(function()
     end
 end)
 
+-- Initial Startup Animation
 MainFrame.Size = UDim2.new(0, 0, 0, 0)
 TweenService:Create(MainFrame, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Size = UDim2.new(0, 340, 0, 320)}):Play()
