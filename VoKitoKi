@@ -1,6 +1,7 @@
 -- ========================================================== --
--- NEXUS CHAT V1.0 (PREMIUM EDITION) - DEBUG MODE
--- CORE: STRICTLY SERVER & DM COMMUNICATION
+-- NEXUS CHAT V1.0 (PUBLIC PREMIUM EDITION)
+-- CORE: SERVER & DM COMMUNICATION
+-- SECURE: PROXY & E2EE ENCRYPTION (NO WHITELIST KICKS)
 -- ========================================================== --
 
 local TweenService = game:GetService("TweenService")
@@ -19,13 +20,16 @@ if getgenv().NEXUS_CHAT_RUNNING then
 end
 getgenv().NEXUS_CHAT_RUNNING = true
 
--- [🔥 GOOGLE PROXY SETUP & AUTH]
+-- ================================================================= --
+-- [🔥 GOOGLE PROXY SETUP & EXECUTOR FIX]
+-- ================================================================= --
 local PROXY_URL = "https://script.google.com/macros/s/AKfycbwEejyQDI2nQt1H7icls1f-ndcXV0GJabPGuS1PBusQn66USIOs2HAFXUK1gUeVK5sg/exec" 
 local SECRET_KEY = "NEXUS_PREMIUM_KEY_7788"
 
-local _EXEC_REQ = (syn and syn.request) or (http and http.request) or http_request or request or (fluxus and fluxus.request)
-if not _EXEC_REQ then 
-    warn("Executor not supported") 
+-- UNIVERSAL EXECUTOR REQUEST (Fixes "executor req failed")
+local request_func = (syn and syn.request) or (http and http.request) or http_request or (fluxus and fluxus.request) or request
+if not request_func then 
+    LocalPlayer:Kick("\n🛡️ NEXUS CHAT\nYour Executor does not support HTTP Requests!") 
     return 
 end
 
@@ -36,7 +40,10 @@ local function reqFunc(options)
     local requestData = {
         Url = PROXY_URL,
         Method = "POST", 
-        Headers = {["Content-Type"] = "application/json"},
+        Headers = {
+            ["Content-Type"] = "application/json",
+            ["User-Agent"] = "Roblox/NexusChat"
+        },
         Body = HttpService:JSONEncode({
             secret_key = SECRET_KEY,
             method = method,
@@ -45,64 +52,14 @@ local function reqFunc(options)
         })
     }
 
-    local s, r = pcall(_EXEC_REQ, requestData)
+    local s, r = pcall(request_func, requestData)
     
-    if s and r then
-        return r
+    if s and r and r.Body ~= "ACCESS_DENIED" and r.Body ~= "FORBIDDEN_PATH" then
+        return {Success = true, Body = r.Body}
     else
-        return {Success = false, Body = "REQUEST_FAILED"}
+        return {Success = false, Body = "null"}
     end
 end
-
--- ================================================================= --
--- [🛡️ ADVANCED WHITELIST CHECK (ANTI-KICK DEBUG)]
--- ================================================================= --
-local myUserId = tostring(LocalPlayer.UserId)
-local cleanMyName = LocalPlayer.DisplayName
-
-local function CheckWhitelist()
-    local res = reqFunc({
-        UrlParams = "whitelist/" .. myUserId .. ".json",
-        Method = "GET"
-    })
-    
-    if res.Success and res.Body == "true" then
-        print("✅ NEXUS: Whitelist Verified!")
-        return true
-    else
-        -- KICK KI JAGAH SCREEN PAR ERROR DIKHAYEGA
-        local errorMsg = "UNKNOWN ERROR"
-        if not res.Success or res.Body == "REQUEST_FAILED" then
-            errorMsg = "Roblox executor request failed!"
-        elseif res.Body == "ACCESS_DENIED" then
-            errorMsg = "Secret Key mismatch in Google Script!"
-        elseif res.Body == "FORBIDDEN_PATH" then
-            errorMsg = "Google Script blocked the path!"
-        elseif tostring(res.Body):match("html") then
-            errorMsg = "Google Script deployment error! Set access to 'Anyone'."
-        elseif res.Body == "null" then
-            errorMsg = "Your UserID ("..myUserId..") is NOT in Firebase whitelist!"
-        else
-            errorMsg = "Proxy returned: " .. tostring(res.Body)
-        end
-
-        local sg = Instance.new("ScreenGui", UI_PARENT)
-        local tl = Instance.new("TextLabel", sg)
-        tl.Size = UDim2.new(1, 0, 0, 60)
-        tl.Position = UDim2.new(0, 0, 0, 0)
-        tl.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
-        tl.TextColor3 = Color3.fromRGB(255, 255, 255)
-        tl.TextSize = 20
-        tl.Font = Enum.Font.GothamBold
-        tl.Text = "❌ WHITELIST ERROR: " .. errorMsg
-        
-        task.wait(10)
-        pcall(function() sg:Destroy() end)
-        return false
-    end
-end
-
-if not CheckWhitelist() then return end
 
 -- ================================================================= --
 -- [🔐 E2EE ENCRYPTION]
@@ -153,6 +110,8 @@ end
 -- Variables
 local SERVER_ID = (game.JobId ~= "" and string.sub(game.JobId, 1, 8)) or string.sub(tostring(game.PlaceId), 1, 8)
 local DB_PATH = "servers/" .. SERVER_ID .. "/messages"
+local myUserId = tostring(LocalPlayer.UserId)
+local cleanMyName = LocalPlayer.DisplayName
 local messageQueue = {}
 
 local function getDmConvoKey(uid1, uid2)
@@ -162,7 +121,7 @@ local function getDmConvoKey(uid1, uid2)
 end
 
 -- ================================================================= --
--- [🎨 BRAND NEW UI : NEXUS (SIDE-NAV DESIGN)]
+-- [🎨 UI : NEXUS (SIDE-NAV DESIGN)]
 -- ================================================================= --
 if UI_PARENT:FindFirstChild("NexusChat_GUI") then UI_PARENT.NexusChat_GUI:Destroy() end
 
@@ -279,7 +238,7 @@ ServerSendBtn.BackgroundTransparency = 1
 ServerSendBtn.Font = Enum.Font.GothamBold
 ServerSendBtn.TextSize = 16
 
--- DM Chat UI (Simplified List & Chat unified)
+-- DM Chat UI 
 local DMFrame = Instance.new("Frame", ContentArea)
 DMFrame.Size = UDim2.new(1, 0, 1, 0)
 DMFrame.BackgroundTransparency = 1
@@ -395,7 +354,6 @@ DMTargetInput.FocusLost:Connect(function()
     if uid then
         activeDmTarget = tostring(uid)
         DMTopBar.Text = "Chatting with: " .. activeDmTarget
-        -- Clear old DM UI messages
         for _,v in ipairs(DMScroll:GetChildren()) do if v:IsA("Frame") then v:Destroy() end end
     end
 end)
@@ -432,7 +390,6 @@ local function BuildMessageBubble(container, name, text, isMine)
     local constraint = Instance.new("UISizeConstraint", txt)
     constraint.MaxSize = Vector2.new(250, 9999)
     
-    -- Auto scroll
     task.delay(0.1, function()
         container.CanvasPosition = Vector2.new(0, container.AbsoluteWindowSize.Y + 9999)
     end)
@@ -516,7 +473,6 @@ task.spawn(function()
                         if activeTab == "DM" and activeDmTarget == sUid then
                             BuildMessageBubble(DMScroll, mVal.senderName, decText, false)
                         else
-                            -- Show tiny notification on button if not viewing
                             TabDM.Text = "📩 Messages (*)"
                             task.delay(3, function() TabDM.Text = "📩 Messages" end)
                         end
