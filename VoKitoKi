@@ -1,7 +1,8 @@
 -- ========================================================== --
--- NEXUS CHAT V2.0 (PREMIUM COMPACT EDITION)
--- THEME: DARK GLASSMORPHISM | ALL MESSAGES RIGHT-ALIGNED
--- SECURE: PROXY & E2EE ENCRYPTION
+-- NEXUS CHAT V3.0 (PREMIUM COMPACT EDITION)
+-- CORE: STRICTLY SERVER & DM COMMUNICATION
+-- FIXED: MESSAGE SYNC & 320px HEIGHT UI
+-- SECURE: PROXY & E2EE ENCRYPTION ACTIVE
 -- ========================================================== --
 
 local TweenService = game:GetService("TweenService")
@@ -36,7 +37,7 @@ local function reqFunc(options)
     local method = options.Method or "GET"
     local requestData = {
         Url = PROXY_URL,
-        Method = "POST", 
+        Method = "POST", -- Proxy needs POST to verify Secret Key
         Headers = { ["Content-Type"] = "application/json", ["User-Agent"] = "Roblox/NexusChat" },
         Body = HttpService:JSONEncode({
             secret_key = SECRET_KEY,
@@ -109,7 +110,7 @@ local function getDmConvoKey(uid1, uid2)
 end
 
 -- ================================================================= --
--- [🎨 UI DESIGN : MAST DRAGGABLE BOX]
+-- [🎨 UI DESIGN : 340x320 COMPACT BOX]
 -- ================================================================= --
 if UI_PARENT:FindFirstChild("NexusPremiumUI") then UI_PARENT.NexusPremiumUI:Destroy() end
 
@@ -122,16 +123,16 @@ local Colors = {
     Bg = Color3.fromRGB(18, 18, 24),
     TopBar = Color3.fromRGB(25, 25, 32),
     Accent = Color3.fromRGB(0, 140, 255),
-    MyBubble = Color3.fromRGB(0, 80, 180),
-    OtherBubble = Color3.fromRGB(45, 40, 60),
+    MyBubble = Color3.fromRGB(0, 90, 200),
+    OtherBubble = Color3.fromRGB(40, 40, 48),
     Text = Color3.fromRGB(240, 240, 240),
     Dim = Color3.fromRGB(150, 150, 160)
 }
 
--- Main Box
+-- Main Box (Exact 340 Width x 320 Height)
 local MainFrame = Instance.new("Frame", NexusGui)
-MainFrame.Size = UDim2.new(0, 360, 0, 380)
-MainFrame.Position = UDim2.new(0.5, -180, 0.5, -190)
+MainFrame.Size = UDim2.new(0, 340, 0, 320)
+MainFrame.Position = UDim2.new(0.5, -170, 0.5, -160)
 MainFrame.BackgroundColor3 = Colors.Bg
 MainFrame.BorderSizePixel = 0
 MainFrame.ClipsDescendants = true
@@ -154,7 +155,7 @@ Title.Size = UDim2.new(1, -50, 1, 0)
 Title.Position = UDim2.new(0, 15, 0, 0)
 Title.Text = "⚡ NEXUS CHAT"
 Title.Font = Enum.Font.GothamBlack
-Title.TextSize = 14
+Title.TextSize = 13
 Title.TextColor3 = Colors.Text
 Title.BackgroundTransparency = 1
 Title.TextXAlignment = Enum.TextXAlignment.Left
@@ -182,7 +183,7 @@ local function CreateTab(name, xPos)
     btn.Position = UDim2.new(xPos, 0, 0, 0)
     btn.Text = name
     btn.Font = Enum.Font.GothamBold
-    btn.TextSize = 12
+    btn.TextSize = 11
     btn.TextColor3 = Colors.Dim
     btn.BackgroundTransparency = 1
     return btn
@@ -192,34 +193,30 @@ local DMTab = CreateTab("📩 DM", 0.5)
 
 -- Chat Containers
 local ChatContainer = Instance.new("Frame", MainFrame)
-ChatContainer.Size = UDim2.new(1, 0, 1, -115)
+ChatContainer.Size = UDim2.new(1, 0, 1, -115) -- Adjusts perfectly to leave space for Top, Tab, and Input
 ChatContainer.Position = UDim2.new(0, 0, 0, 70)
 ChatContainer.BackgroundTransparency = 1
 
 local ServerScroll = Instance.new("ScrollingFrame", ChatContainer)
-ServerScroll.Size = UDim2.new(1, -20, 1, -10)
+ServerScroll.Size = UDim2.new(1, -20, 1, -5)
 ServerScroll.Position = UDim2.new(0, 10, 0, 5)
 ServerScroll.BackgroundTransparency = 1
 ServerScroll.ScrollBarThickness = 2
 ServerScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
 local ServerLayout = Instance.new("UIListLayout", ServerScroll)
-ServerLayout.Padding = UDim.new(0, 10)
+ServerLayout.Padding = UDim.new(0, 8)
 ServerLayout.SortOrder = Enum.SortOrder.LayoutOrder
--- ALL MESSAGES ALIGNED TO THE RIGHT
-ServerLayout.HorizontalAlignment = Enum.HorizontalAlignment.Right
 
 local DMScroll = Instance.new("ScrollingFrame", ChatContainer)
-DMScroll.Size = UDim2.new(1, -20, 1, -40)
+DMScroll.Size = UDim2.new(1, -20, 1, -35)
 DMScroll.Position = UDim2.new(0, 10, 0, 35)
 DMScroll.BackgroundTransparency = 1
 DMScroll.ScrollBarThickness = 2
 DMScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
 DMScroll.Visible = false
 local DMLayout = Instance.new("UIListLayout", DMScroll)
-DMLayout.Padding = UDim.new(0, 10)
+DMLayout.Padding = UDim.new(0, 8)
 DMLayout.SortOrder = Enum.SortOrder.LayoutOrder
--- ALL MESSAGES ALIGNED TO THE RIGHT
-DMLayout.HorizontalAlignment = Enum.HorizontalAlignment.Right
 
 local DMTargetBox = Instance.new("TextBox", ChatContainer)
 DMTargetBox.Size = UDim2.new(1, -20, 0, 25)
@@ -232,7 +229,7 @@ DMTargetBox.TextSize = 11
 DMTargetBox.Visible = false
 Instance.new("UICorner", DMTargetBox).CornerRadius = UDim.new(0, 6)
 
--- Input Area
+-- Input Area (Bottom)
 local InputArea = Instance.new("Frame", MainFrame)
 InputArea.Size = UDim2.new(1, -20, 0, 35)
 InputArea.Position = UDim2.new(0, 10, 1, -40)
@@ -282,18 +279,20 @@ SwitchTab("Server")
 -- Dragging Logic
 local dragging, dragInput, dragStart, startPos
 TopBar.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
         dragging = true; dragStart = input.Position; startPos = MainFrame.Position
     end
 end)
 UserInputService.InputChanged:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseMovement and dragging then
-        local delta = input.Position - dragStart
-        MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+        if dragging then
+            local delta = input.Position - dragStart
+            MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
     end
 end)
 UserInputService.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then dragging = false end
 end)
 
 local ToggleIcon = Instance.new("TextButton", NexusGui)
@@ -309,12 +308,12 @@ ToggleIcon.MouseButton1Click:Connect(function()
     MainFrame.Visible = not MainFrame.Visible 
     if MainFrame.Visible then
         MainFrame.Size = UDim2.new(0,0,0,0)
-        TweenService:Create(MainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Size = UDim2.new(0,360,0,380)}):Play()
+        TweenService:Create(MainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Size = UDim2.new(0,340,0,320)}):Play()
     end
 end)
 
 -- ================================================================= --
--- [🚀 CHAT SYSTEM & PREMIUM BUBBLES]
+-- [🚀 CHAT SYSTEM & BUBBLES]
 -- ================================================================= --
 local activeDmTarget = nil
 DMTargetBox.FocusLost:Connect(function()
@@ -326,12 +325,11 @@ DMTargetBox.FocusLost:Connect(function()
     end
 end)
 
--- ✨ PREMIUM BUBBLE BUILDER (ALL RIGHT ALIGNED)
+-- ✨ PREMIUM BUBBLES (Yours on Right, Others on Left)
 local function BuildMessageBubble(container, name, text, isMine)
-    -- Wrapper Frame (Right Aligned automatically by UIListLayout)
     local wrapper = Instance.new("Frame", container)
-    wrapper.Size = UDim2.new(0, 0, 0, 0) -- Starts at 0 for Pop-in Animation
-    wrapper.AutomaticSize = Enum.AutomaticSize.XY
+    wrapper.Size = UDim2.new(1, 0, 0, 0) -- 100% width to handle Left/Right alignment
+    wrapper.AutomaticSize = Enum.AutomaticSize.Y
     wrapper.BackgroundTransparency = 1
 
     local bubble = Instance.new("Frame", wrapper)
@@ -340,35 +338,44 @@ local function BuildMessageBubble(container, name, text, isMine)
     Instance.new("UICorner", bubble).CornerRadius = UDim.new(0, 10)
     
     local pad = Instance.new("UIPadding", bubble)
-    pad.PaddingTop = UDim.new(0,8); pad.PaddingBottom = UDim.new(0,8)
-    pad.PaddingLeft = UDim.new(0,12); pad.PaddingRight = UDim.new(0,12)
+    pad.PaddingTop = UDim.new(0,6); pad.PaddingBottom = UDim.new(0,6)
+    pad.PaddingLeft = UDim.new(0,10); pad.PaddingRight = UDim.new(0,10)
 
     -- Glow/Stroke
     local bStroke = Instance.new("UIStroke", bubble)
-    bStroke.Color = isMine and Colors.Accent or Color3.fromRGB(90, 80, 120)
-    bStroke.Thickness = 1.2
-    bStroke.Transparency = 0.2
+    bStroke.Color = isMine and Colors.Accent or Color3.fromRGB(80, 80, 90)
+    bStroke.Thickness = 1
+    bStroke.Transparency = 0.3
+
+    -- Alignment logic
+    if isMine then
+        bubble.AnchorPoint = Vector2.new(1, 0)
+        bubble.Position = UDim2.new(1, 0, 0, 0)
+    else
+        bubble.AnchorPoint = Vector2.new(0, 0)
+        bubble.Position = UDim2.new(0, 0, 0, 0)
+    end
 
     local txt = Instance.new("TextLabel", bubble)
     txt.BackgroundTransparency = 1
-    -- Rich text: Dimmed name on top, Message below. Text is Right Aligned.
-    local nameHex = isMine and "#00aaff" or "#a0a0b0"
+    
+    local nameHex = isMine and "#88ccff" or "#a0a0b0"
     txt.Text = "<font size='10' color='"..nameHex.."'><b>" .. name .. "</b></font>\n" .. text
     txt.RichText = true
     txt.Font = Enum.Font.Gotham
-    txt.TextSize = 13
+    txt.TextSize = 12
     txt.TextColor3 = Colors.Text
-    txt.TextXAlignment = Enum.TextXAlignment.Right -- Forces text to look nice on the right side
+    txt.TextXAlignment = isMine and Enum.TextXAlignment.Right or Enum.TextXAlignment.Left
     txt.AutomaticSize = Enum.AutomaticSize.XY
     txt.TextWrapped = true
     
     local constraint = Instance.new("UISizeConstraint", txt)
-    constraint.MaxSize = Vector2.new(240, 9999)
+    constraint.MaxSize = Vector2.new(220, 9999) -- Fits perfectly in 340 width box
 
     -- Pop-in Animation
+    wrapper.Size = UDim2.new(0,0,0,0)
     TweenService:Create(wrapper, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, 0)}):Play()
     
-    -- Auto scroll down
     task.delay(0.1, function()
         container.CanvasPosition = Vector2.new(0, container.AbsoluteWindowSize.Y + 9999)
     end)
@@ -392,8 +399,14 @@ local function SendMsg()
 
     if activeTab == "Server" then
         local enc = E2EE_Encrypt(txt, SERVER_E2EE_KEY)
-        local payload = cleanMyName .. ": " .. enc .. " ||" .. myUserId
-        table.insert(messageQueue, {text = payload, timestamp = os.time()})
+        -- Using JSON format to prevent string match errors
+        local payload = {
+            senderId = myUserId,
+            senderName = cleanMyName,
+            text = enc,
+            timestamp = os.time()
+        }
+        table.insert(messageQueue, payload)
         ProcessQueue()
         BuildMessageBubble(ServerScroll, cleanMyName, txt, true)
     elseif activeTab == "DM" and activeDmTarget then
@@ -416,24 +429,26 @@ local processedDmIds = {}
 task.spawn(function()
     while getgenv().NEXUS_CHAT_RUNNING do
         pcall(function()
-            -- Server
-            local sRes = reqFunc({UrlParams = DB_PATH .. '.json?orderBy="$key"&limitToLast=15', Method = "GET"})
+            -- Server Polling (URL Encoded queries)
+            local sQuery = DB_PATH .. '.json?orderBy=%22%24key%22&limitToLast=15'
+            local sRes = reqFunc({UrlParams = sQuery, Method = "GET"})
+            
             if sRes.Success and sRes.Body ~= "null" then
                 local data = HttpService:JSONDecode(sRes.Body)
                 for key, msgData in pairs(data) do
                     if not processedServerIds[key] then
                         processedServerIds[key] = true
-                        local mtext = msgData.text
-                        local senderPart, msgPart, uidPart = mtext:match("^(.-):%s(.+)%s*||([%w_]+)$")
-                        if senderPart and msgPart and uidPart ~= myUserId then
-                            local decMsg = E2EE_Decrypt(msgPart, SERVER_E2EE_KEY)
-                            BuildMessageBubble(ServerScroll, senderPart, decMsg, false)
+                        
+                        -- Using the new JSON parsing (Bug Fix for missing messages)
+                        if msgData.senderId and msgData.senderId ~= myUserId then
+                            local decMsg = E2EE_Decrypt(msgData.text, SERVER_E2EE_KEY)
+                            BuildMessageBubble(ServerScroll, msgData.senderName, decMsg, false)
                         end
                     end
                 end
             end
             
-            -- DMs
+            -- DM Polling
             local dRes = reqFunc({UrlParams = "global_dms/" .. myUserId .. ".json", Method = "GET"})
             if dRes.Success and dRes.Body ~= "null" then
                 local dms = HttpService:JSONDecode(dRes.Body)
@@ -461,4 +476,4 @@ end)
 
 -- Init Anim
 MainFrame.Size = UDim2.new(0, 0, 0, 0)
-TweenService:Create(MainFrame, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Size = UDim2.new(0, 360, 0, 380)}):Play()
+TweenService:Create(MainFrame, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Size = UDim2.new(0, 340, 0, 320)}):Play()
